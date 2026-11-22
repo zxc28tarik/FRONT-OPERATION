@@ -2641,10 +2641,10 @@
           map: texAsphalt.map, bumpMap: texAsphalt.bumpMap, bumpScale: 0.05, roughness: 0.88, metalness: 0.06
         });
         const matConcrete = new THREE.MeshStandardMaterial({
-          map: texConcrete.map, bumpMap: texConcrete.bumpMap, bumpScale: 0.04, roughness: 0.82, metalness: 0.05
+          map: texConcrete.map, bumpMap: texConcrete.bumpMap, bumpScale: 0.05, roughness: 0.84, metalness: 0.06
         });
         const matWeathered = new THREE.MeshStandardMaterial({
-          map: texWeathered.map, bumpMap: texWeathered.bumpMap, bumpScale: 0.06, roughness: 0.86, metalness: 0.06
+          map: texWeathered.map, bumpMap: texWeathered.bumpMap, bumpScale: 0.06, roughness: 0.86, metalness: 0.08
         });
         const matSteel = new THREE.MeshStandardMaterial({
           map: texSteel.map, bumpMap: texSteel.bumpMap, bumpScale: 0.04, roughness: 0.44, metalness: 0.72
@@ -2668,13 +2668,13 @@
           map: texHazard.map, bumpMap: texHazard.bumpMap, bumpScale: 0.03, roughness: 0.62, metalness: 0.25
         });
         const matContRed = new THREE.MeshStandardMaterial({
-          map: texContRed.map, bumpMap: texContRed.bumpMap, bumpScale: 0.08, roughness: 0.56, metalness: 0.52
+          map: texContRed.map, bumpMap: texContRed.bumpMap, bumpScale: 0.08, roughness: 0.56, metalness: 0.48
         });
         const matContBlue = new THREE.MeshStandardMaterial({
-          map: texContBlue.map, bumpMap: texContBlue.bumpMap, bumpScale: 0.08, roughness: 0.56, metalness: 0.52
+          map: texContBlue.map, bumpMap: texContBlue.bumpMap, bumpScale: 0.08, roughness: 0.56, metalness: 0.48
         });
         const matContRust = new THREE.MeshStandardMaterial({
-          map: texContRust.map, bumpMap: texContRust.bumpMap, bumpScale: 0.09, roughness: 0.66, metalness: 0.48
+          map: texContRust.map, bumpMap: texContRust.bumpMap, bumpScale: 0.09, roughness: 0.64, metalness: 0.42
         });
         const matBlueTrim = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.52, metalness: 0.3 });
         const matRedTrim = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.52, metalness: 0.3 });
@@ -2715,6 +2715,32 @@
         const doorBarGeo = new THREE.CylinderGeometry(0.035, 0.035, 2.45, 6);
         const hingeGeo = new THREE.BoxGeometry(0.08, 0.16, 0.08);
 
+
+        // V5 original ISO corner/top-rail and double-door lock heritage, scenery only.
+        function detailShippingContainer(x, y, z, w, h, d, isRotated = false) {
+          const rail = new THREE.BoxGeometry(w + 0.06, 0.095, d + 0.06);
+          addDecoMesh(rail, matDarkIron, x, y + h / 2 - 0.065, z);
+          addDecoMesh(rail, matDarkIron, x, y - h / 2 + 0.065, z);
+          if (!isRotated) {
+            const faceZ = z + d / 2 + 0.045;
+            addDecoMesh(new THREE.BoxGeometry(0.045, h - 0.18, 0.028), matDarkIron, x, y, faceZ);
+            for (const shift of [-0.27, 0.27]) {
+              const px = x + w * shift;
+              addDecoMesh(new THREE.BoxGeometry(0.08, h * 0.75, 0.05), matGalvanized, px, y, faceZ + 0.014);
+              addDecoMesh(new THREE.BoxGeometry(0.16, 0.09, 0.075), matDarkIron, px, y + h * 0.12, faceZ + 0.022);
+            }
+          } else {
+            // Actual X half-width is w/2; the old rotated door rods were floating at d/2.
+            const faceX = x + w / 2 + 0.045;
+            addDecoMesh(new THREE.BoxGeometry(0.028, h - 0.18, 0.045), matDarkIron, faceX, y, z);
+            for (const shift of [-0.27, 0.27]) {
+              const pz = z + d * shift;
+              addDecoMesh(new THREE.BoxGeometry(0.05, h * 0.75, 0.08), matGalvanized, faceX + 0.015, y, pz);
+              addDecoMesh(new THREE.BoxGeometry(0.075, 0.09, 0.16), matDarkIron, faceX + 0.022, y + h * 0.12, pz);
+            }
+          }
+        }
+
         function buildDetailedContainer(x, y, z, w, h, d, matBody, isRotated = false) {
           addSolidBox(x, y, z, w, h, d, matBody, true, true, true);
           const cw = isRotated ? d : w;
@@ -2736,28 +2762,55 @@
               addDecoMesh(hingeGeo, matDarkIron, x - halfW + 0.06, y + 0.7, z + halfD + 0.03, 0, 0, 0, false, true, true);
               addDecoMesh(hingeGeo, matDarkIron, x + halfW - 0.06, y - 0.7, z + halfD + 0.03, 0, 0, 0, false, true, true);
             } else {
-              addDecoMesh(doorBarGeo, matGalvanized, x + halfW + 0.04, y, z + offset, 0, 0, 0, false, true, true);
-              addDecoMesh(doorBarGeo, matGalvanized, x - halfW - 0.04, y, z + offset, 0, 0, 0, false, true, true);
+              addDecoMesh(doorBarGeo, matGalvanized, x + w / 2 + 0.04, y, z + offset, 0, 0, 0, false, true, true);
+              addDecoMesh(doorBarGeo, matGalvanized, x - w / 2 - 0.04, y, z + offset, 0, 0, 0, false, true, true);
             }
           });
+          detailShippingContainer(x, y, z, w, h, d, isRotated);
         }
 
+
+        // V5 exposed alternating burlap courses, adjusted to V25 wall dimensions.
         const bagUnitGeo = new THREE.BoxGeometry(0.76, 0.25, 0.42);
+        const bagHemGeo = new THREE.BoxGeometry(0.62, 0.025, 0.04);
+        const matBagHem = new THREE.MeshStandardMaterial({ color: 0x4b4236, roughness: 0.98 });
         function buildDetailedSandbagWall(x, z, w, h, d) {
           addSolidBox(x, h / 2, z, w, h, d, matSandbag, true, true, false);
-          const rows = Math.max(2, Math.round(h / 0.26));
-          const isAlongX = w >= d;
-          const span = isAlongX ? w : d;
-          const count = Math.max(2, Math.floor(span / 0.78));
-          for (let r = 0; r < rows; r++) {
-            const py = 0.14 + r * 0.26;
-            const stagger = (r % 2 === 0 ? -0.04 : 0.04);
-            for (let i = 0; i < count; i++) {
-              const frac = -span / 2 + (i + 0.5) * (span / count);
-              if (isAlongX) {
-                addDecoMesh(bagUnitGeo, matSandbag, x + frac, py, z + stagger, 0, (r % 2) * 0.04, 0, false, true, false);
+          const alongX = w >= d, span = alongX ? w : d;
+          const rows = Math.max(3, Math.round(h / 0.24));
+          const count = Math.max(2, Math.floor(span / 0.76));
+          for (let row = 0; row < rows; row++) {
+            const py = Math.min(h - 0.11, 0.125 + row * 0.24);
+            const stagger = row % 2 ? 0.24 : 0;
+            for (let j = 0; j < count; j++) {
+              const coord = -span / 2 + (j + 0.5) * span / count + (j < count - 1 ? stagger * 0.35 : 0);
+              for (const face of [-1, 1]) {
+                const facePos = (alongX ? d : w) / 2 - 0.075;
+                const bx = alongX ? x + coord : x + face * facePos;
+                const bz = alongX ? z + face * facePos : z + coord;
+                addDecoMesh(bagUnitGeo, matSandbag, bx, py, bz, 0, alongX ? (row % 2) * 0.035 : Math.PI / 2);
+                if (alongX) {
+                  addDecoMesh(bagHemGeo, matBagHem, bx, py + 0.035, bz + face * 0.225);
+                } else {
+                  addDecoMesh(bagHemGeo, matBagHem, bx + face * 0.225, py + 0.035, bz, 0, Math.PI / 2);
+                }
+              }
+            }
+          }
+        }
+
+        function detailJerseyBarrier(x, z, length, alongX = true) {
+          // V5 mould seams over V25 solid body; no extra physical obstacles.
+          const slots = Math.max(2, Math.floor(length / 1.5));
+          for (let j = 1; j < slots; j++) {
+            const offset = -length / 2 + length * j / slots;
+            for (const face of [-1, 1]) {
+              if (alongX) {
+                addDecoMesh(new THREE.BoxGeometry(0.075, 0.35, 0.025), matDarkIron,
+                  x + offset, 0.48, z + face * 0.435);
               } else {
-                addDecoMesh(bagUnitGeo, matSandbag, x + stagger, py, z + frac, 0, Math.PI / 2 + (r % 2) * 0.04, 0, false, true, false);
+                addDecoMesh(new THREE.BoxGeometry(0.025, 0.35, 0.075), matDarkIron,
+                  x + face * 0.435, 0.48, z + offset);
               }
             }
           }
@@ -2773,6 +2826,7 @@
             addDecoMesh(new THREE.BoxGeometry(0.96, 0.22, length + 0.04), matWeathered, x, 0.12, z);
             addDecoMesh(new THREE.BoxGeometry(0.90, 0.14, length - 0.1), matHazard, x, 0.68, z);
           }
+          detailJerseyBarrier(x, z, length, alongX);
         }
 
         // SPAWN BASES: DERBARAN (SOUTH, Z = +48) & N.I.U. (NORTH, Z = -48)
