@@ -4301,6 +4301,47 @@
         return m;
       }
 
+      // Preserve V25's complete articulated soldier; layer selected V11 silhouette details.
+      let SOLDIER_V11_DETAIL_GEOMETRIES = null;
+      function enhanceV25SoldierWithV11Details(model, team, classId) {
+        if (!SOLDIER_V11_DETAIL_GEOMETRIES) {
+          SOLDIER_V11_DETAIL_GEOMETRIES = {
+            cargoPocket: new THREE.BoxGeometry(0.030, 0.142, 0.105),
+            rearBeltPouch: new THREE.BoxGeometry(0.09, 0.105, 0.065),
+            carrierStrap: new THREE.BoxGeometry(0.059, 0.035, 0.255),
+            medicSideRoll: new THREE.CylinderGeometry(0.036, 0.036, 0.20, 10)
+          };
+        }
+        const { mats } = getSoldierSharedAssets();
+        const G = SOLDIER_V11_DETAIL_GEOMETRIES;
+        const pantsMat = team === 'blue' ? mats.bluePants : mats.redPants;
+        // Pockets animate with their respective hip pivots.
+        for (const [hip, side] of [[model.leftHip, -1], [model.rightHip, 1]]) {
+          const pocket = createLimbMesh(G.cargoPocket, pantsMat, false);
+          pocket.position.set(side * 0.081, -0.19, 0.005);
+          hip.add(pocket);
+        }
+        const rearPouch = createLimbMesh(G.rearBeltPouch, mats.pouchCoyote, false);
+        rearPouch.position.set(0, 0.91, -0.155);
+        model.root.add(rearPouch);
+        // Retention straps across the unchanged V25 front/back plate carrier.
+        for (const x of [-0.122, 0.122]) {
+          const strap = createLimbMesh(G.carrierStrap, mats.vestRig, false);
+          strap.position.set(x, 0.457, 0);
+          model.upperBody.add(strap);
+        }
+        // V11 medic backpack's side roll, without replacing the V25 loadout.
+        if (classId === 'medic') {
+          const medRoll = createLimbMesh(G.medicSideRoll, mats.pouchCoyote, false);
+          medRoll.position.set(0.166, 0.29, -0.185);
+          model.upperBody.add(medRoll);
+        }
+        return model;
+      }
+      function createEnhancedBotSoldierMesh(team, classId) {
+        return enhanceV25SoldierWithV11Details(createBotSoldierMesh(team, classId), team, classId);
+      }
+
       function createBotSoldierMesh(team, classId) {
         const { mats, geos } = getSoldierSharedAssets();
         const isBlue = team === 'blue';
@@ -5236,7 +5277,7 @@
           this.operatorAlertTimer = 0;
 
           if (!this.playerStandInMesh) {
-            this.playerStandInMesh = createBotSoldierMesh('blue', 'engineer');
+            this.playerStandInMesh = createEnhancedBotSoldierMesh('blue', 'engineer');
             scene.add(this.playerStandInMesh.root);
           }
           this.playerStandInMesh.root.visible = true;
@@ -6625,7 +6666,7 @@ function buildSquadLeadership() {
 
         for (let i = 0; i < 5; i++) {
           const cls = CLASS_ORDER[i % CLASS_ORDER.length];
-          const mesh = createBotSoldierMesh('blue', cls);
+          const mesh = createEnhancedBotSoldierMesh('blue', cls);
           scene.add(mesh.root);
           const bId = 'blue_' + i;
           droneSystem.grantLifeCharge(bId);
@@ -6695,7 +6736,7 @@ function buildSquadLeadership() {
 
         for (let i = 0; i < 6; i++) {
           const cls = CLASS_ORDER[i % CLASS_ORDER.length];
-          const mesh = createBotSoldierMesh('red', cls);
+          const mesh = createEnhancedBotSoldierMesh('red', cls);
           scene.add(mesh.root);
           const bId = 'red_' + i;
           droneSystem.grantLifeCharge(bId);
