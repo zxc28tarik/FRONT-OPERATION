@@ -1,0 +1,691 @@
+--- V18_3A_IZOLE_REFERANS.html
++++ V20_3B_SIPER_IZOLE_V17_3A_TABANLI.html
+@@ -4588,26 +4588,149 @@
+         }
+         return true;
+       }
+ 
+-      function findBestCoverNode(botPos, threatPos) {
+-        const threatEye = new THREE.Vector3(threatPos.x, threatPos.y + 1.45, threatPos.z);
++      const _coverThreatEye = new THREE.Vector3();
++      const _coverCrouchEye = new THREE.Vector3();
++      const _coverStandEye = new THREE.Vector3();
++
++      function getCoverOccupancyCount(nodeIdx, team, excludeBotId) {
++        const n = NAV_NODES[nodeIdx];
++        let count = 0;
++        if (player.alive && player.team === team) {
++          if (Math.hypot(player.pos.x - n.x, player.pos.z - n.z) < 2.3 && Math.abs(player.pos.y - n.y) < 1.3) {
++            count++;
++          }
++        }
++        for (let i = 0; i < bots.length; i++) {
++          const other = bots[i];
++          if (!other.alive || other.team !== team || other.id === excludeBotId) continue;
++          if (other.coverNode === nodeIdx) {
++            count++;
++          } else if (Math.hypot(other.pos.x - n.x, other.pos.z - n.z) < 2.35 && Math.abs(other.pos.y - n.y) < 1.3) {
++            count++;
++          }
++        }
++        return count;
++      }
++
++      function findBestCoverNode(botPos, threatPos, bot = null) {
++        if (!threatPos) return -1;
++        _coverThreatEye.set(threatPos.x, threatPos.y + 1.45, threatPos.z);
++
++        const classId = bot ? bot.classId : 'assault';
++        const team = bot ? bot.team : 'blue';
++        const isWounded = bot ? (bot.hp < (classId === 'heavy' ? 52 : 42)) : false;
++        const maxYDiff = classId === 'sniper' ? 3.8 : 1.35;
++        const minDistFromBot = isWounded ? 0.5 : 1.4;
++        const maxDistFromBot = isWounded ? 28.0 : 25.5;
++
++        const idealRange = classId === 'sniper' ? [22, 52]
++          : classId === 'heavy' ? [13, 34]
++          : classId === 'medic' ? [12, 30]
++          : classId === 'engineer' ? [8, 24]
++          : [10, 28];
++
++        const toThreatX = threatPos.x - botPos.x;
++        const toThreatZ = threatPos.z - botPos.z;
++        const toThreatLen = Math.max(0.001, Math.hypot(toThreatX, toThreatZ));
++        const threatDirX = toThreatX / toThreatLen;
++        const threatDirZ = toThreatZ / toThreatLen;
++
+         let bestNode = -1;
+         let bestScore = Infinity;
++        let bestIsPartial = false;
++        let bestIsFull = false;
++
+         for (let i = 0; i < NAV_NODES.length; i++) {
+           const n = NAV_NODES[i];
+-          if (Math.abs(n.y - botPos.y) > 1.2) continue;
+-          const dBot = Math.hypot(n.x - botPos.x, n.z - botPos.z);
+-          if (dBot < 2.2 || dBot > 26) continue;
+-          const nodeEye = new THREE.Vector3(n.x, n.y + 1.2, n.z);
+-          const concealed = !hasLineOfSight(threatEye, nodeEye);
+-          const score = dBot + (concealed ? -18 : 14);
++          if (Math.abs(n.y - botPos.y) > maxYDiff) continue;
++
++          const dxBot = n.x - botPos.x;
++          const dzBot = n.z - botPos.z;
++          const dBot = Math.hypot(dxBot, dzBot);
++          if (dBot < minDistFromBot || dBot > maxDistFromBot) continue;
++
++          const dThreat = Math.hypot(n.x - threatPos.x, n.z - threatPos.z);
++          if (dThreat < 4.8 && !isWounded) continue;
++
++          _coverCrouchEye.set(n.x, n.y + 0.92, n.z);
++          _coverStandEye.set(n.x, n.y + 1.48, n.z);
++
++          const concealedCrouch = !hasLineOfSight(_coverThreatEye, _coverCrouchEye);
++          const concealedStand = !hasLineOfSight(_coverThreatEye, _coverStandEye);
++          const isFullCover = concealedCrouch && concealedStand;
++          const isPartialCover = concealedCrouch && !concealedStand;
++          if (!isFullCover && !isPartialCover) continue; // no actual line-of-sight protection
++
++          let score = dBot * 0.95;
++
++          if (isFullCover) {
++            score -= isWounded ? 28.0 : 18.5;
++          } else if (isPartialCover) {
++            score -= isWounded ? 14.0 : 22.0;
++          } else {
++            score += 24.0;
++          }
++
++          if (dBot > 0.25) {
++            const moveDirX = dxBot / dBot;
++            const moveDirZ = dzBot / dBot;
++            const towardThreatDot = moveDirX * threatDirX + moveDirZ * threatDirZ;
++            if (isWounded || (bot && bot.state === 'RETREAT')) {
++              if (towardThreatDot > 0.15) score += towardThreatDot * 22.0;
++              else score += towardThreatDot * 9.0;
++            } else {
++              if (towardThreatDot > 0.65) score += 8.5;
++              else if (Math.abs(towardThreatDot) < 0.45) score -= 4.5;
++            }
++          }
++
++          if (dThreat >= idealRange[0] && dThreat <= idealRange[1]) {
++            score -= 6.5;
++          } else if (dThreat < idealRange[0]) {
++            score += (idealRange[0] - dThreat) * 0.65;
++          } else {
++            score += (dThreat - idealRange[1]) * 0.35;
++          }
++
++          if (classId === 'sniper' && (n.tag === 'sniper_south' || n.tag === 'sniper_north' || n.tag === 'mid_cover')) {
++            score -= 9.0;
++          } else if (classId === 'engineer' && (n.tag.endsWith('door') || n.tag.endsWith('entry'))) {
++            score -= 5.5;
++          }
++
++          const occupancy = getCoverOccupancyCount(i, team, bot ? bot.id : null);
++          score += occupancy * 24.0;
++
++          if (bot && bot.coverNode === i && occupancy === 0) {
++            score -= 5.0;
++          }
++
+           if (score < bestScore) {
+             bestScore = score;
+             bestNode = i;
+-          }
++            bestIsPartial = isPartialCover;
++            bestIsFull = isFullCover;
++          }
++        }
++
++        if (bot) {
++          bot._coverEval = {
++            nodeIdx: bestNode,
++            isPartialCover: bestIsPartial,
++            isFullCover: bestIsFull
++          };
+         }
+         return bestNode;
++      }
++
++      function setBotState(bot, nextState, lockSec = 0.85, force = false) {
++        if (bot.state === nextState) return true;
++        if (!force && bot.stateLockTimer > 0) return false;
++        bot.state = nextState;
++        bot.stateLockTimer = lockSec;
++        return true;
+       }
+ 
+       function initBots() {
+         bots.forEach((b) => scene.remove(b.mesh.root));
+@@ -4656,8 +4779,14 @@
+             deathAnimTimer: 0,
+             deathFallDir: i % 2 === 0 ? 1 : -1,
+             lastKnownEnemyPos: null,
+             investigateTimer: 0,
++            coverNode: -1,
++            coverIsPartial: false,
++            coverPhase: 'NONE',
++            coverPhaseTimer: 0,
++            coverSearchCooldown: 0,
++            stateLockTimer: 0,
+             targetId: null,
+             visibleEnemy: null,
+             perceptionTimer: (i % 4) * 0.03 + Math.random() * 0.015,
+             reactionTimer: 0,
+@@ -4713,8 +4842,14 @@
+             deathAnimTimer: 0,
+             deathFallDir: i % 2 === 0 ? 1 : -1,
+             lastKnownEnemyPos: null,
+             investigateTimer: 0,
++            coverNode: -1,
++            coverIsPartial: false,
++            coverPhase: 'NONE',
++            coverPhaseTimer: 0,
++            coverSearchCooldown: 0,
++            stateLockTimer: 0,
+             targetId: null,
+             visibleEnemy: null,
+             perceptionTimer: (i % 4) * 0.03 + Math.random() * 0.015,
+             reactionTimer: 0,
+@@ -4761,8 +4896,14 @@
+         bot.state = 'ADVANCE';
+         bot.burstCount = 0;
+         bot.stuckTimer = 0;
+         bot.blockedNode = -1;
++        bot.coverNode = -1;
++        bot.coverIsPartial = false;
++        bot.coverPhase = 'NONE';
++        bot.coverPhaseTimer = 0;
++        bot.coverSearchCooldown = 0;
++        bot.stateLockTimer = 0;
+         bot.targetId = null;
+         bot.visibleEnemy = null;
+         bot.reactionTimer = 0;
+         bot.reactionRequired = 0.24;
+@@ -4803,8 +4944,11 @@
+           const b = bots[i];
+           if (b.targetId === deadEntityId) {
+             b.targetId = null;
+             b.visibleEnemy = null;
++            b.coverNode = -1;
++            b.coverPhase = 'NONE';
++            b.stateLockTimer = 0;
+             b.reactionTimer = 0;
+             b.targetLockTimer = 0;
+             b.lastKnownEnemyPos = null;
+             b.memoryTargetId = null;
+@@ -4815,8 +4959,11 @@
+           } else if (b.memoryTargetId === deadEntityId) {
+             b.lastKnownEnemyPos = null;
+             b.memoryTargetId = null;
+             b.investigateTimer = 0;
++            b.coverNode = -1;
++            b.coverPhase = 'NONE';
++            b.stateLockTimer = 0;
+             if (b.alive && b.state === 'INVESTIGATE') {
+               b.state = 'ADVANCE';
+             }
+           }
+@@ -6653,13 +6800,15 @@
+             if (bot.muzzleTimer <= 0) bot.mesh.muzzleFlash.visible = false;
+           }
+ 
+           if (bot.abilityCooldown > 0) bot.abilityCooldown -= dt;
++          if (bot.stateLockTimer > 0) bot.stateLockTimer = Math.max(0, bot.stateLockTimer - dt);
++          if (bot.coverSearchCooldown > 0) bot.coverSearchCooldown = Math.max(0, bot.coverSearchCooldown - dt);
+ 
+           bot.stuckTimer += dt;
+           if (bot.stuckTimer >= 0.85) {
+             const moved = bot.pos.distanceTo(bot.lastCheckPos);
+-            if (moved < 0.45 && bot.state !== 'DEFEND_HOLD' && bot.state !== 'TAKE_COVER') {
++            if (moved < 0.45 && bot.state !== 'DEFEND_HOLD' && bot.state !== 'TAKE_COVER' && bot.state !== 'RETREAT') {
+               const sidestepAngle = bot.legYaw + (Math.random() > 0.5 ? Math.PI / 2 : -Math.PI / 2);
+               const sideX = bot.pos.x + Math.sin(sidestepAngle) * 1.4;
+               const sideZ = bot.pos.z + Math.cos(sidestepAngle) * 1.4;
+               if (isPositionWalkable(sideX, bot.pos.y, sideZ)) {
+@@ -6678,8 +6827,11 @@
+           // 3A: bounded vision + staggered scan, target memory and reaction delay.
+           updateBotPerception(bot, dt, targetClaimCounts);
+           const bestEnemy = bot.visibleEnemy;
+           const isReactionReady = !!bestEnemy && bot.reactionTimer >= bot.reactionRequired;
++          // 3B: Only visible targets provide live coordinates; otherwise remember frozen last seen position.
++          const activeThreatPos = bestEnemy ? bestEnemy.pos
++            : ((bot.lastKnownEnemyPos && bot.investigateTimer > 0) ? bot.lastKnownEnemyPos : null);
+ 
+           // Class Tactical Decisions & State Transitions
+           let injuredAlly = null;
+           if (bot.classId === 'medic') {
+@@ -6718,77 +6870,157 @@
+             const dy = (bestEnemy.eye.y) - (bot.pos.y + 1.38);
+             desiredUpperYaw = Math.atan2(dx, dz);
+             desiredAimPitch = Math.max(-0.55, Math.min(0.55, Math.atan2(dy, Math.max(0.5, Math.hypot(dx, dz)))));
+ 
+-            if (bot.hp < 34 || (bot.classId === 'sniper' && distToEnemy < 10.5)) {
+-              bot.state = 'RETREAT';
+-              const coverIdx = findBestCoverNode(bot.pos, bestEnemy.pos);
+-              if (coverIdx !== -1 && bot.goalNode !== coverIdx) {
+-                bot.goalNode = coverIdx;
+-                bot.path = findPathAStar(findNearestNavNode(bot.pos), coverIdx, bot.blockedNode);
+-                bot.pathIndex = 0;
++            const woundedThreshold = bot.classId === 'heavy' ? 52 : 42;
++            const isWounded = bot.hp < woundedThreshold;
++            const isSniperTooClose = bot.classId === 'sniper' && distToEnemy < 11.5;
++
++            if (isWounded || isSniperTooClose) {
++              const targetRetreatState = isSniperTooClose ? 'RETREAT' : 'TAKE_COVER';
++              setBotState(bot, targetRetreatState, 1.25, distToEnemy < 7.5 || bot.hp < 28);
++
++              if (bot.coverNode === -1 && bot.coverSearchCooldown <= 0) {
++                bot.coverSearchCooldown = 0.85;
++                const foundCover = findBestCoverNode(bot.pos, activeThreatPos, bot);
++                if (foundCover !== -1) {
++                  bot.coverNode = foundCover;
++                  bot.coverIsPartial = !!(bot._coverEval && bot._coverEval.isPartialCover);
++                  bot.coverPhase = 'MOVE_TO_COVER';
++                  bot.path = findPathAStar(findNearestNavNode(bot.pos), foundCover, bot.blockedNode);
++                  bot.pathIndex = 0;
++                }
+               }
+-            } else if (bot.hp < 58 && distToEnemy > 14 && Math.random() < 0.02) {
+-              bot.state = 'TAKE_COVER';
+-              const coverIdx = findBestCoverNode(bot.pos, bestEnemy.pos);
+-              if (coverIdx !== -1) {
+-                bot.goalNode = coverIdx;
+-                bot.path = findPathAStar(findNearestNavNode(bot.pos), coverIdx, bot.blockedNode);
+-                bot.pathIndex = 0;
++
++              if (bot.coverNode !== -1) {
++                const cn = NAV_NODES[bot.coverNode];
++                const dCover = Math.hypot(cn.x - bot.pos.x, cn.z - bot.pos.z);
++                if (dCover < 1.35 && Math.abs(cn.y - bot.pos.y) < 1.2) {
++                  bot.coverPhase = 'CROUCH_HOLD';
++                  moveSpeed = 0;
++                  targetCrouch = 1;
++                  if (bot.classId === 'medic' && bot.hp < 55 && bot.abilityCooldown <= 0) {
++                    bot.abilityCooldown = 14;
++                    deployMedkit(bot.pos.clone(), bot.team);
++                  }
++                } else {
++                  moveSpeed = bot.classId === 'heavy' ? 4.8 : 5.7;
++                  if (bot.path && bot.path[bot.pathIndex] !== undefined) {
++                    const wp = NAV_NODES[bot.path[bot.pathIndex]];
++                    moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
++                    if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) < 1.35 && Math.abs(wp.y - bot.pos.y) < 1.5) {
++                      bot.pathIndex++;
++                    }
++                  } else {
++                    moveTargetPos = new THREE.Vector3(cn.x, cn.y, cn.z);
++                  }
++                }
++              } else {
++                const awayX = bot.pos.x - bestEnemy.pos.x;
++                const awayZ = bot.pos.z - bestEnemy.pos.z;
++                const len = Math.max(0.1, Math.hypot(awayX, awayZ));
++                moveTargetPos = new THREE.Vector3(bot.pos.x + (awayX / len) * 8, bot.pos.y, bot.pos.z + (awayZ / len) * 8);
++                moveSpeed = 5.5;
+               }
+             } else {
+-              bot.state = 'ENGAGE';
+-            }
+-
+-            if (bot.state === 'RETREAT' || bot.state === 'TAKE_COVER') {
+-              if (bot.path && bot.path[bot.pathIndex] !== undefined) {
+-                const wp = NAV_NODES[bot.path[bot.pathIndex]];
+-                moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
+-                if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) < 1.35) {
+-                  bot.pathIndex++;
++              // Healthy Tactical Combat: Seek cover at mid/long range, peek-and-fire from cover, or strafe in CQC
++              const wantsTacticalCover = distToEnemy > 11.5 || bot.classId === 'sniper' || bot.classId === 'heavy';
++
++              if (wantsTacticalCover && bot.coverNode === -1 && bot.coverSearchCooldown <= 0) {
++                bot.coverSearchCooldown = 1.2;
++                const foundCover = findBestCoverNode(bot.pos, activeThreatPos, bot);
++                if (foundCover !== -1) {
++                  bot.coverNode = foundCover;
++                  bot.coverIsPartial = !!(bot._coverEval && bot._coverEval.isPartialCover);
++                  bot.coverPhase = 'MOVE_TO_COVER';
++                  bot.path = findPathAStar(findNearestNavNode(bot.pos), foundCover, bot.blockedNode);
++                  bot.pathIndex = 0;
++                  setBotState(bot, 'TAKE_COVER', 1.15);
+                 }
+               }
+-              if (bot.state === 'TAKE_COVER' && (!bot.path || bot.pathIndex >= bot.path.length)) {
+-                targetCrouch = 1;
+-                moveSpeed = 0;
+-              }
+-            } else {
+-              bot.strafeTimer -= dt;
+-              if (bot.strafeTimer <= 0) {
+-                bot.strafeDir *= -1;
+-                bot.strafeTimer = 1.1 + Math.random() * 1.4;
+-              }
+-
+-              const preferredMin = bot.classId === 'sniper' ? 22 : bot.classId === 'heavy' ? 14 : 7;
+-              const preferredMax = bot.classId === 'sniper' ? 46 : 24;
+-
+-              const strafeX = Math.cos(desiredUpperYaw) * bot.strafeDir;
+-              const strafeZ = -Math.sin(desiredUpperYaw) * bot.strafeDir;
+-              let pushDir = 0;
+-              if (distToEnemy > preferredMax) pushDir = 0.75;
+-              else if (distToEnemy < preferredMin) pushDir = -0.75;
+-
+-              const fwdX = Math.sin(desiredUpperYaw) * pushDir;
+-              const fwdZ = Math.cos(desiredUpperYaw) * pushDir;
+-
+-              const candX = bot.pos.x + (strafeX * 0.85 + fwdX) * 2.2;
+-              const candZ = bot.pos.z + (strafeZ * 0.85 + fwdZ) * 2.2;
+-              if (isPositionWalkable(candX, bot.pos.y, candZ)) {
+-                moveTargetPos = new THREE.Vector3(candX, bot.pos.y, candZ);
+-                moveSpeed = bot.classId === 'sniper' ? 2.4 : 3.6;
++
++              if (bot.coverNode !== -1 && distToEnemy >= 7.0) {
++                const cn = NAV_NODES[bot.coverNode];
++                const dCover = Math.hypot(cn.x - bot.pos.x, cn.z - bot.pos.z);
++
++                if (dCover < 1.45 && Math.abs(cn.y - bot.pos.y) < 1.2) {
++                  setBotState(bot, 'TAKE_COVER', 0.95);
++                  if (bot.coverPhase === 'MOVE_TO_COVER' || bot.coverPhase === 'NONE') {
++                    bot.coverPhase = 'PEEK_FIRE';
++                    bot.coverPhaseTimer = (bot.classId === 'heavy' ? 2.1 : bot.classId === 'sniper' ? 1.35 : 1.7) + Math.random() * 0.4;
++                  }
++
++                  bot.coverPhaseTimer -= dt;
++                  if (bot.coverPhase === 'CROUCH_HOLD') {
++                    moveSpeed = 0;
++                    targetCrouch = 1;
++                    if (bot.coverPhaseTimer <= 0) {
++                      bot.coverPhase = 'PEEK_FIRE';
++                      bot.coverPhaseTimer = (bot.classId === 'heavy' ? 2.1 : bot.classId === 'sniper' ? 1.35 : 1.7) + Math.random() * 0.4;
++                    }
++                  } else {
++                    // PEEK_FIRE: stand over partial cover or sidestep slightly from corner cover
++                    if (bot.coverIsPartial) {
++                      moveSpeed = 0;
++                      targetCrouch = 0;
++                    } else {
++                      const perpX = Math.cos(desiredUpperYaw) * bot.strafeDir;
++                      const perpZ = -Math.sin(desiredUpperYaw) * bot.strafeDir;
++                      const peekX = cn.x + perpX * 1.15;
++                      const peekZ = cn.z + perpZ * 1.15;
++                      if (isPositionWalkable(peekX, bot.pos.y, peekZ)) {
++                        moveTargetPos = new THREE.Vector3(peekX, cn.y, peekZ);
++                        moveSpeed = 2.6;
++                      } else {
++                        moveSpeed = 0;
++                      }
++                      targetCrouch = 0.15;
++                    }
++
++                    if (bot.coverPhaseTimer <= 0) {
++                      bot.coverPhase = 'CROUCH_HOLD';
++                      bot.coverPhaseTimer = 1.05 + Math.random() * 0.55;
++                    }
++                  }
++                } else {
++                  // Moving to cover while maintaining suppressive fire
++                  setBotState(bot, 'TAKE_COVER', 0.9);
++                  moveSpeed = bot.classId === 'heavy' ? 4.4 : 5.2;
++                  if (bot.path && bot.path[bot.pathIndex] !== undefined) {
++                    const wp = NAV_NODES[bot.path[bot.pathIndex]];
++                    moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
++                    if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) < 1.35 && Math.abs(wp.y - bot.pos.y) < 1.5) {
++                      bot.pathIndex++;
++                    }
++                  } else {
++                    moveTargetPos = new THREE.Vector3(cn.x, cn.y, cn.z);
++                  }
++                }
+               } else {
+-                bot.strafeDir *= -1;
+-                moveSpeed = 0;
+-              }
+-
+-              if (bot.classId === 'sniper' && distToEnemy > 18) {
+-                targetCrouch = 1;
+-                moveSpeed *= 0.4;
++                // Close Quarters Strafe Engagement
++                bot.coverNode = -1;
++                bot.coverPhase = 'NONE';
++                setBotState(bot, 'ENGAGE', 0.85, distToEnemy < 7.0);
++                bot.strafeTimer -= dt;
++                if (bot.strafeTimer <= 0) {
++                  bot.strafeTimer = 1.1 + Math.random() * 1.5;
++                  bot.strafeDir *= -1;
++                }
++                const perpX = Math.cos(desiredUpperYaw) * bot.strafeDir;
++                const perpZ = -Math.sin(desiredUpperYaw) * bot.strafeDir;
++                const candX = bot.pos.x + perpX * 2.2;
++                const candZ = bot.pos.z + perpZ * 2.2;
++                if (isPositionWalkable(candX, bot.pos.y, candZ)) {
++                  moveTargetPos = new THREE.Vector3(candX, bot.pos.y, candZ);
++                }
++                moveSpeed = bot.classId === 'sniper' ? 1.8 : 3.4;
++                targetCrouch = (bot.classId === 'sniper' || distToEnemy > 24) ? 0.65 : 0;
+               }
+             }
+ 
+-            // Class Special Ability Usage in Combat
++            // Class Special Ability Usage in Combat (V17 abilities kept intact)
+             if (isReactionReady && bot.abilityCooldown <= 0) {
++              const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
+               if (bot.classId === 'assault' && distToEnemy > 11 && distToEnemy < 28) {
+                 bot.abilityCooldown = 14 + Math.random() * 5;
+                 const throwDir = new THREE.Vector3(dx, 2.5, dz).normalize();
+                 throwM67Grenade(botEye.clone(), throwDir, bot.name, bot.team);
+@@ -6805,11 +7037,16 @@
+                 deployMedkit(bot.pos.clone(), bot.team);
+               }
+             }
+ 
+-            // Ballistic Firing Calculation
+-            if (isReactionReady) bot.fireTimer -= dt;
+-            if (isReactionReady && bot.fireTimer <= 0) {
++            // Ballistic Firing Calculation (V17 damage, visuals and sound untouched)
++            const canShootFromStance = !(bot.coverPhase === 'CROUCH_HOLD' && bot.coverIsPartial && bot.crouchAmt > 0.7);
++            if (isReactionReady && canShootFromStance) bot.fireTimer -= dt;
++            const shotDue = isReactionReady && canShootFromStance && bot.fireTimer <= 0;
++            const hasCurrentShotLane = shotDue && hasLineOfSight(
++              new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z), bestEnemy.eye);
++            if (shotDue && !hasCurrentShotLane) bot.fireTimer = 0.12;
++            if (hasCurrentShotLane) {
+               const botWeaponId = bot.classId === 'assault' ? 'hk416'
+                 : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
+                 : bot.classId === 'sniper' ? (distToEnemy < 11 ? 'glock18c' : 'mrad')
+                 : 'minimi';
+@@ -6864,75 +7101,140 @@
+                 }
+               }
+             }
+           } else {
+-            // No Direct Line-of-Sight Enemy: Medic Support / Investigate / Engineer Hold / Squad Advance
++            // No Direct Line-of-Sight Enemy: keep 3A's last seen memory and 3B cover staging.
+             bot.targetId = null;
+             bot.burstCount = 0;
+ 
+-            if (injuredAlly) {
+-              bot.state = 'SUPPORT_ALLY';
+-              moveTargetPos = injuredAlly.pos.clone();
+-              if (injuredAlly.dist < 3.2 && bot.abilityCooldown <= 0) {
+-                bot.abilityCooldown = 14;
+-                deployMedkit(bot.pos.clone(), bot.team);
++            // Hold cover briefly when ducked behind partial cover or wounded after losing sight
++            if ((bot.state === 'TAKE_COVER' || bot.state === 'RETREAT') && bot.coverNode !== -1 && bot.investigateTimer > 1.2) {
++              const cn = NAV_NODES[bot.coverNode];
++              const dCover = Math.hypot(cn.x - bot.pos.x, cn.z - bot.pos.z);
++              bot.investigateTimer -= dt;
++
++              if (dCover < 1.45 && Math.abs(cn.y - bot.pos.y) < 1.2) {
++                if (isWounded) {
++                  moveSpeed = 0;
++                  targetCrouch = 1;
++                } else {
++                  bot.coverPhaseTimer -= dt;
++                  if (bot.coverPhase === 'CROUCH_HOLD') {
++                    moveSpeed = 0;
++                    targetCrouch = 1;
++                    if (bot.coverPhaseTimer <= 0) {
++                      bot.coverPhase = 'PEEK_FIRE';
++                      bot.coverPhaseTimer = 1.25;
++                    }
++                  } else {
++                    moveSpeed = 0;
++                    targetCrouch = 0;
++                    if (bot.coverPhaseTimer <= 0) {
++                      bot.coverNode = -1;
++                      bot.coverPhase = 'NONE';
++                    }
++                  }
++                }
++              } else {
++                moveSpeed = isWounded ? 5.6 : 4.8;
++                if (bot.path && bot.path[bot.pathIndex] !== undefined) {
++                  const wp = NAV_NODES[bot.path[bot.pathIndex]];
++                  moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
++                  if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) < 1.35 && Math.abs(wp.y - bot.pos.y) < 1.5) {
++                    bot.pathIndex++;
++                  }
++                } else {
++                  moveTargetPos = new THREE.Vector3(cn.x, cn.y, cn.z);
++                }
+               }
+-            } else if (bot.lastKnownEnemyPos && bot.investigateTimer > 0) {
+-              bot.state = 'INVESTIGATE';
+-              bot.investigateTimer -= dt;
+-              moveTargetPos = bot.lastKnownEnemyPos.clone();
+-              if (bot.pos.distanceTo(bot.lastKnownEnemyPos) < 2.2) {
+-                bot.lastKnownEnemyPos = null;
+-                bot.investigateTimer = 0;
+-                assignBotTacticalGoal(bot);
++
++              if (activeThreatPos) {
++                desiredUpperYaw = Math.atan2(activeThreatPos.x - bot.pos.x, activeThreatPos.z - bot.pos.z);
+               }
+             } else {
+-              const rallyKey = `${bot.team}_${bot.squadId}`;
+-              if (squadRallyPos[rallyKey] && bot.pos.distanceTo(squadRallyPos[rallyKey]) < 26 && bot.classId !== 'sniper') {
+-                bot.state = 'SUPPORT_ALLY';
+-                moveTargetPos = squadRallyPos[rallyKey];
++              bot.coverNode = -1;
++              bot.coverPhase = 'NONE';
++
++              // V17 medic teammate selection remains above the combat branch.
++              if (injuredAlly) {
++                setBotState(bot, 'SUPPORT_ALLY', 0.9);
++                moveTargetPos = injuredAlly.pos.clone();
++                if (injuredAlly.dist < 3.2 && bot.abilityCooldown <= 0) {
++                  bot.abilityCooldown = 14;
++                  deployMedkit(bot.pos.clone(), bot.team);
++                }
++              } else if (bot.lastKnownEnemyPos && bot.investigateTimer > 0) {
++                setBotState(bot, 'INVESTIGATE', 0.9);
++                bot.investigateTimer -= dt;
++                moveTargetPos = bot.lastKnownEnemyPos.clone();
++
++                // Assault can flush out enemy last known cover with M67 grenade
++                const dLastKnown = bot.pos.distanceTo(bot.lastKnownEnemyPos);
++                if (bot.classId === 'assault' && bot.abilityCooldown <= 0 && dLastKnown >= 9 && dLastKnown <= 24) {
++                  const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
++                  const targetEst = new THREE.Vector3(bot.lastKnownEnemyPos.x, bot.lastKnownEnemyPos.y + 0.9, bot.lastKnownEnemyPos.z);
++                  if (hasLineOfSight(botEye, targetEst)) {
++                    bot.abilityCooldown = 18 + Math.random() * 5;
++                    const throwDir = targetEst.sub(botEye).normalize();
++                    throwM67Grenade(botEye.clone().addScaledVector(throwDir, 0.5), throwDir, bot.name, bot.team);
++                  }
++                }
++
++                if (dLastKnown < 2.2 || bot.investigateTimer <= 0) {
++                  bot.lastKnownEnemyPos = null;
++                  bot.memoryTargetId = null;
++                  bot.investigateTimer = 0;
++                  assignBotTacticalGoal(bot);
++                }
+               } else {
+-                bot.state = 'ADVANCE';
+-              }
+-
+-              if (!moveTargetPos) {
+-                if (!bot.path || bot.pathIndex >= bot.path.length) {
+-                  const arrivedNode = NAV_NODES[bot.goalNode];
+-                  if (arrivedNode && (arrivedNode.tag.startsWith('sniper') || arrivedNode.tag.endsWith('door'))) {
+-                    bot.state = 'DEFEND_HOLD';
+-                    bot.stateTimer += dt;
+-                    if (bot.classId === 'engineer' && bot.abilityCooldown <= 0) {
+-                      bot.abilityCooldown = 18;
+-                      deployClaymore(bot.pos.clone(), bot.legYaw, bot.name, bot.team);
+-                    }
+-                    if (bot.stateTimer > 5.5) {
+-                      bot.stateTimer = 0;
++                const rallyKey = `${bot.team}_${bot.squadId}`;
++                if (squadRallyPos[rallyKey] && bot.pos.distanceTo(squadRallyPos[rallyKey]) < 26 && bot.classId !== 'sniper') {
++                  setBotState(bot, 'SUPPORT_ALLY', 0.8);
++                  moveTargetPos = squadRallyPos[rallyKey];
++                } else {
++                  setBotState(bot, 'ADVANCE', 0.7);
++                }
++
++                if (!moveTargetPos) {
++                  if (!bot.path || bot.pathIndex >= bot.path.length) {
++                    const arrivedNode = NAV_NODES[bot.goalNode];
++                    if (arrivedNode && (arrivedNode.tag.startsWith('sniper') || arrivedNode.tag.endsWith('door'))) {
++                      setBotState(bot, 'DEFEND_HOLD', 1.2);
++                      bot.stateTimer += dt;
++                      if (bot.classId === 'engineer' && bot.abilityCooldown <= 0) {
++                        bot.abilityCooldown = 18;
++                        deployClaymore(bot.pos.clone(), bot.legYaw, bot.name, bot.team);
++                      }
++                      if (bot.stateTimer > 5.5) {
++                        bot.stateTimer = 0;
++                        assignBotTacticalGoal(bot);
++                      }
++                      moveSpeed = 0;
++                      targetCrouch = bot.classId === 'sniper' ? 1 : 0;
++                      desiredUpperYaw = (bot.team === 'blue' ? Math.PI : 0) + Math.sin(performance.now() * 0.0012 + bot.animPhase) * 0.65;
++                    } else {
+                       assignBotTacticalGoal(bot);
+                     }
+-                    moveSpeed = 0;
+-                    targetCrouch = bot.classId === 'sniper' ? 1 : 0;
+-                    desiredUpperYaw = (bot.team === 'blue' ? Math.PI : 0) + Math.sin(performance.now() * 0.0012 + bot.animPhase) * 0.65;
+-                  } else {
+-                    assignBotTacticalGoal(bot);
+                   }
+-                }
+-
+-                if (moveSpeed > 0 && bot.path && bot.path[bot.pathIndex] !== undefined) {
+-                  const wp = NAV_NODES[bot.path[bot.pathIndex]];
+-                  moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
+-                  const dWp = Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z);
+-                  if (dWp < 1.35 && Math.abs(wp.y - bot.pos.y) < 1.5) {
+-                    bot.pathIndex++;
++
++                  if (moveSpeed > 0 && bot.path && bot.path[bot.pathIndex] !== undefined) {
++                    const wp = NAV_NODES[bot.path[bot.pathIndex]];
++                    moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
++                    const dWp = Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z);
++                    if (dWp < 1.35 && Math.abs(wp.y - bot.pos.y) < 1.5) {
++                      bot.pathIndex++;
++                    }
+                   }
+                 }
+               }
+-            }
+-
+-            if (moveTargetPos && moveSpeed > 0) {
+-              desiredUpperYaw = Math.atan2(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z);
+-            }
+-            if (bot.alertPos && bot.alertTimer > 0 && !bot.lastKnownEnemyPos) {
+-              desiredUpperYaw = Math.atan2(bot.alertPos.x - bot.pos.x, bot.alertPos.z - bot.pos.z);
++
++              if (bot.alertPos && bot.alertTimer > 0) {
++                desiredUpperYaw = Math.atan2(bot.alertPos.x - bot.pos.x, bot.alertPos.z - bot.pos.z);
++              } else if (bot.state === 'INVESTIGATE' && bot.lastKnownEnemyPos) {
++                desiredUpperYaw = Math.atan2(bot.lastKnownEnemyPos.x - bot.pos.x, bot.lastKnownEnemyPos.z - bot.pos.z);
++              } else if (moveTargetPos && moveSpeed > 0) {
++                desiredUpperYaw = Math.atan2(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z);
++              }
+             }
+           }
+ 
+           // Smooth Separation Force between Bots & Player

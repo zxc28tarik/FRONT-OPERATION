@@ -1,0 +1,26 @@
+{
+  "project": "FRONT OPERATION",
+  "repository": "zxc28tarik/FRONT-OPERATION",
+  "visibility": "public",
+  "status": "V24 baseline (V25 pending)",
+  "baseline": {
+    "path": "index.html",
+    "source": "war_rock_cqc_v24_drone_ya_am_ba_na_tek_hak.html",
+    "sha256": "9ac15cc468369a5d1828930986e4ddc0ad98cb7763b62aa07a807431771318a0",
+    "git_blob": "02e7330002bc0ed5bad1771706b317abf8a9af27"
+  },
+  "references": {
+    "references/1A_silah.html": "70163a0a378ebbb1dde890718d6de7bda10a04ed4348b79dcc6130d042a241c6",
+    "references/1B_asker.html": "94d8c460b14c37450201921eb2fa0e00f6443af2f1c3b307d7ae5ca467518791",
+    "references/1C_duvar_konteyner.html": "02c56c14ad8811697a840619d3beac3f6a2e138834678302c19325a9295f64e6",
+    "references/2A_recoil.html": "203e96c2ef90645ec9995b637ac22e1ca130227c58d3abb49d8ee9c21f82378a",
+    "references/2B_isabet_vfx.html": "5638369cb809f147f59dc24ff2f0259448587b3662e881743e40447679d4325e",
+    "references/2C_ses.html": "76b72c6daa76bf1865623848f30739bc37b6f81730e44739ae55d2ec2c4d4845",
+    "references/2D_V17_onayli_nisan.html": "3e3ac85b430be22ef12250c2b97813fae68e5d94f767f81a7a159ad882998cf3",
+    "references/3A_bot_algilama.html": "3d1880e64d596f521de67acbdcebd9ddb2d098cf0a3831b91a95dab480ed69b4",
+    "references/3B_siper.html": "6103a9c330f06fd622da902e042c29f2672f3309dfe3256779e5187f57b95a6a",
+    "references/3C_V22_takim.html": "c6f766fba0242c8b9ac5e59b31f1dc0f08bc931e0e7493f17d721f5967b3dd73",
+    "references/4A4B_V21_drone_onayli.html": "84ca83b25adbc23ebf2eff80c6e8b6735f954bde2bc1bcb8bc05277f8fc2c648"
+  },
+  "note": "SHA256 strings were checked against the imported preserved source files. Docs and the GitHub worktree itself may change as the project develops."
+}

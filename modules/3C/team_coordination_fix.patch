@@ -1,0 +1,76 @@
+--- V21_4A_4B_DRONE_KAMIKAZE_KOD_ADAYI_HATA_DUZELTMELI.html
++++ V22_3C_STABILIZE_V21_ONAYLI_DRONE_TEMELLI.html
+@@ -6093,6 +6093,29 @@
+ 
+       // =========================================================================
+       // 10A. TEAM COORDINATION 3C — SQUAD RALLIES, INTEL SHARING & COVERING FIRE
++      // 3C: Compute leaders first, then use only the selected leaders as rally anchors.
++      // The previous loop let any sighting overwrite the leader's rally position;
++      // its result changed with BOT array order and could cause squad oscillation.
++      function buildSquadLeadership() {
++        const squadRallyPos = {};
++        const squadLeaderId = {};
++        const squadBestPriority = {};
++        const roleLeadPriority = { assault: 5, heavy: 4, medic: 3, engineer: 2, sniper: 1 };
++        for (let i = 0; i < bots.length; i++) {
++          const member = bots[i];
++          if (!member.alive) continue;
++          const key = `${member.team}_${member.squadId}`;
++          const priority = (roleLeadPriority[member.classId] || 1) + (member.hp > 45 ? 10 : 0);
++          const currentPriority = squadBestPriority[key];
++          if (currentPriority === undefined || priority > currentPriority) {
++            squadBestPriority[key] = priority;
++            squadLeaderId[key] = member.id;
++            squadRallyPos[key] = member.pos.clone();
++          }
++        }
++        return { squadRallyPos, squadLeaderId };
++      }
++
+       // =========================================================================
+       const TEAM_INTEL = {
+         blue: { sightings: {}, retreatAlerts: [] },
+@@ -6127,7 +6150,10 @@
+       }
+ 
+       function reportTeamVisualSighting(team, squadId, reporterId, targetId, frozenPos) {
+-        if (!team || !targetId || !frozenPos) return;
++        if (!TEAM_INTEL[team] || !targetId || !frozenPos || !isEntityStillAlive(targetId)) return;
++        if (![frozenPos.x, frozenPos.y, frozenPos.z].every(Number.isFinite)) return;
++        const targetTeam = targetId === 'player' ? player.team : (bots.find((b) => b.id === targetId) || {}).team;
++        if (targetTeam === team) return;
+         const nowSec = performance.now() / 1000;
+         TEAM_INTEL[team].sightings[targetId] = {
+           targetId,
+@@ -8153,28 +8179,13 @@
+         const nowSec = performance.now() / 1000;
+         pruneTeamIntel(nowSec);
+ 
+-        // Squad target claim distribution, squad leaders & cohesive rally points
++        // 3C: Deterministic squad leadership; target claims stay unchanged.
+         const targetClaimCounts = {};
+-        const squadRallyPos = {};
+-        const squadLeaderId = {};
+-        const roleLeadPriority = { assault: 5, heavy: 4, medic: 3, engineer: 2, sniper: 1 };
+-        const squadBestPriority = {};
+-
++        const { squadRallyPos, squadLeaderId } = buildSquadLeadership();
+         for (let i = 0; i < bots.length; i++) {
+           const b = bots[i];
+-          if (!b.alive) continue;
+-          if (b.targetId) {
++          if (b.alive && b.targetId) {
+             targetClaimCounts[b.targetId] = (targetClaimCounts[b.targetId] || 0) + 1;
+-          }
+-          const key = `${b.team}_${b.squadId}`;
+-          const prio = (roleLeadPriority[b.classId] || 1) + (b.hp > 45 ? 10 : 0);
+-          if (squadBestPriority[key] === undefined || prio > squadBestPriority[key]) {
+-            squadBestPriority[key] = prio;
+-            squadLeaderId[key] = b.id;
+-            squadRallyPos[key] = b.pos.clone();
+-          }
+-          if (b.visibleEnemy) {
+-            squadRallyPos[key] = b.pos.clone();
+           }
+         }
+ 
