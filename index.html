@@ -4302,312 +4302,328 @@
       }
 
       function createBotSoldierMesh(team, classId) {
-      const V5_WEAPON_MATS = {
-        ...WEAPON_MATS,
-        chromeBolt: WEAPON_MATS.chromeSlide,
-        fdeTan: WEAPON_MATS.polymerFDE,
-        odGreen: WEAPON_MATS.olivePaint,
-        anodizedBlack: WEAPON_MATS.metalDark,
-        gunSteel: WEAPON_MATS.metalSteel
-      };
-    const root = new THREE.Group();
-    const isBlue = team === 'blue';
+        const { mats, geos } = getSoldierSharedAssets();
+        const isBlue = team === 'blue';
+        const uniformMat = isBlue ? mats.blueUniform : mats.redUniform;
+        const pantsMat = isBlue ? mats.bluePants : mats.redPants;
+        const iffMat = isBlue ? mats.blueIFF : mats.redIFF;
 
-    const matUniform = new THREE.MeshStandardMaterial({
-      color: isBlue ? 0x2b3b4e : 0x45322e,
-      roughness: 0.84,
-      metalness: 0.05
-    });
-    const matPants = new THREE.MeshStandardMaterial({
-      color: isBlue ? 0x23303f : 0x382a26,
-      roughness: 0.86,
-      metalness: 0.04
-    });
-    const matVest = new THREE.MeshStandardMaterial({
-      color: isBlue ? 0x1e293b : 0x292524,
-      roughness: 0.72,
-      metalness: 0.14
-    });
-    const matTeamAccent = new THREE.MeshStandardMaterial({
-      color: isBlue ? 0x2563eb : 0xdc2626,
-      emissive: isBlue ? 0x0b1f4d : 0x450a0a,
-      roughness: 0.55,
-      metalness: 0.18
-    });
-    const matGear = new THREE.MeshStandardMaterial({ color: 0x1b1e23, roughness: 0.74, metalness: 0.22 });
-    const matBoot = new THREE.MeshStandardMaterial({ color: 0x141619, roughness: 0.82, metalness: 0.12 });
-    const matSkin = new THREE.MeshStandardMaterial({ color: 0xc89d7c, roughness: 0.76 });
+        const root = new THREE.Group();
 
-    function buildLeg(sideSign) {
-      const hipPivot = new THREE.Group();
-      hipPivot.position.set(sideSign * 0.13, 0.84, 0);
+        const pelvis = createLimbMesh(geos.pelvis, pantsMat);
+        pelvis.position.y = 0.86;
+        root.add(pelvis);
 
-      const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.074, 0.40, 10), matPants);
-      thigh.position.set(0, -0.20, 0);
-      thigh.castShadow = true;
-      hipPivot.add(thigh);
+        const belt = createLimbMesh(geos.belt, mats.bootLeather, false);
+        belt.position.y = 0.91;
+        root.add(belt);
 
-      const cargo = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.14, 0.11), matPants);
-      cargo.position.set(sideSign * 0.076, -0.22, 0);
-      hipPivot.add(cargo);
+        const buckle = createLimbMesh(geos.beltBuckle, mats.gunSteel, false);
+        buckle.position.set(0, 0.91, 0.115);
+        root.add(buckle);
 
-      const kneePivot = new THREE.Group();
-      kneePivot.position.set(0, -0.40, 0);
+        function buildLeg(sideSign) {
+          const hip = new THREE.Group();
+          hip.position.set(sideSign * 0.105, 0.82, 0);
 
-      const kneePad = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.10, 0.05), matGear);
-      kneePad.position.set(0, 0, 0.068);
-      kneePivot.add(kneePad);
+          const hipBall = createLimbMesh(geos.hipJoint, pantsMat, false);
+          hip.add(hipBall);
 
-      const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.070, 0.056, 0.34, 10), matPants);
-      shin.position.set(0, -0.17, 0);
-      shin.castShadow = true;
-      kneePivot.add(shin);
+          const thigh = createLimbMesh(geos.thigh, pantsMat);
+          thigh.position.y = -0.18;
+          hip.add(thigh);
 
-      const bootAnkle = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.064, 0.09, 10), matBoot);
-      bootAnkle.position.set(0, -0.35, 0.01);
-      const bootFoot = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.075, 0.23), matBoot);
-      bootFoot.position.set(0, -0.40, 0.045);
-      bootFoot.castShadow = true;
-      kneePivot.add(bootAnkle, bootFoot);
+          if (sideSign > 0) {
+            const holster = createLimbMesh(geos.holster, mats.bootLeather, false);
+            holster.position.set(0.082, -0.16, 0.01);
+            hip.add(holster);
+          }
 
-      hipPivot.add(kneePivot);
-      return { hipPivot, kneePivot };
-    }
+          const knee = new THREE.Group();
+          knee.position.set(0, -0.37, 0);
 
-    const leftLegObj = buildLeg(-1);
-    const rightLegObj = buildLeg(1);
+          const kneeBall = createLimbMesh(geos.kneeJoint, pantsMat, false);
+          knee.add(kneeBall);
 
-    const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 0.24), matPants);
-    pelvis.position.set(0, 0.88, 0);
-    const belt = new THREE.Mesh(new THREE.BoxGeometry(0.41, 0.065, 0.27), matGear);
-    belt.position.set(0, 0.92, 0);
-    const holster = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.15, 0.10), matGear);
-    holster.position.set(0.21, 0.80, 0.02);
-    root.add(pelvis, belt, holster);
+          const kneePad = createLimbMesh(geos.kneePad, mats.bootLeather, false);
+          kneePad.position.set(0, -0.01, 0.048);
+          knee.add(kneePad);
 
-    const upperBody = new THREE.Group();
-    upperBody.position.set(0, 0.93, 0);
+          const shin = createLimbMesh(geos.shin, pantsMat);
+          shin.position.y = -0.18;
+          knee.add(shin);
 
-    const isHeavy = classId === 'heavy';
-    const isSniper = classId === 'sniper';
+          const bootAnkle = createLimbMesh(geos.bootAnkle, mats.bootLeather, false);
+          bootAnkle.position.set(0, -0.36, 0.01);
+          knee.add(bootAnkle);
 
-    const torso = new THREE.Mesh(
-      new THREE.CylinderGeometry(isHeavy ? 0.23 : 0.205, 0.175, 0.52, 12),
-      matUniform
-    );
-    torso.scale.set(1.15, 1.0, 0.72);
-    torso.position.set(0, 0.10, 0);
-    torso.castShadow = true;
-    upperBody.add(torso);
+          const bootSole = createLimbMesh(geos.bootSole, mats.bootLeather);
+          bootSole.position.set(0, -0.425, 0.045);
+          knee.add(bootSole);
 
-    const vestW = isHeavy ? 0.48 : isSniper ? 0.40 : 0.43;
-    const vestD = isHeavy ? 0.30 : 0.26;
-    const vest = new THREE.Mesh(new THREE.BoxGeometry(vestW, 0.40, vestD), matVest);
-    vest.position.set(0, 0.12, 0);
-    vest.castShadow = true;
-    upperBody.add(vest);
+          const bootToe = createLimbMesh(geos.bootToe, mats.bootLeather, false);
+          bootToe.scale.set(1.0, 0.65, 1.15);
+          bootToe.position.set(0, -0.405, 0.125);
+          knee.add(bootToe);
 
-    const frontIFF = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.065, 0.02), matTeamAccent);
-    frontIFF.position.set(0, 0.23, vestD * 0.5 + 0.008);
-    const backIFF = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.085, 0.02), matTeamAccent);
-    backIFF.position.set(0, 0.21, -vestD * 0.5 - 0.008);
-    upperBody.add(frontIFF, backIFF);
+          hip.add(knee);
+          root.add(hip);
+          return { hip, knee };
+        }
 
-    for (let p = -1; p <= 1; p++) {
-      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.14, 0.045), matGear);
-      pouch.position.set(p * 0.105, 0.05, vestD * 0.5 + 0.02);
-      upperBody.add(pouch);
-    }
-    const radio = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.12, 0.04), matGear);
-    radio.position.set(-vestW * 0.42, 0.21, 0.08);
-    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.22, 6), matGear);
-    antenna.position.set(-vestW * 0.42, 0.36, 0.08);
-    upperBody.add(radio, antenna);
+        const leftLeg = buildLeg(-1);
+        const rightLeg = buildLeg(1);
 
-    if (classId === 'medic') {
-      const medPack = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.34, 0.14), V5_WEAPON_MATS.medRed);
-      medPack.position.set(0, 0.11, -0.19);
-      const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.015), V5_WEAPON_MATS.chromeBolt);
-      crossH.position.set(0, 0.12, -0.265);
-      const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.015), V5_WEAPON_MATS.chromeBolt);
-      crossV.position.set(0, 0.12, -0.265);
-      upperBody.add(medPack, crossH, crossV);
-    } else if (classId === 'engineer') {
-      const techPack = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.15), V5_WEAPON_MATS.fdeTan);
-      techPack.position.set(0, 0.11, -0.19);
-      const toolRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.28, 10), matGear);
-      toolRoll.rotation.z = Math.PI / 2;
-      toolRoll.position.set(0, 0.28, -0.18);
-      upperBody.add(techPack, toolRoll);
-    } else if (classId === 'sniper') {
-      const mantle = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.14, 0.30), V5_WEAPON_MATS.odGreen);
-      mantle.position.set(0, 0.29, -0.02);
-      upperBody.add(mantle);
-    } else if (classId === 'heavy') {
-      const pauldronL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.22), matVest);
-      pauldronL.position.set(-0.27, 0.24, 0);
-      const pauldronR = pauldronL.clone();
-      pauldronR.position.x = 0.27;
-      const drumPack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.38, 0.18), V5_WEAPON_MATS.odGreen);
-      drumPack.position.set(0, 0.12, -0.22);
-      upperBody.add(pauldronL, pauldronR, drumPack);
-    } else {
-      const assaultPack = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.30, 0.11), matGear);
-      assaultPack.position.set(0, 0.12, -0.18);
-      upperBody.add(assaultPack);
-    }
+        const upperBody = new THREE.Group();
+        upperBody.position.y = 0.93;
+        root.add(upperBody);
 
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, 0.10, 10), matSkin);
-    neck.position.set(0, 0.38, 0);
+        const abdomen = createLimbMesh(geos.abdomen, uniformMat, false);
+        abdomen.position.y = 0.08;
+        upperBody.add(abdomen);
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.118, 14, 12), matSkin);
-    head.scale.set(0.92, 1.08, 0.98);
-    head.position.set(0, 0.49, 0.01);
-    head.castShadow = true;
+        const chest = createLimbMesh(geos.chest, uniformMat);
+        chest.position.y = 0.28;
+        upperBody.add(chest);
 
-    const helmet = new THREE.Mesh(
-      new THREE.SphereGeometry(0.136, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.58),
-      matGear
-    );
-    helmet.position.set(0, 0.50, 0);
-    const helmetBand = new THREE.Mesh(new THREE.CylinderGeometry(0.137, 0.137, 0.024, 14), matTeamAccent);
-    helmetBand.position.set(0, 0.515, 0);
+        const vestFront = createLimbMesh(geos.vestFront, mats.vestRig);
+        vestFront.position.set(0, 0.28, 0.115);
+        upperBody.add(vestFront);
 
-    const goggles = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.055, 0.06), V5_WEAPON_MATS.opticGlass);
-    goggles.position.set(0, 0.515, 0.112);
-    const earL = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.036, 10), matGear);
-    earL.rotation.z = Math.PI / 2;
-    earL.position.set(-0.132, 0.49, 0);
-    const earR = earL.clone();
-    earR.position.x = 0.132;
+        const vestBack = createLimbMesh(geos.vestBack, mats.vestRig);
+        vestBack.position.set(0, 0.28, -0.115);
+        upperBody.add(vestBack);
 
-    upperBody.add(neck, head, helmet, helmetBand, goggles, earL, earR);
+        [-0.095, 0, 0.095].forEach((px) => {
+          const pouch = createLimbMesh(geos.magPouch, mats.pouchCoyote, false);
+          pouch.position.set(px, 0.21, 0.155);
+          upperBody.add(pouch);
+        });
 
-    function buildArm(sideSign) {
-      const shoulder = new THREE.Group();
-      shoulder.position.set(sideSign * (vestW * 0.5 + 0.045), 0.25, 0);
+        const adminPouch = createLimbMesh(geos.adminPouch, mats.pouchCoyote, false);
+        adminPouch.position.set(0, 0.34, 0.152);
+        upperBody.add(adminPouch);
 
-      const bicep = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.054, 0.26, 10), matUniform);
-      bicep.position.set(0, -0.13, 0);
-      bicep.castShadow = true;
+        const iffChest = createLimbMesh(geos.iffChest, iffMat, false);
+        iffChest.position.set(0, 0.39, 0.156);
+        upperBody.add(iffChest);
 
-      const armband = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.055, 10), matTeamAccent);
-      armband.position.set(0, -0.11, 0);
+        const iffBack = createLimbMesh(geos.iffBack, iffMat, false);
+        iffBack.position.set(0, 0.39, -0.152);
+        upperBody.add(iffBack);
 
-      const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.042, 0.25, 10), matUniform);
-      forearm.position.set(0, -0.24, 0.11);
-      forearm.rotation.x = -1.15;
+        const radio = createLimbMesh(geos.radioBody, mats.bootLeather, false);
+        radio.position.set(-0.145, 0.35, 0.125);
+        upperBody.add(radio);
 
-      const glove = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.068, 0.095), V5_WEAPON_MATS.gloveLeather);
-      glove.position.set(0, -0.25, 0.24);
+        const antenna = createLimbMesh(geos.radioAnt, mats.gunMetal, false);
+        antenna.position.set(-0.155, 0.48, 0.115);
+        upperBody.add(antenna);
 
-      shoulder.add(bicep, armband, forearm, glove);
-      return shoulder;
-    }
+        if (classId === 'medic') {
+          const medBag = createLimbMesh(geos.medBag, mats.medPack);
+          medBag.position.set(0, 0.29, -0.185);
+          upperBody.add(medBag);
+          const ch = createLimbMesh(geos.medCrossH, mats.medCross, false);
+          ch.position.set(0, 0.29, -0.252);
+          upperBody.add(ch);
+          const cv = createLimbMesh(geos.medCrossV, mats.medCross, false);
+          cv.position.set(0, 0.29, -0.252);
+          upperBody.add(cv);
+        } else if (classId === 'engineer') {
+          const engPack = createLimbMesh(geos.engPack, mats.engPack);
+          engPack.position.set(0, 0.28, -0.185);
+          upperBody.add(engPack);
+          const tube = createLimbMesh(geos.engTube, mats.gunSteel, false);
+          tube.position.set(0.14, 0.30, -0.19);
+          upperBody.add(tube);
+          const mine = createLimbMesh(geos.claymoreBack, mats.ghillieOlive, false);
+          mine.position.set(-0.04, 0.24, -0.255);
+          upperBody.add(mine);
+        } else if (classId === 'sniper') {
+          const cape = createLimbMesh(geos.sniperCape, mats.ghillieOlive, false);
+          cape.position.set(0, 0.38, -0.02);
+          upperBody.add(cape);
+        } else if (classId === 'heavy') {
+          const collar = createLimbMesh(geos.heavyCollar, mats.vestRig, false);
+          collar.position.set(0, 0.46, 0);
+          upperBody.add(collar);
+          [-0.23, 0.23].forEach((sx) => {
+            const pad = createLimbMesh(geos.heavyShoulder, mats.vestRig);
+            pad.position.set(sx, 0.39, 0);
+            upperBody.add(pad);
+          });
+          const heavyPack = createLimbMesh(geos.heavyPack, mats.pouchCoyote);
+          heavyPack.position.set(0, 0.29, -0.195);
+          upperBody.add(heavyPack);
+          const feed = createLimbMesh(geos.ammoFeed, mats.brassBelt, false);
+          feed.position.set(-0.18, 0.26, -0.11);
+          upperBody.add(feed);
+        }
 
-    const leftArm = buildArm(-1);
-    leftArm.rotation.set(-0.44, 0.32, -0.15);
-    const rightArm = buildArm(1);
-    rightArm.rotation.set(-0.48, -0.24, 0.12);
-    upperBody.add(leftArm, rightArm);
+        const leftShoulder = createLimbMesh(geos.shoulderJoint, uniformMat, false);
+        leftShoulder.position.set(-0.21, 0.42, 0.02);
+        upperBody.add(leftShoulder);
 
-    const weaponGroup = new THREE.Group();
-    weaponGroup.position.set(0.115, 0.03, 0.34);
+        const leftUpperArm = createLimbMesh(geos.upperArm, uniformMat);
+        leftUpperArm.position.set(-0.19, 0.33, 0.11);
+        leftUpperArm.rotation.set(-0.68, 0.22, -0.24);
+        upperBody.add(leftUpperArm);
 
-    const gunLen =
-      classId === 'sniper' ? 0.96 :
-      classId === 'heavy' ? 0.76 :
-      (classId === 'medic' || classId === 'engineer') ? 0.44 : 0.64;
+        const leftArmBand = createLimbMesh(geos.armBand, iffMat, false);
+        leftArmBand.position.set(-0.195, 0.35, 0.09);
+        leftArmBand.rotation.set(-0.68, 0.22, -0.24);
+        upperBody.add(leftArmBand);
 
-    const receiver = new THREE.Mesh(
-      new THREE.BoxGeometry(classId === 'heavy' ? 0.088 : 0.060, 0.082, gunLen * 0.56),
-      V5_WEAPON_MATS.anodizedBlack
-    );
-    const barrel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.014, 0.016, gunLen * 0.48, 8),
-      V5_WEAPON_MATS.gunSteel
-    );
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.012, gunLen * 0.46);
+        const leftElbow = createLimbMesh(geos.elbowJoint, uniformMat, false);
+        leftElbow.position.set(-0.15, 0.23, 0.19);
+        upperBody.add(leftElbow);
 
-    const stock = new THREE.Mesh(
-      new THREE.BoxGeometry(0.048, 0.095, 0.20),
-      classId === 'assault' || classId === 'sniper' ? V5_WEAPON_MATS.fdeTan : V5_WEAPON_MATS.polymerBlack
-    );
-    stock.position.set(0, -0.01, -gunLen * 0.36);
+        const leftForearm = createLimbMesh(geos.forearm, uniformMat);
+        leftForearm.position.set(-0.07, 0.26, 0.31);
+        leftForearm.rotation.set(-1.32, 0.56, 0.22);
+        upperBody.add(leftForearm);
 
-    weaponGroup.add(receiver, barrel, stock);
+        const leftHand = createLimbMesh(geos.handGlove, mats.gloveDark, false);
+        leftHand.position.set(0.01, 0.28, 0.42);
+        upperBody.add(leftHand);
 
-    if (classId === 'assault') {
-      const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.056, 0.066, 0.26), V5_WEAPON_MATS.fdeTan);
-      handguard.position.set(0, 0.008, 0.18);
-      const mag = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.15, 0.065), V5_WEAPON_MATS.polymerBlack);
-      mag.position.set(0, -0.09, 0.06);
-      mag.rotation.x = -0.22;
-      const sight = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.044, 0.075), V5_WEAPON_MATS.anodizedBlack);
-      sight.position.set(0, 0.062, 0.02);
-      weaponGroup.add(handguard, mag, sight);
-    } else if (classId === 'medic' || classId === 'engineer') {
-      const gripMag = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.14, 0.048), V5_WEAPON_MATS.anodizedBlack);
-      gripMag.position.set(0, -0.085, -0.02);
-      const foregrip = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.085, 0.036), V5_WEAPON_MATS.polymerBlack);
-      foregrip.position.set(0, -0.075, 0.14);
-      weaponGroup.add(gripMag, foregrip);
-    } else if (classId === 'sniper') {
-      const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.022, 0.34, 10), V5_WEAPON_MATS.anodizedBlack);
-      scope.rotation.x = Math.PI / 2;
-      scope.position.set(0, 0.074, 0.05);
-      const brake = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.032, 0.075), V5_WEAPON_MATS.anodizedBlack);
-      brake.position.set(0, 0.012, gunLen * 0.70);
-      weaponGroup.add(scope, brake);
-    } else if (classId === 'heavy') {
-      const boxMag = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.14, 0.14), V5_WEAPON_MATS.odGreen);
-      boxMag.position.set(-0.045, -0.085, 0.04);
-      const shield = new THREE.Mesh(new THREE.BoxGeometry(0.076, 0.072, 0.25), V5_WEAPON_MATS.gunSteel);
-      shield.position.set(0, 0.01, 0.24);
-      weaponGroup.add(boxMag, shield);
-    }
+        const rightShoulder = createLimbMesh(geos.shoulderJoint, uniformMat, false);
+        rightShoulder.position.set(0.21, 0.42, 0.02);
+        upperBody.add(rightShoulder);
 
-    const botFlashGeo = new THREE.ConeGeometry(0.075, 0.22, 6);
-    botFlashGeo.rotateX(Math.PI / 2);
-    const muzzleFlash = new THREE.Mesh(
-      botFlashGeo,
-      new THREE.MeshBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.92 })
-    );
-    muzzleFlash.position.set(0, 0.012, gunLen * 0.72 + 0.08);
-    muzzleFlash.visible = false;
-    weaponGroup.add(muzzleFlash);
+        const rightUpperArm = createLimbMesh(geos.upperArm, uniformMat);
+        rightUpperArm.position.set(0.21, 0.32, 0.08);
+        rightUpperArm.rotation.set(-0.55, -0.14, 0.14);
+        upperBody.add(rightUpperArm);
 
-    upperBody.add(weaponGroup);
-    root.add(leftLegObj.hipPivot, rightLegObj.hipPivot, upperBody);
+        const rightArmBand = createLimbMesh(geos.armBand, iffMat, false);
+        rightArmBand.position.set(0.21, 0.34, 0.065);
+        rightArmBand.rotation.set(-0.55, -0.14, 0.14);
+        upperBody.add(rightArmBand);
 
-    if (isBlue) {
-      const marker = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.11, 0),
-        new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
-      );
-      marker.position.set(0, 2.04, 0);
-      root.add(marker);
-    }
+        const rightElbow = createLimbMesh(geos.elbowJoint, uniformMat, false);
+        rightElbow.position.set(0.19, 0.22, 0.15);
+        upperBody.add(rightElbow);
 
-    return {
-      root,
-      upperBody,
-      leftLeg: leftLegObj.hipPivot,
-      rightLeg: rightLegObj.hipPivot,
-      leftHip: leftLegObj.hipPivot,
-      rightHip: rightLegObj.hipPivot,
-      leftKnee: leftLegObj.kneePivot,
-      rightKnee: rightLegObj.kneePivot,
-      leftArm,
-      rightArm,
-      weaponGroup,
-      weaponPivot: weaponGroup,
-      muzzleFlash,
-      torso,
-      head
-    };
-  }
+        const rightForearm = createLimbMesh(geos.forearm, uniformMat);
+        rightForearm.position.set(0.16, 0.25, 0.24);
+        rightForearm.rotation.set(-1.26, -0.28, -0.12);
+        upperBody.add(rightForearm);
+
+        const rightHand = createLimbMesh(geos.handGlove, mats.gloveDark, false);
+        rightHand.position.set(0.13, 0.27, 0.31);
+        upperBody.add(rightHand);
+
+        const neck = createLimbMesh(geos.neck, mats.skinTone, false);
+        neck.position.set(0, 0.49, 0.01);
+        upperBody.add(neck);
+
+        const headGroup = new THREE.Group();
+        headGroup.position.set(0, 0.61, 0.01);
+
+        const skull = createLimbMesh(geos.headSkull, mats.skinTone);
+        headGroup.add(skull);
+
+        const jaw = createLimbMesh(geos.jaw, classId === 'sniper' ? mats.ghillieOlive : mats.bootLeather, false);
+        jaw.position.set(0, -0.042, 0.028);
+        headGroup.add(jaw);
+
+        const helmet = createLimbMesh(geos.helmetShell, mats.helmetOlive);
+        helmet.position.set(0, 0.012, -0.005);
+        headGroup.add(helmet);
+
+        const helmetBand = createLimbMesh(geos.helmetBand, iffMat, false);
+        helmetBand.position.set(0, 0.032, -0.005);
+        headGroup.add(helmetBand);
+
+        const nvg = createLimbMesh(geos.nvgMount, mats.gunMetal, false);
+        nvg.position.set(0, 0.056, 0.118);
+        headGroup.add(nvg);
+
+        const goggles = createLimbMesh(geos.goggles, mats.visorLens, false);
+        goggles.position.set(0, 0.014, 0.104);
+        headGroup.add(goggles);
+
+        [-0.118, 0.118].forEach((ex) => {
+          const earCup = createLimbMesh(geos.earCup, mats.bootLeather, false);
+          earCup.rotation.z = Math.PI / 2;
+          earCup.position.set(ex, 0.002, -0.01);
+          headGroup.add(earCup);
+        });
+
+        if (classId === 'sniper') {
+          const hood = createLimbMesh(geos.sniperHood, mats.ghillieOlive, false);
+          hood.position.set(0, 0.022, -0.01);
+          headGroup.add(hood);
+        }
+
+        upperBody.add(headGroup);
+
+        const weaponPivot = new THREE.Group();
+        weaponPivot.position.set(0.11, 0.28, 0.26);
+
+        const receiverLen = classId === 'sniper' ? 0.56 : classId === 'heavy' ? 0.52 : (classId === 'medic' || classId === 'engineer') ? 0.34 : 0.44;
+        const barrelLen = classId === 'sniper' ? 0.48 : classId === 'heavy' ? 0.36 : (classId === 'medic' || classId === 'engineer') ? 0.16 : 0.28;
+
+        const wBody = createLimbMesh(
+          new THREE.BoxGeometry(classId === 'heavy' ? 0.072 : 0.052, classId === 'heavy' ? 0.088 : 0.068, receiverLen),
+          mats.gunMetal
+        );
+        wBody.position.z = receiverLen * 0.22;
+        weaponPivot.add(wBody);
+
+        const wStock = createLimbMesh(new THREE.BoxGeometry(0.044, 0.082, 0.20), mats.bootLeather, false);
+        wStock.position.set(0, -0.01, -0.14);
+        weaponPivot.add(wStock);
+
+        const wBarrel = createLimbMesh(
+          new THREE.CylinderGeometry(0.012, 0.015, barrelLen, 8),
+          mats.gunSteel,
+          false
+        );
+        wBarrel.rotation.x = Math.PI / 2;
+        wBarrel.position.set(0, 0.014, receiverLen * 0.72 + barrelLen * 0.45);
+        weaponPivot.add(wBarrel);
+
+        if (classId === 'sniper') {
+          const wScope = createLimbMesh(new THREE.CylinderGeometry(0.024, 0.026, 0.28, 10), mats.bootLeather, false);
+          wScope.rotation.x = Math.PI / 2;
+          wScope.position.set(0, 0.062, 0.14);
+          weaponPivot.add(wScope);
+        } else if (classId === 'heavy') {
+          const wBox = createLimbMesh(new THREE.BoxGeometry(0.11, 0.13, 0.13), mats.ghillieOlive, false);
+          wBox.position.set(-0.07, -0.06, 0.12);
+          weaponPivot.add(wBox);
+        } else {
+          const wMag = createLimbMesh(new THREE.BoxGeometry(0.032, 0.14, 0.052), mats.bootLeather, false);
+          wMag.position.set(0, -0.085, 0.16);
+          wMag.rotation.x = -0.16;
+          weaponPivot.add(wMag);
+        }
+
+        const muzzleFlash = new THREE.Mesh(
+          new THREE.SphereGeometry(0.09, 8, 8),
+          new THREE.MeshBasicMaterial({ color: 0xffb703, transparent: true, opacity: 0.92 })
+        );
+        muzzleFlash.position.set(0, 0.014, receiverLen * 0.72 + barrelLen + 0.06);
+        muzzleFlash.visible = false;
+        weaponPivot.add(muzzleFlash);
+
+        upperBody.add(weaponPivot);
+
+        return {
+          root,
+          upperBody,
+          head: headGroup,
+          leftHip: leftLeg.hip,
+          leftKnee: leftLeg.knee,
+          rightHip: rightLeg.hip,
+          rightKnee: rightLeg.knee,
+          weaponPivot,
+          muzzleFlash
+        };
+      }
 
       // =========================================================================
       // 8. COLLISION, RAMP HEIGHT & LINE OF SIGHT
