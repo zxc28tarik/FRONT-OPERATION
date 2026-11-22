@@ -4271,7 +4271,7 @@
           neck: new THREE.CylinderGeometry(0.056, 0.066, 0.10, 10),
           headSkull: new THREE.SphereGeometry(0.106, 14, 12),
           jaw: new THREE.BoxGeometry(0.125, 0.085, 0.135),
-          helmetShell: new THREE.LatheGeometry(helmetPoints, 16),
+          helmetShell: new THREE.LatheGeometry(helmetPoints.slice().reverse(), 16),
           helmetBand: new THREE.CylinderGeometry(0.126, 0.128, 0.022, 16),
           nvgMount: new THREE.BoxGeometry(0.042, 0.046, 0.024),
           goggles: new THREE.BoxGeometry(0.185, 0.052, 0.045),
