@@ -7355,6 +7355,10 @@ function buildSquadLeadership() {
         dustGeo: new THREE.SphereGeometry(0.08, 6, 6),
         dustMat: new THREE.MeshBasicMaterial({ color: 0x9ca3af, transparent: true, opacity: 0.52, depthWrite: false }),
         chipGeo: new THREE.DodecahedronGeometry(0.035, 0),
+        // V14 2B: head/body particles from the preserved original VFX candidate.
+        bloodDropGeo: new THREE.SphereGeometry(0.026, 6, 6),
+        matBloodBody: new THREE.MeshBasicMaterial({ color: 0x991b1b }),
+        matBloodHead: new THREE.MeshBasicMaterial({ color: 0xdc2626 }),
         chipMat: new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.9 }),
         sparkGeo: new THREE.BoxGeometry(0.012, 0.012, 0.14),
         sparkHotMat: new THREE.MeshBasicMaterial({ color: 0xfef9c3, transparent: true, opacity: 0.95 }),
@@ -7456,6 +7460,36 @@ function buildSquadLeadership() {
         mesh.scale.setScalar(0.75 + Math.random() * 0.55);
         scene.add(mesh);
         activeImpactMarks.push({ mesh, life: 2.2 });
+      }
+
+
+      // V14 2B body/headshot feedback adapted to the V25 pooled particle engine.
+      // Visual only: damage, ballistics and collision detection are not modified.
+      function spawnCharacterHitFX(pos, isHead = false, distance = 10) {
+        if (!pos || ![pos.x, pos.y, pos.z].every(Number.isFinite)) return;
+        const distScale = Math.max(0.75, Math.min(1.55, 0.75 + distance * 0.018));
+        const mat = isHead ? VFX_SHARED.matBloodHead : VFX_SHARED.matBloodBody;
+        const count = isHead ? 7 : 5;
+        for (let i = 0; i < count && activeParticles.length < VFX_CAPS.maxParticles; i++) {
+          const mesh = new THREE.Mesh(VFX_SHARED.bloodDropGeo, mat);
+          mesh.position.copy(pos);
+          mesh.scale.setScalar((isHead ? 1.15 : 0.90) * Math.min(1.35, distScale));
+          scene.add(mesh);
+          const life = 0.24 + Math.random() * 0.10;
+          activeParticles.push({
+            mesh,
+            vel: new THREE.Vector3(
+              (Math.random() - 0.5) * 3.8,
+              0.9 + Math.random() * 2.4,
+              (Math.random() - 0.5) * 3.8
+            ),
+            gravity: 11.0,
+            growRate: -0.08,
+            alignVel: false,
+            life,
+            maxLife: life
+          });
+        }
       }
 
       function spawnImpactFX(pos, normal, isMetal = false, dist = 10) {
@@ -7891,6 +7925,7 @@ function buildSquadLeadership() {
           if (bestBot) {
             const dmg = Math.round(w.damage * (isHead ? w.headshotMult : 1.0));
             triggerHitmarker(isHead, bestBot.hp - dmg <= 0);
+            spawnCharacterHitFX(new THREE.Vector3(bestBot.pos.x, bestBot.pos.y + (isHead ? 1.56 : 1.15), bestBot.pos.z), isHead, bestDist);
             applyDamageToTarget(bestBot, dmg, isHead, player.name, player.team, w.slotName, player.pos);
           }
           return;
@@ -8120,6 +8155,7 @@ function buildSquadLeadership() {
           spawnTracer(muzzleWorld, botHitPos, w.category);
           const dmg = Math.round(w.damage * (hitHead ? w.headshotMult : 1.0));
           triggerHitmarker(hitHead, hitBot.hp - dmg <= 0);
+          spawnCharacterHitFX(botHitPos, hitHead, hitBotDist);
           applyDamageToTarget(hitBot, dmg, hitHead, player.name, player.team, w.slotName, player.pos);
         } else {
           spawnTracer(muzzleWorld, envHitPoint, w.category);
@@ -8769,6 +8805,7 @@ function buildSquadLeadership() {
                 } else {
                   const victimBot = bots.find((x) => x.id === bestEnemy.id);
                   if (victimBot) {
+                    spawnCharacterHitFX(new THREE.Vector3(victimBot.pos.x, victimBot.pos.y + 1.15, victimBot.pos.z), false, distToEnemy);
                     applyDamageToTarget(victimBot, dmg, false, bot.name, bot.team, bw.slotName, bot.pos);
                   }
                 }
