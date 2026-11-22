@@ -20,6 +20,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run actual WebGL 6v6 match and UI acceptance
         run: node scripts/browser-webgl-smoke.mjs
+      - name: Render V25 versus V25+V11 characters from three angles
+        run: node scripts/character-turntable.mjs
       - name: Save browser screenshots and report even if tests fail
         if: always()
         uses: actions/upload-artifact@v4
