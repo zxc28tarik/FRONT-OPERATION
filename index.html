@@ -8537,6 +8537,20 @@ function buildSquadLeadership() {
         return current + diff * Math.min(1, t);
       }
 
+
+      // Visual-only BOT tracer origin: follow the actual animated weapon muzzle.
+      // AI perception, shot direction, hit chance and damage still use the original eye ray.
+      function getBotVisibleMuzzlePosition(bot, fallback) {
+        if (!bot || !bot.mesh || !bot.mesh.root || !bot.mesh.muzzleFlash) return fallback.clone();
+        const root = bot.mesh.root;
+        root.position.set(bot.pos.x, bot.pos.y - bot.crouchAmt * 0.32, bot.pos.z);
+        root.updateMatrixWorld(true);
+        const pos = new THREE.Vector3();
+        bot.mesh.muzzleFlash.getWorldPosition(pos);
+        return Number.isFinite(pos.x) && Number.isFinite(pos.y) && Number.isFinite(pos.z)
+          ? pos : fallback.clone();
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -8812,7 +8826,7 @@ function buildSquadLeadership() {
 
               const hitSuccess = Math.random() < hitChance;
               const endTracer = hitSuccess ? bestEnemy.eye.clone() : botEye.clone().addScaledVector(spreadDir, Math.min(distToEnemy + 4, 45));
-              spawnTracer(botEye.clone().addScaledVector(aimDir, 0.55), endTracer, bw.category);
+              spawnTracer(getBotVisibleMuzzlePosition(bot, botEye.clone().addScaledVector(aimDir, 0.55)), endTracer, bw.category);
 
               if (hitSuccess) {
                 const dmg = Math.round(bw.damage * 0.72);
@@ -8876,7 +8890,7 @@ function buildSquadLeadership() {
                 const hitChance = Math.max(0.18, 0.52 * (1 - dDist / 40));
                 const hitSuccess = Math.random() < hitChance;
                 const endPt = hitSuccess ? visibleEnemyDrone.pos.clone() : botEyeNoTarget.clone().addScaledVector(aimDir, dDist + 3);
-                spawnTracer(botEyeNoTarget.clone().addScaledVector(aimDir, 0.55), endPt, bw.category);
+                spawnTracer(getBotVisibleMuzzlePosition(bot, botEyeNoTarget.clone().addScaledVector(aimDir, 0.55)), endPt, bw.category);
 
                 if (hitSuccess) {
                   spawnImpactFX(visibleEnemyDrone.pos, aimDir.clone().negate(), true, dDist);
@@ -8913,7 +8927,7 @@ function buildSquadLeadership() {
                     (Math.random() - 0.5) * 0.09
                   )).normalize();
                   spawnTracer(
-                    botEyeNoTarget.clone().addScaledVector(aimDir, 0.55),
+                    getBotVisibleMuzzlePosition(bot, botEyeNoTarget.clone().addScaledVector(aimDir, 0.55)),
                     botEyeNoTarget.clone().addScaledVector(jitteredDir, Math.min(distSuppress + 3, 42)),
                     sw.category
                   );
