@@ -70,17 +70,35 @@ const THREE = new Proxy({
 }, { get: (o, k) => o[k] || Object3D });
 
 const modelCode = `let SOLDIER_SHARED = null;
+let SOLDIER_V11_DETAIL_GEOMETRIES = null;
 ${extract('getSoldierSharedAssets')}
 ${extract('createLimbMesh')}
 ${extract('createBotSoldierMesh')}
-createBotSoldierMesh;`;
-const factory = vm.runInNewContext(modelCode, { THREE });
+${extract('enhanceV25SoldierWithV11Details')}
+${extract('createEnhancedBotSoldierMesh')}
+({ base: createBotSoldierMesh, enhanced: createEnhancedBotSoldierMesh });`;
+const { base: baseFactory, enhanced: factory } = vm.runInNewContext(modelCode, { THREE });
+assert.equal((source.match(/createEnhancedBotSoldierMesh\(/g) || []).length, 4,
+  'all three bot/stand-in creation sites use enhanced V25 rig');
 const required = ['root', 'upperBody', 'head', 'leftHip', 'rightHip',
   'leftKnee', 'rightKnee', 'weaponPivot', 'muzzleFlash'];
 let count = 0;
 for (const team of ['blue', 'red']) {
   for (const role of ['assault', 'medic', 'engineer', 'sniper', 'heavy']) {
+    const baseline = baseFactory(team, role);
     const model = factory(team, role);
+    for (const [part, difference] of [
+      ['root', 1],
+      ['upperBody', role === 'medic' ? 3 : 2],
+      ['leftHip', 1],
+      ['rightHip', 1]
+    ]) {
+      assert.equal(model[part].children.length - baseline[part].children.length, difference,
+        `${team}/${role} V11 detail count ${part}`);
+    }
+    assert.ok(model.leftHip.children.at(-1).position.x < 0, 'left cargo pocket outside thigh');
+    assert.ok(model.rightHip.children.at(-1).position.x > 0, 'right cargo pocket outside thigh');
+    assert.equal(model.head.children.length, baseline.head.children.length, 'V25 head untouched');
     for (const field of required) assert.ok(model[field], `${team}/${role} missing ${field}`);
     assert.equal(model.head.parent, model.upperBody, 'headGroup attached to chest');
     assert.ok(model.head.children.length >= 7, 'helmet/goggles/NVG are attached to headGroup');
@@ -117,5 +135,5 @@ assert.equal(actualMuzzle.y, 1.26);
 assert.equal(fakeRoot.position.y, -0.16);
 assert.equal(fakeRoot.updated, true);
 assert.equal(getMuzzle(null, new Vector3(0, 1.45, 0)).y, 1.45);
-console.log('PASS: 10/10 advanced V25 soldier scene graphs, head/hitbox/muzzle hierarchy');
+console.log('PASS: 10/10 V25 soldier rigs with V11 cargo/straps/pouches, head and muzzle hierarchy');
 console.log('PASS: visible BOT muzzle world position and fallback');
