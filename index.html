@@ -7726,19 +7726,19 @@ function buildSquadLeadership() {
       // =========================================================================
       function applyManualRecoilCompensation(deltaPitch, deltaYaw) {
         if (deltaPitch < 0) {
-          const pullDown = -deltaPitch;
+          let downPull = -deltaPitch;
           if (player.recoilVelPitch > 0) {
-            const damped = Math.min(player.recoilVelPitch, pullDown * 18);
-            player.recoilVelPitch -= damped;
+            const velReduction = Math.min(player.recoilVelPitch, downPull * 18.0);
+            player.recoilVelPitch -= velReduction;
+            downPull = Math.max(0, downPull - velReduction / 18.0);
           }
-          if (player.recoilRecoveryPitch > 0) {
-            player.recoilRecoveryPitch = Math.max(0, player.recoilRecoveryPitch - pullDown);
+          if (downPull > 0 && player.recoilRecoveryPitch > 0) {
+            player.recoilRecoveryPitch = Math.max(0, player.recoilRecoveryPitch - downPull * 1.15);
           }
         }
         if (deltaYaw !== 0 && player.recoilRecoveryYaw !== 0) {
-          if (Math.sign(deltaYaw) !== Math.sign(player.recoilRecoveryYaw)) {
-            const reduce = Math.min(Math.abs(player.recoilRecoveryYaw), Math.abs(deltaYaw));
-            player.recoilRecoveryYaw -= Math.sign(player.recoilRecoveryYaw) * reduce;
+          if ((deltaYaw > 0 && player.recoilRecoveryYaw < 0) || (deltaYaw < 0 && player.recoilRecoveryYaw > 0)) {
+            player.recoilRecoveryYaw += deltaYaw * 0.9;
           }
         }
       }
@@ -8065,7 +8065,7 @@ function buildSquadLeadership() {
       }
 
       function triggerCombatRoll(dir) {
-        if (!player.alive || player.rollTimer > 0 || player.sp < 25) return;
+        if (!player.alive || player.rollTimer > 0 || !player.grounded || player.sp < 25) return;
         if (droneSystem.isPlayerControlling()) return;
         player.sp = Math.max(0, player.sp - 25);
         player.rollTimer = 0.42;
