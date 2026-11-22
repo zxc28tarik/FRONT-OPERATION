@@ -2605,6 +2605,26 @@
         scene.add(mesh);
       }
 
+      // Preserve V5 approved original chain-link fence texture.
+      function makeFenceAlphaTexture() {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, 128, 128);
+    g.strokeStyle = '#9ca3af';
+    g.lineWidth = 3;
+    for (let i = -128; i < 256; i += 16) {
+      g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 128, 128); g.stroke();
+      g.beginPath(); g.moveTo(i + 128, 0); g.lineTo(i, 128); g.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(6, 2);
+    return tex;
+  }
+
       function buildMarienCQCMap() {
         const texAsphalt = makeProceduralTextureSet('asphalt', 16, 24);
         const texConcrete = makeProceduralTextureSet('concrete', 4, 2);
@@ -2926,11 +2946,20 @@
         addDecoMesh(new THREE.CylinderGeometry(0.18, 0.18, 96, 10), matPipe, 39.65, 5.6, 0, Math.PI / 2, 0, 0, false, true, true);
         addDecoMesh(new THREE.CylinderGeometry(0.14, 0.14, 96, 10), matGalvanized, 39.65, 6.2, 0, Math.PI / 2, 0, 0, false, true, true);
 
+        const v5ChainFenceMat = new THREE.MeshBasicMaterial({
+          map: makeFenceAlphaTexture(), side: THREE.DoubleSide,
+          transparent: true, alphaTest: 0.08, depthWrite: false
+        });
         [-24, 0, 24].forEach((fz) => {
           addDecoMesh(new THREE.BoxGeometry(0.12, 1.15, 13.8), matDarkIron, 18.0, 3.78, fz, 0, 0, 0, false, true, true);
           for (let fp = -6; fp <= 6; fp += 3) {
             addDecoMesh(new THREE.BoxGeometry(0.16, 1.35, 0.16), matGalvanized, 18.0, 3.85, fz + fp, 0, 0, 0, false, true, true);
           }
+          const v5ChainPanel = new THREE.Mesh(new THREE.PlaneGeometry(13.8, 1.24), v5ChainFenceMat);
+          v5ChainPanel.position.set(18.04, 3.85, fz);
+          v5ChainPanel.rotation.y = Math.PI / 2;
+          scene.add(v5ChainPanel);
+          mapEnvironmentMeshes.push(v5ChainPanel);
         });
 
         [-8, 8].forEach((sz) => {
@@ -2971,6 +3000,51 @@
           scene.add(stack);
           mapEnvironmentMeshes.push(stack);
         });
+
+        // V5 original HQ signage (visual only; collision/nav data unchanged).
+        function addV5TacticalSign(x, y, z, rotY, title, sub, accentHex = '#f59e0b') {
+    const sc = document.createElement('canvas');
+    sc.width = 256;
+    sc.height = 96;
+    const sg = sc.getContext('2d');
+    sg.fillStyle = '#15181d';
+    sg.fillRect(0, 0, 256, 96);
+    sg.strokeStyle = accentHex;
+    sg.lineWidth = 6;
+    sg.strokeRect(3, 3, 250, 90);
+    // Corner bolts
+    sg.fillStyle = '#9ca3af';
+    [[12, 12], [244, 12], [12, 84], [244, 84]].forEach(([bx, by]) => {
+      sg.beginPath(); sg.arc(bx, by, 3, 0, Math.PI * 2); sg.fill();
+    });
+    sg.fillStyle = accentHex;
+    sg.font = 'bold 26px Rajdhani, sans-serif';
+    sg.textAlign = 'center';
+    sg.fillText(title, 128, 42);
+    sg.fillStyle = '#d4d4d8';
+    sg.font = '600 18px Inter, sans-serif';
+    sg.fillText(sub, 128, 72);
+
+    const tex = new THREE.CanvasTexture(sc);
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(2.88, 1.13, 0.06),
+      matSteel
+    );
+    frame.position.set(x, y, z);
+    frame.rotation.y = rotY;
+    scene.add(frame);
+
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.8, 1.05),
+      new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })
+    );
+    const offset = new THREE.Vector3(0, 0, 0.036).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+    mesh.position.set(x + offset.x, y, z + offset.z);
+    mesh.rotation.y = rotY;
+    scene.add(mesh);
+  }
+        addV5TacticalSign(0, 2.4, 41.18, Math.PI, 'DERBARAN ÜSSÜ', 'ANA KARARGAH • HQ-01', '#3b82f6');
+        addV5TacticalSign(0, 2.4, -41.18, 0, 'N.I.U. ÜSSÜ', 'ANA KARARGAH • HQ-02', '#ef4444');
 
         const dustCount = 140;
         const dustGeo = new THREE.BufferGeometry();
