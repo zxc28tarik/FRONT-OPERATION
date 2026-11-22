@@ -70,26 +70,24 @@ test('V22 seven team AI methods are retained', () => {
     assert.equal(normalized(func(game, n)), normalized(func(v22, n)), n);
   }
 });
-test('V5 original soldier identity with V25 animation adapters', () => {
-  let original = func(v5, 'createBotSoldierMesh');
-  original = original.replace(/WEAPON_MATS\./g, 'V5_WEAPON_MATS.');
-  original = original.replace('function createBotSoldierMesh(team, classId) {',
-    `function createBotSoldierMesh(team, classId) {
-      const V5_WEAPON_MATS = {
-        ...WEAPON_MATS,
-        chromeBolt: WEAPON_MATS.chromeSlide,
-        fdeTan: WEAPON_MATS.polymerFDE,
-        odGreen: WEAPON_MATS.olivePaint,
-        anodizedBlack: WEAPON_MATS.metalDark,
-        gunSteel: WEAPON_MATS.metalSteel
-      };`);
-  original = original.replace('upperBody.position.set(0, 1.08, 0);',
-    'upperBody.position.set(0, 0.93, 0);');
-  original = original.replace('      leftLeg: leftLegObj.hipPivot,\n      rightLeg: rightLegObj.hipPivot,',
-    '      leftLeg: leftLegObj.hipPivot,\n      rightLeg: rightLegObj.hipPivot,\n      leftHip: leftLegObj.hipPivot,\n      rightHip: rightLegObj.hipPivot,');
-  original = original.replace('      weaponGroup,\n      muzzleFlash,',
-    '      weaponGroup,\n      weaponPivot: weaponGroup,\n      muzzleFlash,');
-  assert.equal(normalized(func(game,'createBotSoldierMesh')), normalized(original));
+test('V25 advanced soldier identity exact and unified head group', () => {
+  // V5 remains archived for artistic reference, not the active soldier baseline.
+  const reference = get('references/V25_3D_BOT_SOLDIER_APPROVED.js');
+  const active = func(game, 'createBotSoldierMesh');
+  assert.equal(normalized(active), normalized(func(reference, 'createBotSoldierMesh')));
+  assert.ok(active.includes('const headGroup = new THREE.Group();'));
+  assert.ok(active.includes('headGroup.add(helmet);'));
+  assert.ok(active.includes('headGroup.add(goggles);'));
+  assert.ok(active.includes('head: headGroup,'));
+  assert.ok(active.includes('weaponPivot,'));
+  assert.ok(!active.includes('V5_WEAPON_MATS'));
+});
+test('BOT weapon muzzle is visual tracer origin in 3 firing modes', () => {
+  const visual = func(game, 'getBotVisibleMuzzlePosition');
+  assert.ok(visual.includes('bot.mesh.muzzleFlash.getWorldPosition(pos);'));
+  assert.ok(visual.includes('root.updateMatrixWorld(true);'));
+  assert.equal((game.match(/getBotVisibleMuzzlePosition\(bot, (?:botEye|botEyeNoTarget)/g) || []).length, 3);
+  assert.ok(visual.includes('fallback.clone()'));
 });
 test('V5 fencing is original; six tactical signs exist', () => {
   assert.equal(normalized(func(game,'makeFenceAlphaTexture')),
