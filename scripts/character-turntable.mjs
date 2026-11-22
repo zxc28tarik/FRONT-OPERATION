@@ -39,7 +39,7 @@ const soldierFunctions = [
   extract('createBotSoldierMesh'),
   extract('enhanceV25SoldierWithV11Details'),
   extract('createEnhancedBotSoldierMesh'),
-  'return { base: createBotSoldierMesh, enhanced: createEnhancedBotSoldierMesh };'
+  'return { base: createBotSoldierMesh, enhanced: createEnhancedBotSoldierMesh, assets: getSoldierSharedAssets };'
 ].join('\n');
 const pageHtml = '<!doctype html><html><head><meta charset="UTF-8">' +
   '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>' +
@@ -70,7 +70,20 @@ try {
   await page.evaluate(soldierCode => {
     const THREE = window.THREE;
     if (!THREE) throw Error('Three.js r128 did not load');
-    const { base, enhanced } = new Function('THREE', soldierCode)(THREE);
+    const { base, enhanced, assets } = new Function('THREE', soldierCode)(THREE);
+    const helmetGeo = assets().geos.helmetShell;
+    const positions = helmetGeo.getAttribute('position'), normals = helmetGeo.getAttribute('normal');
+    let outwardSum = 0, sampleCount = 0;
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i), z = positions.getZ(i), y = positions.getY(i);
+      const radius = Math.hypot(x, z);
+      if (radius < 0.095 || y < -0.03 || y > 0.115) continue;
+      outwardSum += x * normals.getX(i) + z * normals.getZ(i);
+      sampleCount++;
+    }
+    if (sampleCount < 20 || outwardSum <= 0) {
+      throw Error('Helmet shell winding is inverted; exterior dome may be invisible: ' + outwardSum + ' / ' + sampleCount);
+    }
     const canvas = document.getElementById('preview');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
