@@ -4336,6 +4336,51 @@
           medRoll.position.set(0.166, 0.29, -0.185);
           model.upperBody.add(medRoll);
         }
+        // V26: non-gameplay material breakup and readable equipment silhouettes.
+        // All additions are parented to existing V25 articulation pivots; no hitbox changes.
+        if (!SOLDIER_V11_DETAIL_GEOMETRIES.helmetRim) {
+          G.helmetRim = new THREE.TorusGeometry(0.123, 0.008, 5, 16);
+          G.visorUpperSeal = new THREE.BoxGeometry(0.187, 0.012, 0.023);
+          G.helmetSideRail = new THREE.BoxGeometry(0.018, 0.028, 0.105);
+          G.armPatch = new THREE.BoxGeometry(0.056, 0.062, 0.012);
+          G.vestWebbing = new THREE.BoxGeometry(0.293, 0.018, 0.018);
+          G.kneeShell = new THREE.BoxGeometry(0.092, 0.026, 0.016);
+          G.bootToeCap = new THREE.BoxGeometry(0.108, 0.016, 0.086);
+          G.rearPackBuckle = new THREE.BoxGeometry(0.074, 0.035, 0.018);
+        }
+        const head = model.head;
+        const rim = createLimbMesh(G.helmetRim, mats.helmetOlive, false);
+        rim.rotation.x = Math.PI / 2;
+        rim.position.set(0, -0.015, -0.005);
+        head.add(rim);
+        const seal = createLimbMesh(G.visorUpperSeal, mats.gloveDark, false);
+        seal.position.set(0, 0.044, 0.116);
+        head.add(seal);
+        for (const side of [-1, 1]) {
+          const rail = createLimbMesh(G.helmetSideRail, mats.vestRig, false);
+          rail.position.set(side * 0.129, 0.020, -0.012);
+          head.add(rail);
+          const sleeve = createLimbMesh(G.armPatch, team === 'blue' ? mats.blueIFF : mats.redIFF, false);
+          sleeve.position.set(side * 0.216, 0.348, side < 0 ? 0.130 : 0.111);
+          model.upperBody.add(sleeve);
+        }
+        // Stitched MOLLE rows, distinct knee shells and reinforced boot toes.
+        for (const y of [0.175, 0.255, 0.335]) {
+          const webbing = createLimbMesh(G.vestWebbing, mats.pouchCoyote, false);
+          webbing.position.set(0, y, 0.158);
+          model.upperBody.add(webbing);
+        }
+        for (const knee of [model.leftKnee, model.rightKnee]) {
+          const shell = createLimbMesh(G.kneeShell, mats.vestRig, false);
+          shell.position.set(0, -0.010, 0.080);
+          knee.add(shell);
+          const toe = createLimbMesh(G.bootToeCap, mats.gloveDark, false);
+          toe.position.set(0, -0.388, 0.143);
+          knee.add(toe);
+        }
+        const rearBuckle = createLimbMesh(G.rearPackBuckle, mats.gunSteel, false);
+        rearBuckle.position.set(0, 0.934, -0.191);
+        model.root.add(rearBuckle);
         return model;
       }
       function createEnhancedBotSoldierMesh(team, classId) {
