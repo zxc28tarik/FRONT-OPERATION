@@ -9,7 +9,6 @@ const v12 = get('references/1C_duvar_konteyner.html');
 const v17 = get('references/2D_V17_onayli_nisan.html');
 const v20 = get('references/3B_siper.html');
 const v22 = get('references/3C_V22_takim.html');
-const v24 = get('references/4A4B_V21_drone_onayli.html');
 let passed = 0;
 function test(name, run) {
   run();
@@ -116,8 +115,18 @@ test('V14 body and head hit particles integrated with cap', () => {
   assert.ok(func(game,'spawnCharacterHitFX').includes('activeParticles.length < VFX_CAPS.maxParticles'));
 });
 test('V24/V25 core gameplay and drone rules remain', () => {
-  assert.equal(normalized(block(game,'const WEAPONS = ')),
-    normalized(block(get('index.html'), 'const WEAPONS = ')));
+  // Compare each of the 11 V17 weapons' balance and recoil settings with current game.
+  // The V25 drone is a permitted additional weapon; no other original may change.
+  const readWeapons = source => vm.runInNewContext(
+    '(' + block(source, 'const WEAPONS = ').replace(/^const WEAPONS = /, '') + ')',
+    { DRONE_CONFIG: { kamikazeDamage: 85 } }
+  );
+  const preserved = readWeapons(v17), current = readWeapons(game);
+  assert.equal(Object.keys(preserved).length, 11);
+  for (const [id, referenceWeapon] of Object.entries(preserved)) {
+    assert.ok(current[id], 'Missing weapon ' + id);
+    assert.equal(JSON.stringify(current[id]), JSON.stringify(referenceWeapon), id);
+  }
   assert.match(game, /maxHp:\s*110/);
   assert.ok(game.includes('drone.vel.z += (targetVel.z - drone.vel.z) * horizAlpha;'));
   assert.ok(game.includes('!player.grounded || player.sp < 25'));
