@@ -4381,6 +4381,102 @@
         const rearBuckle = createLimbMesh(G.rearPackBuckle, mats.gunSteel, false);
         rearBuckle.position.set(0, 0.934, -0.191);
         model.root.add(rearBuckle);
+        // V26B: silhouette layering, class readability and weapon surface details.
+        if (!G.shoulderArmor) {
+          G.shoulderArmor = new THREE.BoxGeometry(0.118, 0.077, 0.166);
+          G.vestSidePanel = new THREE.BoxGeometry(0.038, 0.202, 0.194);
+          G.torsoSeam = new THREE.BoxGeometry(0.018, 0.285, 0.013);
+          G.thighFlap = new THREE.BoxGeometry(0.035, 0.120, 0.105);
+          G.goggleBridge = new THREE.BoxGeometry(0.024, 0.035, 0.022);
+          G.goggleLensLeft = new THREE.BoxGeometry(0.073, 0.035, 0.009);
+          G.visorSideGuard = new THREE.BoxGeometry(0.032, 0.037, 0.037);
+          G.weaponTopRail = new THREE.BoxGeometry(0.055, 0.014, 0.255);
+          G.weaponRearSight = new THREE.BoxGeometry(0.043, 0.039, 0.015);
+          G.weaponFrontSight = new THREE.BoxGeometry(0.026, 0.046, 0.014);
+          G.weaponGrip = new THREE.BoxGeometry(0.033, 0.124, 0.048);
+          G.weaponHandguard = new THREE.BoxGeometry(0.073, 0.064, 0.155);
+          G.weaponMuzzle = new THREE.CylinderGeometry(0.020, 0.020, 0.052, 10);
+          G.slingSegment = new THREE.BoxGeometry(0.010, 0.012, 0.29);
+          G.classBadge = new THREE.BoxGeometry(0.068, 0.061, 0.012);
+          G.classBadgeStripe = new THREE.BoxGeometry(0.055, 0.012, 0.014);
+        }
+        // Shoulder armor is anchored to the animated torso, never to physics colliders.
+        for (const side of [-1, 1]) {
+          const armor = createLimbMesh(G.shoulderArmor, mats.vestRig, false);
+          armor.position.set(side * 0.225, 0.404, -0.016);
+          armor.rotation.z = side * 0.14;
+          model.upperBody.add(armor);
+          const sidePanel = createLimbMesh(G.vestSidePanel, mats.pouchCoyote, false);
+          sidePanel.position.set(side * 0.179, 0.269, -0.005);
+          model.upperBody.add(sidePanel);
+          const flap = createLimbMesh(G.thighFlap, mats.pouchCoyote, false);
+          flap.position.set(side * 0.055, -0.16, -0.067);
+          (side < 0 ? model.leftHip : model.rightHip).add(flap);
+          const guard = createLimbMesh(G.visorSideGuard, mats.helmetOlive, false);
+          guard.position.set(side * 0.109, 0.012, 0.111);
+          model.head.add(guard);
+          const lens = createLimbMesh(G.goggleLensLeft, mats.visorLens, false);
+          lens.position.set(side * 0.048, 0.013, 0.132);
+          model.head.add(lens);
+        }
+        const bridge = createLimbMesh(G.goggleBridge, mats.gloveDark, false);
+        bridge.position.set(0, 0.013, 0.139);
+        model.head.add(bridge);
+        for (const x of [-0.145, 0.145]) {
+          const seam = createLimbMesh(G.torsoSeam, mats.gloveDark, false);
+          seam.position.set(x, 0.268, 0.157);
+          model.upperBody.add(seam);
+        }
+        const badge = createLimbMesh(G.classBadge, mats.helmetOlive, false);
+        badge.position.set(0.112, 0.379, 0.166);
+        model.upperBody.add(badge);
+        const badgeMark = createLimbMesh(G.classBadgeStripe,
+          classId === 'medic' ? mats.medCross :
+          classId === 'engineer' ? mats.brassBelt :
+          classId === 'sniper' ? mats.ghillieOlive :
+          classId === 'heavy' ? mats.gunSteel : (team === 'blue' ? mats.blueIFF : mats.redIFF), false);
+        badgeMark.position.set(0.112, 0.379, 0.174);
+        model.upperBody.add(badgeMark);
+
+        // BOT's third-person gun keeps its original model, firing pivot and muzzle flash.
+        const weapon = model.weaponPivot;
+        if (weapon) {
+          const isCompact = classId === 'medic' || classId === 'engineer';
+          const isSniper = classId === 'sniper';
+          const isHeavy = classId === 'heavy';
+          const mainLen = isSniper ? 0.56 : isHeavy ? 0.52 : isCompact ? 0.34 : 0.44;
+          const barrelSize = isSniper ? 0.48 : isHeavy ? 0.36 : isCompact ? 0.16 : 0.28;
+          const rail = createLimbMesh(G.weaponTopRail, mats.gunSteel, false);
+          rail.scale.z = isCompact ? 0.65 : 1;
+          rail.position.set(0, 0.053, mainLen * 0.23);
+          weapon.add(rail);
+          const handguard = createLimbMesh(G.weaponHandguard, mats.vestRig, false);
+          handguard.scale.z = isCompact ? 0.68 : isSniper ? 1.1 : 1;
+          handguard.position.set(0, 0.009, mainLen * 0.69);
+          weapon.add(handguard);
+          const grip = createLimbMesh(G.weaponGrip, mats.bootLeather, false);
+          grip.position.set(0, -0.083, -0.014);
+          grip.rotation.x = -0.19;
+          weapon.add(grip);
+          if (!isSniper) {
+            const rearSight = createLimbMesh(G.weaponRearSight, mats.gunMetal, false);
+            rearSight.position.set(0, 0.086, -0.035);
+            weapon.add(rearSight);
+            const frontSight = createLimbMesh(G.weaponFrontSight, mats.gunMetal, false);
+            frontSight.position.set(0, 0.081, mainLen * 0.73);
+            weapon.add(frontSight);
+          }
+          const muzzleEnd = mainLen * 0.72 + barrelSize;
+          const muzzle = createLimbMesh(G.weaponMuzzle, mats.gunMetal, false);
+          muzzle.rotation.x = Math.PI / 2;
+          muzzle.position.set(0, 0.014, muzzleEnd - 0.020);
+          weapon.add(muzzle);
+          const sling = createLimbMesh(G.slingSegment, mats.pouchCoyote, false);
+          sling.scale.z = isCompact ? 0.75 : 1;
+          sling.rotation.y = 0.18;
+          sling.position.set(-0.055, -0.023, mainLen * 0.13);
+          weapon.add(sling);
+        }
         return model;
       }
       function createEnhancedBotSoldierMesh(team, classId) {
