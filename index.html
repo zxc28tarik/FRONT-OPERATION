@@ -2941,6 +2941,32 @@
           addDecoMesh(grateGeo, matDarkIron, gx, 0.016, gz, 0, 0, 0, false, true, true);
         });
 
+
+        // V5 original rooftop/industrial facade detail, mapped to V25 existing footprints.
+        // Pure decoration: no path finding or physical collision changes.
+        function detailSniperBuilding(cx, cz, south) {
+          const frontZ = cz + (south ? -3.92 : 3.92);
+          const canopyZ = cz + (south ? 1.18 : -1.18);
+          addDecoMesh(new THREE.BoxGeometry(8.92, 0.18, 0.12), matDarkIron, cx, 3.46, frontZ);
+          for (const dx of [-1.3, 0, 1.3]) {
+            addDecoMesh(new THREE.BoxGeometry(0.085, 1.14, 0.11), matGalvanized, cx + dx, 2.1, frontZ);
+          }
+          addDecoMesh(new THREE.BoxGeometry(6.9, 0.20, 3.25), matSteel, cx, 6.3, canopyZ);
+          for (const dx of [-2.8, 2.8]) for (const dz of [-1.28, 1.28]) {
+            addDecoMesh(new THREE.CylinderGeometry(0.07, 0.07, 2.32, 8),
+              matDarkIron, cx + dx, 5.07, canopyZ + dz);
+          }
+          const vx = cx + (south ? 1.1 : -1.1);
+          addDecoMesh(new THREE.BoxGeometry(1.38, 0.62, 1.0), matGalvanized, vx, 6.74, canopyZ);
+          for (let i = -1; i <= 1; i++) {
+            addDecoMesh(new THREE.BoxGeometry(0.04, 0.34, 0.79),
+              matDarkIron, vx + 0.72, 6.74, canopyZ + i * 0.22);
+          }
+          addDecoMesh(new THREE.CylinderGeometry(0.12, 0.12, 0.55, 9),
+            matGalvanized, cx - 2.5, 6.66, canopyZ);
+          addDecoMesh(new THREE.BoxGeometry(8.35, 0.065, 0.065), matGalvanized, cx, 4.93, frontZ);
+        }
+
         // SOUTH BUILDING (Blue side, Z = +19)
         addSolidBox(-11.5, 1.75, 19, 8.5, 3.5, 7.5, matConcrete);
         addSolidBox(-11.5, 3.55, 19, 9.2, 0.32, 8.2, matSteel, true, true, true);
@@ -2958,6 +2984,8 @@
         addDecoMesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }), -15.4, 8.15, 22.2);
         addDecoMesh(new THREE.BoxGeometry(0.12, 0.95, 8.4), matDarkIron, -4.65, 1.95, 22.8, -0.44, 0, 0, false, true, true);
 
+        detailSniperBuilding(-11.5, 19, true);
+
         // NORTH BUILDING (Red side, Z = -19)
         addSolidBox(11.5, 1.75, -19, 8.5, 3.5, 7.5, matConcrete);
         addSolidBox(11.5, 3.55, -19, 9.2, 0.32, 8.2, matSteel, true, true, true);
@@ -2974,6 +3002,8 @@
         addDecoMesh(new THREE.CylinderGeometry(0.05, 0.08, 3.8, 6), matGalvanized, 15.4, 6.2, -22.2, 0, 0, 0, false, true, true);
         addDecoMesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshBasicMaterial({ color: 0xf43f5e }), 15.4, 8.15, -22.2);
         addDecoMesh(new THREE.BoxGeometry(0.12, 0.95, 8.4), matDarkIron, 4.65, 1.95, -22.8, 0.44, 0, 0, false, true, true);
+
+        detailSniperBuilding(11.5, -19, false);
 
         addDecoMesh(new THREE.BoxGeometry(56, 0.28, 0.65), matDarkIron, 0, 8.4, 0, 0, 0, 0, false, true, true);
 
@@ -3099,6 +3129,10 @@
   }
         addV5TacticalSign(0, 2.4, 41.18, Math.PI, 'DERBARAN ÜSSÜ', 'ANA KARARGAH • HQ-01', '#3b82f6');
         addV5TacticalSign(0, 2.4, -41.18, 0, 'N.I.U. ÜSSÜ', 'ANA KARARGAH • HQ-02', '#ef4444');
+        addV5TacticalSign(-20, 2.6, 36, Math.PI, 'SOL HAT • DEPO', 'SEKTÖR A • KAPALI ALAN', '#f59e0b');
+        addV5TacticalSign(20, 2.6, 36, Math.PI, 'SAĞ HAT • AVLU', 'SEKTÖR C • AÇIK SAHA', '#f59e0b');
+        addV5TacticalSign(-20, 2.6, -36, 0, 'SOL HAT • DEPO', 'SEKTÖR A • KAPALI ALAN', '#f59e0b');
+        addV5TacticalSign(20, 2.6, -36, 0, 'SAĞ HAT • AVLU', 'SEKTÖR C • AÇIK SAHA', '#f59e0b');
 
         const dustCount = 140;
         const dustGeo = new THREE.BufferGeometry();
