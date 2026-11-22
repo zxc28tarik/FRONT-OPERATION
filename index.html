@@ -1925,455 +1925,594 @@
       // 4. PROCEDURAL TEXTURES 1C (512x512 MULTI-LAYER + BUMP MAPS)
       // =========================================================================
       function makeProceduralTextureSet(type, repeatX = 1, repeatY = 1) {
-        const size = 512;
-        const c = document.createElement('canvas');
-        c.width = size;
-        c.height = size;
-        const ctx = c.getContext('2d');
+    const size = 512;
+    const diffCanvas = document.createElement('canvas');
+    diffCanvas.width = size;
+    diffCanvas.height = size;
+    const ctx = diffCanvas.getContext('2d');
 
-        const b = document.createElement('canvas');
-        b.width = size;
-        b.height = size;
-        const bctx = b.getContext('2d');
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = size;
+    bumpCanvas.height = size;
+    const bctx = bumpCanvas.getContext('2d');
 
-        bctx.fillStyle = '#808080';
-        bctx.fillRect(0, 0, size, size);
+    // Deterministic seed per texture type so surfaces are consistent & reproducible
+    let seed = 2166136261;
+    for (let i = 0; i < type.length; i++) {
+      seed ^= type.charCodeAt(i);
+      seed = Math.imul(seed, 16777619);
+    }
+    const rand = () => {
+      seed = (seed + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
 
-        let seed = 1337;
-        for (let k = 0; k < type.length; k++) seed = (seed * 31 + type.charCodeAt(k)) | 0;
-        const rand = () => {
-          seed = (seed * 1664525 + 1013904223) | 0;
-          return ((seed >>> 0) / 4294967296);
-        };
-        const TWO_PI = Math.PI * 2;
-        const tileField = (u, v, p1, p2) => (
-          Math.sin(u * TWO_PI * p1 + Math.cos(v * TWO_PI * p2) * 1.4) * 0.5 +
-          Math.cos(v * TWO_PI * p1 - Math.sin(u * TWO_PI * p2) * 1.2) * 0.5
-        );
+    const hash2D = (ix, iy, sOff = 0) => {
+      let n = Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(sOff, 1442695041);
+      n = (n ^ (n >>> 13)) >>> 0;
+      n = Math.imul(n, 1274126177) >>> 0;
+      return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+    };
 
-        if (type === 'asphalt') {
-          ctx.fillStyle = '#3b4047';
-          ctx.fillRect(0, 0, size, size);
-          const img = ctx.getImageData(0, 0, size, size);
-          const bimg = bctx.getImageData(0, 0, size, size);
-          const d = img.data, bd = bimg.data;
-          for (let y = 0; y < size; y++) {
-            const v = y / size;
-            for (let x = 0; x < size; x++) {
-              const u = x / size;
-              const idx = (y * size + x) * 4;
-              const macro = tileField(u, v, 2, 3) * 6;
-              const patch = tileField(u + 0.37, v + 0.19, 4, 4);
-              const grit = (rand() - 0.5) * 26;
-              const quartz = rand() > 0.965 ? 24 : (rand() < 0.035 ? -18 : 0);
-              const patchShift = patch > 0.42 ? -7 : 0;
-              const base = 59 + macro + patchShift + grit + quartz;
-              d[idx] = Math.max(24, Math.min(115, base));
-              d[idx + 1] = Math.max(26, Math.min(118, base + 3));
-              d[idx + 2] = Math.max(30, Math.min(124, base + 8));
-              const bh = 128 + grit * 2.1 + quartz * 1.8 + (patch > 0.42 ? 6 : 0);
-              const bv = Math.max(20, Math.min(240, bh));
-              bd[idx] = bv; bd[idx + 1] = bv; bd[idx + 2] = bv;
-            }
-          }
-          ctx.putImageData(img, 0, 0);
-          bctx.putImageData(bimg, 0, 0);
+    const clampByte = (v) => (v < 0 ? 0 : v > 255 ? 255 : v | 0);
 
-          for (let lane = 0; lane < 2; lane++) {
-            const lx = 135 + lane * 230;
-            const gTire = ctx.createLinearGradient(lx - 26, 0, lx + 26, 0);
-            gTire.addColorStop(0, 'rgba(22,25,30,0)');
-            gTire.addColorStop(0.5, 'rgba(22,25,30,0.22)');
-            gTire.addColorStop(1, 'rgba(22,25,30,0)');
-            ctx.fillStyle = gTire;
-            ctx.fillRect(lx - 26, 0, 52, size);
-          }
+    // Precompute periodic trigonometric lookup tables (zero UV seam tiling)
+    const sinU1 = new Float32Array(size);
+    const cosU1 = new Float32Array(size);
+    const sinU2 = new Float32Array(size);
+    const cosU3 = new Float32Array(size);
+    const twoPi = Math.PI * 2;
+    for (let i = 0; i < size; i++) {
+      const a = (i / size) * twoPi;
+      sinU1[i] = Math.sin(a);
+      cosU1[i] = Math.cos(a);
+      sinU2[i] = Math.sin(a * 2 + 0.7);
+      cosU3[i] = Math.cos(a * 3 + 1.3);
+    }
 
-          for (let s = 0; s < 5; s++) {
-            const ox = rand() * size;
-            const oy = rand() * size;
-            const orad = 14 + rand() * 26;
-            const grad = ctx.createRadialGradient(ox, oy, 2, ox, oy, orad);
-            grad.addColorStop(0, 'rgba(18, 20, 24, 0.34)');
-            grad.addColorStop(0.7, 'rgba(25, 29, 34, 0.14)');
-            grad.addColorStop(1, 'rgba(25, 29, 34, 0)');
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(ox, oy, orad, 0, TWO_PI);
-            ctx.fill();
-          }
+    const imgData = ctx.createImageData(size, size);
+    const data = imgData.data;
+    const bImgData = bctx.createImageData(size, size);
+    const bData = bImgData.data;
 
-          for (let cIdx = 0; cIdx < 5; cIdx++) {
-            let cx = rand() * size;
-            let cy = rand() * size;
-            ctx.strokeStyle = 'rgba(24, 27, 32, 0.72)';
-            ctx.lineWidth = 1.6;
-            bctx.strokeStyle = 'rgb(52,52,52)';
-            bctx.lineWidth = 2.2;
-            ctx.beginPath();
-            bctx.beginPath();
-            ctx.moveTo(cx, cy);
-            bctx.moveTo(cx, cy);
-            for (let seg = 0; seg < 10; seg++) {
-              cx += (rand() - 0.45) * 26;
-              cy += (rand() - 0.3) * 24;
-              ctx.lineTo(cx, cy);
-              bctx.lineTo(cx, cy);
-            }
-            ctx.stroke();
-            bctx.stroke();
-          }
-        } else if (type === 'concrete' || type === 'concrete_weathered') {
-          const weathered = type === 'concrete_weathered';
-          ctx.fillStyle = weathered ? '#6f7780' : '#858d96';
-          ctx.fillRect(0, 0, size, size);
-          const img = ctx.getImageData(0, 0, size, size);
-          const bimg = bctx.getImageData(0, 0, size, size);
-          const d = img.data, bd = bimg.data;
-          const baseTone = weathered ? 111 : 133;
-          for (let y = 0; y < size; y++) {
-            const v = y / size;
-            for (let x = 0; x < size; x++) {
-              const u = x / size;
-              const idx = (y * size + x) * 4;
-              const cloud = tileField(u, v, 2, 2) * (weathered ? 9 : 6);
-              const detail = tileField(u * 2, v * 2, 3, 5) * 4;
-              const pore = rand() < 0.014 ? -20 : 0;
-              const grain = (rand() - 0.5) * 14;
-              const val = baseTone + cloud + detail + pore + grain;
-              d[idx] = Math.max(52, Math.min(182, val));
-              d[idx + 1] = Math.max(54, Math.min(184, val + 2));
-              d[idx + 2] = Math.max(58, Math.min(188, val + 5));
-              const bv = Math.max(30, Math.min(225, 128 + grain * 1.6 + pore * 2.2));
-              bd[idx] = bv; bd[idx + 1] = bv; bd[idx + 2] = bv;
-            }
-          }
-          ctx.putImageData(img, 0, 0);
-          bctx.putImageData(bimg, 0, 0);
+    // Pass 1: Fast per-pixel multi-scale seamless tonal clouds, micro-grain & relief
+    for (let y = 0; y < size; y++) {
+      const sv1 = sinU1[y];
+      const cv1 = cosU1[y];
+      const sv2 = sinU2[y];
+      const cv3 = cosU3[y];
 
-          const joints = [0, 256];
-          joints.forEach((pos) => {
-            ctx.fillStyle = 'rgba(38, 43, 49, 0.42)';
-            ctx.fillRect(0, pos, size, 3);
-            ctx.fillRect(pos, 0, 3, size);
-            ctx.fillStyle = 'rgba(205, 214, 222, 0.16)';
-            ctx.fillRect(0, pos + 3, size, 1.5);
-            ctx.fillRect(pos + 3, 0, 1.5, size);
+      for (let x = 0; x < size; x++) {
+        const idx = (y * size + x) << 2;
+        const su1 = sinU1[x];
+        const cu1 = cosU1[x];
+        const su2 = sinU2[x];
+        const cu3 = cosU3[x];
 
-            bctx.fillStyle = 'rgb(64, 64, 64)';
-            bctx.fillRect(0, pos, size, 3);
-            bctx.fillRect(pos, 0, 3, size);
-            bctx.fillStyle = 'rgb(165, 165, 165)';
-            bctx.fillRect(0, pos + 3, size, 2);
-            bctx.fillRect(pos + 3, 0, 2, size);
-          });
+        // Seamless multi-frequency macro tonal cloud (-1 .. +1)
+        const cloudA = (su1 * cv1 + cu1 * sv2) * 0.5;
+        const cloudB = (su2 * cv3 + cu3 * sv1) * 0.5;
+        const macro = cloudA * 0.65 + cloudB * 0.35;
 
-          const tieCols = [64, 192, 320, 448];
-          const tieRows = [64, 192, 320, 448];
-          for (let r = 0; r < tieRows.length; r++) {
-            for (let col = 0; col < tieCols.length; col++) {
-              const hx = tieCols[col];
-              const hy = tieRows[r];
-              ctx.fillStyle = 'rgba(34, 38, 44, 0.56)';
-              ctx.beginPath();
-              ctx.arc(hx, hy, 4.2, 0, TWO_PI);
-              ctx.fill();
-              bctx.fillStyle = 'rgb(42, 42, 42)';
-              bctx.beginPath();
-              bctx.arc(hx, hy, 4.5, 0, TWO_PI);
-              bctx.fill();
+        const gFine = hash2D(x, y, 1) - 0.5;
+        const gMed = hash2D(x >> 1, y >> 1, 7) - 0.5;
+        const gCoarse = hash2D(x >> 3, y >> 3, 19) - 0.5;
 
-              if (weathered) {
-                const streakH = 38 + rand() * 75;
-                const gStreak = ctx.createLinearGradient(0, hy, 0, hy + streakH);
-                gStreak.addColorStop(0, 'rgba(68, 52, 40, 0.34)');
-                gStreak.addColorStop(1, 'rgba(68, 52, 40, 0)');
-                ctx.fillStyle = gStreak;
-                ctx.fillRect(hx - 2.5, hy + 3, 5, streakH);
-              }
-            }
+        let r = 128, g = 128, b = 128, bh = 128;
+
+        if (type === 'concrete' || type === 'concrete_weathered') {
+          const isW = type === 'concrete_weathered';
+          const baseR = isW ? 108 : 124;
+          const baseG = isW ? 113 : 129;
+          const baseB = isW ? 119 : 136;
+
+          const mineralShift = macro * (isW ? 14 : 10) + gCoarse * (isW ? 12 : 8);
+          const pore = gFine * 16 + gMed * 10;
+          const warmTint = cloudB * 4;
+
+          r = baseR + mineralShift + pore + warmTint;
+          g = baseG + mineralShift + pore + warmTint * 0.5;
+          b = baseB + mineralShift + pore - warmTint * 0.6;
+          bh = 128 + gFine * 36 + gMed * 24 + macro * 14;
+        } else if (type === 'asphalt') {
+          const roadBand = macro * 9 + gCoarse * 8;
+          const stone = gFine * 26 + gMed * 16;
+          const glint = gFine > 0.44 ? 16 : 0;
+
+          r = 53 + roadBand + stone + glint;
+          g = 57 + roadBand + stone + glint;
+          b = 63 + roadBand + stone + glint + 2;
+          bh = 124 + gFine * 58 + gMed * 30 + macro * 10;
+        } else if (type.startsWith('container_')) {
+          const baseR = type === 'container_red' ? 138 : type === 'container_blue' ? 42 : 112;
+          const baseG = type === 'container_red' ? 46 : type === 'container_blue' ? 76 : 72;
+          const baseB = type === 'container_red' ? 46 : type === 'container_blue' ? 116 : 49;
+
+          // Trapezoidal vertical corrugation rib profile (32px period)
+          const ribPos = x & 31;
+          let shade = 0;
+          let ribH = 128;
+          if (ribPos < 9) {
+            shade = 14;
+            ribH = 212;
+          } else if (ribPos < 15) {
+            const t = (ribPos - 9) / 6;
+            shade = 14 - t * 38;
+            ribH = 212 - t * 148;
+          } else if (ribPos < 25) {
+            shade = -24;
+            ribH = 64;
+          } else {
+            const t = (ribPos - 25) / 7;
+            shade = -24 + t * 38;
+            ribH = 64 + t * 148;
           }
 
-          if (weathered) {
-            const gBot = ctx.createLinearGradient(0, size * 0.72, 0, size);
-            gBot.addColorStop(0, 'rgba(35, 39, 44, 0)');
-            gBot.addColorStop(1, 'rgba(35, 39, 44, 0.34)');
-            ctx.fillStyle = gBot;
-            ctx.fillRect(0, size * 0.72, size, size * 0.28);
-
-            for (let k = 0; k < 6; k++) {
-              let x = rand() * size;
-              let y = rand() * size;
-              ctx.strokeStyle = 'rgba(42, 46, 52, 0.48)';
-              ctx.lineWidth = 1.25;
-              bctx.strokeStyle = 'rgb(62, 62, 62)';
-              bctx.lineWidth = 1.8;
-              ctx.beginPath();
-              bctx.beginPath();
-              ctx.moveTo(x, y);
-              bctx.moveTo(x, y);
-              for (let s = 0; s < 12; s++) {
-                x += (rand() - 0.5) * 24;
-                y += (rand() - 0.25) * 24;
-                ctx.lineTo(x, y);
-                bctx.lineTo(x, y);
-              }
-              ctx.stroke();
-              bctx.stroke();
-            }
-          }
+          const fade = macro * 9 + gCoarse * 6 + gFine * 7;
+          r = baseR + shade + fade;
+          g = baseG + shade * 0.92 + fade;
+          b = baseB + shade * 0.88 + fade;
+          bh = ribH + gFine * 14;
         } else if (type === 'steel') {
-          ctx.fillStyle = '#535d68';
-          ctx.fillRect(0, 0, size, size);
-          const img = ctx.getImageData(0, 0, size, size);
-          const bimg = bctx.getImageData(0, 0, size, size);
-          const d = img.data, bd = bimg.data;
-          for (let y = 0; y < size; y++) {
-            const rowBrush = (rand() - 0.5) * 9;
-            for (let x = 0; x < size; x++) {
-              const idx = (y * size + x) * 4;
-              const fine = (rand() - 0.5) * 7 + rowBrush;
-              const base = 83 + fine;
-              d[idx] = Math.max(40, Math.min(145, base));
-              d[idx + 1] = Math.max(45, Math.min(152, base + 7));
-              d[idx + 2] = Math.max(52, Math.min(162, base + 15));
-              const bv = Math.max(85, Math.min(175, 128 + fine * 1.4));
-              bd[idx] = bv; bd[idx + 1] = bv; bd[idx + 2] = bv;
-            }
-          }
-          ctx.putImageData(img, 0, 0);
-          bctx.putImageData(bimg, 0, 0);
-
-          [0, 256].forEach((p) => {
-            ctx.fillStyle = 'rgba(24, 29, 35, 0.55)';
-            ctx.fillRect(0, p, size, 3);
-            ctx.fillRect(p, 0, 3, size);
-            ctx.fillStyle = 'rgba(175, 190, 205, 0.22)';
-            ctx.fillRect(0, p + 3, size, 1.5);
-            ctx.fillRect(p + 3, 0, 1.5, size);
-            bctx.fillStyle = 'rgb(65, 65, 65)';
-            bctx.fillRect(0, p, size, 3);
-            bctx.fillRect(p, 0, 3, size);
-          });
-
-          for (let r = 24; r < size; r += 64) {
-            [18, 238, 274, 494].forEach((rx) => {
-              ctx.fillStyle = 'rgba(30, 35, 42, 0.72)';
-              ctx.beginPath();
-              ctx.arc(rx, r + 1.5, 3.4, 0, TWO_PI);
-              ctx.fill();
-              ctx.fillStyle = 'rgba(148, 163, 184, 0.65)';
-              ctx.beginPath();
-              ctx.arc(rx, r, 3.0, 0, TWO_PI);
-              ctx.fill();
-              bctx.fillStyle = 'rgb(208, 208, 208)';
-              bctx.beginPath();
-              bctx.arc(rx, r, 3.4, 0, TWO_PI);
-              bctx.fill();
-            });
-          }
-
-          for (let p = 0; p < 10; p++) {
-            const px = rand() * size;
-            const py = rand() * size;
-            const pr = 10 + rand() * 22;
-            const gRust = ctx.createRadialGradient(px, py, 1, px, py, pr);
-            gRust.addColorStop(0, 'rgba(116, 62, 34, 0.34)');
-            gRust.addColorStop(1, 'rgba(116, 62, 34, 0)');
-            ctx.fillStyle = gRust;
-            ctx.beginPath();
-            ctx.arc(px, py, pr, 0, TWO_PI);
-            ctx.fill();
-          }
-        } else if (type.startsWith('container')) {
-          const baseColor = type === 'container_red' ? [126, 52, 46]
-            : type === 'container_blue' ? [48, 76, 110]
-            : [108, 68, 49];
-          const ribCount = 16;
-          const ribW = size / ribCount;
-          const img = ctx.createImageData(size, size);
-          const bimg = bctx.createImageData(size, size);
-          const d = img.data, bd = bimg.data;
-
-          for (let y = 0; y < size; y++) {
-            const v = y / size;
-            for (let x = 0; x < size; x++) {
-              const u = x / size;
-              const idx = (y * size + x) * 4;
-              const phase = (x % ribW) / ribW;
-              let prof = 0;
-              let slopeShade = 0;
-              if (phase < 0.16) {
-                const t = phase / 0.16;
-                prof = -1 + t * 2;
-                slopeShade = 14;
-              } else if (phase < 0.52) {
-                prof = 1;
-                slopeShade = 6;
-              } else if (phase < 0.68) {
-                const t = (phase - 0.52) / 0.16;
-                prof = 1 - t * 2;
-                slopeShade = -18;
-              } else {
-                prof = -1;
-                slopeShade = -8;
-              }
-
-              const wear = tileField(u, v, 3, 2) * 7 + (rand() - 0.5) * 8;
-              const chip = rand() < 0.006 ? 18 : 0;
-              d[idx] = Math.max(22, Math.min(210, baseColor[0] + slopeShade + wear + chip));
-              d[idx + 1] = Math.max(22, Math.min(210, baseColor[1] + slopeShade * 0.9 + wear + chip));
-              d[idx + 2] = Math.max(22, Math.min(210, baseColor[2] + slopeShade * 0.85 + wear + chip));
-              d[idx + 3] = 255;
-
-              const bv = Math.max(24, Math.min(232, 128 + prof * 68 + (rand() - 0.5) * 6));
-              bd[idx] = bv; bd[idx + 1] = bv; bd[idx + 2] = bv; bd[idx + 3] = 255;
-            }
-          }
-          ctx.putImageData(img, 0, 0);
-          bctx.putImageData(bimg, 0, 0);
-
-          for (let s = 0; s < 14; s++) {
-            const sx = rand() * size;
-            const sy = rand() * size;
-            const sw = 18 + rand() * 44;
-            ctx.fillStyle = 'rgba(155, 162, 170, 0.18)';
-            ctx.fillRect(sx, sy, sw, 2 + rand() * 3);
-            ctx.fillStyle = 'rgba(92, 46, 26, 0.28)';
-            ctx.fillRect(sx + 4, sy + 2, sw * 0.7, 3);
-          }
-
-          ctx.fillStyle = 'rgba(241, 245, 249, 0.54)';
-          ctx.fillRect(36, 46, 98, 24);
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
-          ctx.font = 'bold 13px monospace';
-          ctx.fillText('MIL-LOG // 40HC', 40, 62);
-          ctx.fillStyle = 'rgba(245, 158, 11, 0.62)';
-          ctx.fillRect(36, 74, 48, 6);
+          const brush = (hash2D(x >> 3, y, 3) - 0.5) * 14 + gFine * 7;
+          const patina = macro * 10 + gCoarse * 6;
+          r = 74 + brush + patina;
+          g = 82 + brush + patina;
+          b = 93 + brush + patina + 3;
+          bh = 128 + brush * 1.4 + macro * 10;
         } else if (type === 'wood') {
-          const plankCount = 8;
-          const plankH = size / plankCount;
-          const plankTones = [
-            [126, 94, 62], [116, 85, 55], [134, 101, 68], [110, 80, 52],
-            [129, 97, 65], [118, 88, 58], [132, 99, 66], [113, 83, 54]
-          ];
-          const img = ctx.createImageData(size, size);
-          const bimg = bctx.createImageData(size, size);
-          const d = img.data, bd = bimg.data;
+          const plankIdx = Math.min(5, Math.floor(y / 85.34));
+          const plankTint = ((plankIdx * 37) % 11) - 5;
+          const fiberWave = Math.sin((y / size) * twoPi * 16 + macro * 3.8 + plankIdx * 1.7);
+          const fiberStreak = (hash2D(x >> 4, y, 11) - 0.5) * 14;
+          const grain = fiberWave * 11 + fiberStreak + gFine * 6;
 
-          for (let y = 0; y < size; y++) {
-            const pIdx = Math.floor(y / plankH);
-            const localY = y % plankH;
-            const tone = plankTones[pIdx % plankTones.length];
-            const isSeam = localY < 2 || localY > plankH - 2;
-            const buttX = ((pIdx * 173 + 96) % size);
-
-            for (let x = 0; x < size; x++) {
-              const idx = (y * size + x) * 4;
-              const isButt = Math.abs(x - buttX) < 1.5;
-              const grainWave = Math.sin((localY * 0.42 + Math.sin(x * 0.032 + pIdx * 1.7) * 2.4)) * 10;
-              const fiber = (rand() - 0.5) * 8;
-              const seamDark = (isSeam || isButt) ? -42 : 0;
-
-              d[idx] = Math.max(28, Math.min(195, tone[0] + grainWave + fiber + seamDark));
-              d[idx + 1] = Math.max(22, Math.min(165, tone[1] + grainWave * 0.8 + fiber + seamDark));
-              d[idx + 2] = Math.max(16, Math.min(130, tone[2] + grainWave * 0.6 + fiber + seamDark));
-              d[idx + 3] = 255;
-
-              const bv = (isSeam || isButt) ? 54 : Math.max(70, Math.min(200, 132 + grainWave * 1.6 + fiber));
-              bd[idx] = bv; bd[idx + 1] = bv; bd[idx + 2] = bv; bd[idx + 3] = 255;
-            }
-          }
-          ctx.putImageData(img, 0, 0);
-          bctx.putImageData(bimg, 0, 0);
-
-          for (let p = 0; p < plankCount; p++) {
-            const py = p * plankH + plankH * 0.5;
-            const buttX = ((p * 173 + 96) % size);
-            [buttX - 14, buttX + 14].forEach((nx) => {
-              const wx = (nx + size) % size;
-              ctx.fillStyle = 'rgba(38, 32, 28, 0.72)';
-              ctx.beginPath();
-              ctx.arc(wx, py - 10, 2.2, 0, TWO_PI);
-              ctx.arc(wx, py + 10, 2.2, 0, TWO_PI);
-              ctx.fill();
-            });
-          }
+          r = 118 + plankTint * 1.6 + grain;
+          g = 86 + plankTint * 1.1 + grain * 0.78;
+          b = 56 + plankTint * 0.7 + grain * 0.52;
+          bh = 128 + fiberWave * 22 + fiberStreak * 1.2 + gFine * 12;
         } else if (type === 'sandbag') {
-          const rows = 4;
-          const cols = 2;
-          const rowH = size / rows;
-          const colW = size / cols;
-          const img = ctx.createImageData(size, size);
-          const bimg = bctx.createImageData(size, size);
-          const d = img.data, bd = bimg.data;
+          const course = Math.floor(y / 128);
+          const localY = (y % 128) / 128;
+          const offsetX = (course & 1) ? 128 : 0;
+          const localX = ((x + offsetX) % 256) / 256;
 
-          for (let y = 0; y < size; y++) {
-            const rIdx = Math.floor(y / rowH);
-            const ry = (y % rowH) / rowH;
-            const offset = (rIdx % 2) * (colW * 0.5);
+          // Smooth pillowed sandbag dome relief
+          const archX = Math.sin(localX * Math.PI);
+          const archY = Math.sin(localY * Math.PI);
+          const pillow = Math.pow(Math.max(0, archX * archY), 0.52);
 
-            for (let x = 0; x < size; x++) {
-              const idx = (y * size + x) * 4;
-              const sx = ((x + offset) % colW) / colW;
-              const pillowX = Math.sin(sx * Math.PI);
-              const pillowY = Math.sin(ry * Math.PI);
-              const pillow = Math.pow(Math.max(0, pillowX * pillowY), 0.45);
-              const weave = ((x + y) % 3 === 0 ? 5 : -3) + (rand() - 0.5) * 12;
-              const crevice = (sx < 0.04 || sx > 0.96 || ry < 0.06 || ry > 0.94) ? -34 : 0;
-              const shade = (pillow - 0.5) * 32 + weave + crevice;
+          // Woven burlap warp & weft fibers
+          const warp = ((x & 3) === 0) ? 7 : ((x & 3) === 2 ? -5 : 0);
+          const weft = ((y & 3) === 0) ? 7 : ((y & 3) === 2 ? -5 : 0);
+          const weave = (((x >> 2) + (y >> 2)) & 1) ? warp : weft;
 
-              d[idx] = Math.max(48, Math.min(198, 146 + shade));
-              d[idx + 1] = Math.max(44, Math.min(186, 134 + shade * 0.94));
-              d[idx + 2] = Math.max(34, Math.min(162, 106 + shade * 0.85));
-              d[idx + 3] = 255;
+          const topLight = (0.5 - localY) * 18;
+          const creviceShadow = (pillow - 0.55) * 44;
+          const dirt = macro * 8 + gFine * 9 + gCoarse * 6;
 
-              const bv = Math.max(28, Math.min(238, 86 + pillow * 124 + weave * 1.4 + crevice));
-              bd[idx] = bv; bd[idx + 1] = bv; bd[idx + 2] = bv; bd[idx + 3] = 255;
-            }
-          }
-          ctx.putImageData(img, 0, 0);
-          bctx.putImageData(bimg, 0, 0);
+          r = 136 + creviceShadow + topLight + weave + dirt;
+          g = 122 + creviceShadow * 0.96 + topLight * 0.92 + weave + dirt * 0.95;
+          b = 95 + creviceShadow * 0.90 + topLight * 0.80 + weave * 0.85 + dirt * 0.85;
+          bh = 52 + pillow * 165 + weave * 2.4 + gFine * 14;
         } else if (type === 'hazard') {
-          ctx.fillStyle = '#eab308';
-          ctx.fillRect(0, 0, size, size);
-          ctx.fillStyle = '#18181b';
-          for (let i = -size; i < size * 2; i += 64) {
-            ctx.beginPath();
-            ctx.moveTo(i, 0);
-            ctx.lineTo(i + 32, 0);
-            ctx.lineTo(i - size + 32, size);
-            ctx.lineTo(i - size, size);
-            ctx.closePath();
-            ctx.fill();
-          }
-          ctx.fillStyle = '#27272a';
-          ctx.fillRect(0, 0, size, 18);
-          ctx.fillRect(0, size - 18, size, 18);
-          bctx.fillStyle = 'rgb(165,165,165)';
-          bctx.fillRect(0, 0, size, 18);
-          bctx.fillRect(0, size - 18, size, 18);
+          const diag = (x + y) & 63;
+          const isYellow = diag < 32;
+          const edgeDist = Math.min(diag % 32, 32 - (diag % 32));
+          const crispBevel = edgeDist < 2 ? -10 : 0;
+          const wear = macro * 7 + gFine * 8;
 
-          for (let s = 0; s < 45; s++) {
-            ctx.fillStyle = rand() > 0.5 ? 'rgba(30,30,34,0.28)' : 'rgba(255,255,255,0.12)';
-            ctx.fillRect(rand() * size, rand() * size, 4 + rand() * 14, 2 + rand() * 5);
+          if (isYellow) {
+            r = 216 + wear + crispBevel;
+            g = 156 + wear * 0.85 + crispBevel;
+            b = 26 + wear * 0.4;
+            bh = 134 + gFine * 14 + crispBevel * 2;
+          } else {
+            r = 29 + wear * 0.6 - crispBevel * 0.5;
+            g = 33 + wear * 0.6 - crispBevel * 0.5;
+            b = 39 + wear * 0.6 - crispBevel * 0.5;
+            bh = 122 + gFine * 12;
           }
+        } else {
+          r = 120 + macro * 10 + gFine * 10;
+          g = 124 + macro * 10 + gFine * 10;
+          b = 130 + macro * 10 + gFine * 10;
+          bh = 128 + gFine * 24;
         }
 
-        const tex = new THREE.CanvasTexture(c);
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(repeatX, repeatY);
-        tex.anisotropy = maxAniso;
+        data[idx] = clampByte(r);
+        data[idx + 1] = clampByte(g);
+        data[idx + 2] = clampByte(b);
+        data[idx + 3] = 255;
 
-        const bump = new THREE.CanvasTexture(b);
-        bump.wrapS = THREE.RepeatWrapping;
-        bump.wrapT = THREE.RepeatWrapping;
-        bump.repeat.set(repeatX, repeatY);
-        bump.anisotropy = maxAniso;
-
-        return { map: tex, bumpMap: bump };
+        const bByte = clampByte(bh);
+        bData[idx] = bByte;
+        bData[idx + 1] = bByte;
+        bData[idx + 2] = bByte;
+        bData[idx + 3] = 255;
       }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+    bctx.putImageData(bImgData, 0, 0);
+
+    // Pass 2: Crisp Architectural Seams, Cracks, Bolts, Weave & Stencils
+    if (type === 'concrete' || type === 'concrete_weathered') {
+      const isW = type === 'concrete_weathered';
+      // 2x2 Cast Concrete Panel Formwork Seams with Bevel Highlight
+      const drawSeamH = (sy) => {
+        ctx.fillStyle = 'rgba(26, 30, 36, 0.52)';
+        ctx.fillRect(0, sy, size, 3);
+        ctx.fillStyle = 'rgba(215, 224, 235, 0.14)';
+        ctx.fillRect(0, sy + 3, size, 1.5);
+        bctx.fillStyle = '#323232';
+        bctx.fillRect(0, sy, size, 4);
+      };
+      const drawSeamV = (sx) => {
+        ctx.fillStyle = 'rgba(26, 30, 36, 0.52)';
+        ctx.fillRect(sx, 0, 3, size);
+        ctx.fillStyle = 'rgba(215, 224, 235, 0.14)';
+        ctx.fillRect(sx + 3, 0, 1.5, size);
+        bctx.fillStyle = '#323232';
+        bctx.fillRect(sx, 0, 4, size);
+      };
+      drawSeamH(0);
+      drawSeamH(256);
+      drawSeamV(0);
+      drawSeamV(256);
+
+      // Recessed Formwork Tie-Rod Holes & Mineral Water Run-off
+      const holes = [
+        [44, 44], [212, 44], [44, 212], [212, 212],
+        [300, 44], [468, 44], [300, 212], [468, 212],
+        [44, 300], [212, 300], [44, 468], [212, 468],
+        [300, 300], [468, 300], [300, 468], [468, 468]
+      ];
+      holes.forEach(([hx, hy]) => {
+        if (isW) {
+          const drip = ctx.createLinearGradient(hx, hy, hx, hy + 52);
+          drip.addColorStop(0, 'rgba(30, 34, 38, 0.34)');
+          drip.addColorStop(1, 'rgba(30, 34, 38, 0)');
+          ctx.fillStyle = drip;
+          ctx.fillRect(hx - 4, hy + 4, 8, 52);
+        }
+        ctx.fillStyle = 'rgba(195, 205, 215, 0.18)';
+        ctx.beginPath();
+        ctx.arc(hx, hy + 1.5, 6.5, 0, twoPi);
+        ctx.fill();
+
+        ctx.fillStyle = '#2c3138';
+        ctx.beginPath();
+        ctx.arc(hx, hy, 5.5, 0, twoPi);
+        ctx.fill();
+
+        bctx.fillStyle = '#181818';
+        bctx.beginPath();
+        bctx.arc(hx, hy, 6.5, 0, twoPi);
+        bctx.fill();
+      });
+
+      if (isW) {
+        // Rainwater streaking from upper seams & damp base-of-wall grime
+        for (let s = 0; s < 26; s++) {
+          const sx = rand() * size;
+          const sh = 65 + rand() * 140;
+          const grad = ctx.createLinearGradient(sx, 0, sx, sh);
+          grad.addColorStop(0, 'rgba(24, 28, 33, 0.36)');
+          grad.addColorStop(1, 'rgba(24, 28, 33, 0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(sx, 0, 5 + rand() * 14, sh);
+        }
+        const baseGrime = ctx.createLinearGradient(0, size - 78, 0, size);
+        baseGrime.addColorStop(0, 'rgba(24, 27, 30, 0)');
+        baseGrime.addColorStop(1, 'rgba(24, 27, 30, 0.38)');
+        ctx.fillStyle = baseGrime;
+        ctx.fillRect(0, size - 78, size, 78);
+
+        // Exposed aggregate spalling patches
+        for (let p = 0; p < 7; p++) {
+          const px = 30 + rand() * 440;
+          const py = 30 + rand() * 440;
+          const pr = 8 + rand() * 14;
+          ctx.fillStyle = 'rgba(42, 46, 52, 0.42)';
+          ctx.beginPath();
+          ctx.arc(px, py, pr, 0, twoPi);
+          ctx.fill();
+          bctx.fillStyle = '#484848';
+          bctx.beginPath();
+          bctx.arc(px, py, pr, 0, twoPi);
+          bctx.fill();
+        }
+
+        // Branching fine structural cracks
+        for (let c = 0; c < 4; c++) {
+          let cx = 40 + rand() * 430;
+          let cy = 20 + rand() * 200;
+          ctx.strokeStyle = 'rgba(22, 26, 30, 0.58)';
+          ctx.lineWidth = 1.6;
+          bctx.strokeStyle = '#262626';
+          bctx.lineWidth = 2.2;
+          ctx.beginPath();
+          bctx.beginPath();
+          ctx.moveTo(cx, cy);
+          bctx.moveTo(cx, cy);
+          for (let k = 0; k < 11; k++) {
+            cx += (rand() - 0.48) * 26;
+            cy += 18 + rand() * 14;
+            ctx.lineTo(cx, cy);
+            bctx.lineTo(cx, cy);
+          }
+          ctx.stroke();
+          bctx.stroke();
+        }
+      }
+    } else if (type === 'asphalt') {
+      // Cold-patch asphalt repairs
+      for (let p = 0; p < 3; p++) {
+        const px = 40 + rand() * 320;
+        const py = 40 + rand() * 320;
+        const pw = 54 + rand() * 68;
+        const ph = 42 + rand() * 58;
+        ctx.fillStyle = 'rgba(34, 38, 44, 0.46)';
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeStyle = 'rgba(18, 20, 24, 0.55)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px, py, pw, ph);
+        bctx.fillStyle = '#747474';
+        bctx.fillRect(px, py, pw, ph);
+      }
+
+      // Subtle dual-track tire marks
+      ctx.strokeStyle = 'rgba(20, 22, 26, 0.24)';
+      ctx.lineWidth = 11;
+      [152, 206].forEach(tx => {
+        ctx.beginPath();
+        ctx.moveTo(tx, 0);
+        ctx.bezierCurveTo(tx + 14, 170, tx - 12, 340, tx, size);
+        ctx.stroke();
+      });
+
+      // Engine oil / grease stains
+      for (let o = 0; o < 5; o++) {
+        const ox = rand() * size;
+        const oy = rand() * size;
+        const rad = 16 + rand() * 24;
+        const oGrad = ctx.createRadialGradient(ox, oy, 2, ox, oy, rad);
+        oGrad.addColorStop(0, 'rgba(14, 16, 20, 0.46)');
+        oGrad.addColorStop(0.65, 'rgba(20, 23, 28, 0.22)');
+        oGrad.addColorStop(1, 'rgba(14, 16, 20, 0)');
+        ctx.fillStyle = oGrad;
+        ctx.beginPath();
+        ctx.arc(ox, oy, rad, 0, twoPi);
+        ctx.fill();
+      }
+
+      // Tar-sealed thermal cracks
+      for (let c = 0; c < 4; c++) {
+        let cx = rand() * size;
+        let cy = rand() * (size * 0.4);
+        ctx.strokeStyle = 'rgba(15, 17, 21, 0.72)';
+        ctx.lineWidth = 2.4;
+        bctx.strokeStyle = '#969696';
+        bctx.lineWidth = 2.6;
+        ctx.beginPath();
+        bctx.beginPath();
+        ctx.moveTo(cx, cy);
+        bctx.moveTo(cx, cy);
+        for (let k = 0; k < 10; k++) {
+          cx += (rand() - 0.5) * 38;
+          cy += 24 + rand() * 18;
+          ctx.lineTo(cx, cy);
+          bctx.lineTo(cx, cy);
+        }
+        ctx.stroke();
+        bctx.stroke();
+      }
+    } else if (type === 'steel') {
+      // 2x2 Structural Steel Panel Seams & Bevels
+      [0, 256].forEach(pos => {
+        ctx.fillStyle = 'rgba(18, 22, 28, 0.62)';
+        ctx.fillRect(0, pos, size, 3);
+        ctx.fillRect(pos, 0, 3, size);
+        ctx.fillStyle = 'rgba(190, 204, 220, 0.22)';
+        ctx.fillRect(0, pos + 3, size, 1.5);
+        ctx.fillRect(pos + 3, 0, 1.5, size);
+
+        bctx.fillStyle = '#363636';
+        bctx.fillRect(0, pos, size, 3);
+        bctx.fillRect(pos, 0, 3, size);
+      });
+
+      // Shaded Rivet Rows & Subtle Rust Weep
+      for (let r = 24; r < size; r += 48) {
+        [16, 240, 272, 496].forEach(ry => {
+          if (rand() > 0.72) {
+            const rGrad = ctx.createLinearGradient(r, ry, r, ry + 26);
+            rGrad.addColorStop(0, 'rgba(110, 52, 24, 0.32)');
+            rGrad.addColorStop(1, 'rgba(110, 52, 24, 0)');
+            ctx.fillStyle = rGrad;
+            ctx.fillRect(r - 3, ry + 2, 6, 26);
+          }
+          ctx.fillStyle = 'rgba(20, 24, 30, 0.65)';
+          ctx.beginPath();
+          ctx.arc(r, ry + 1.2, 4.2, 0, twoPi);
+          ctx.fill();
+
+          ctx.fillStyle = '#8b96a5';
+          ctx.beginPath();
+          ctx.arc(r, ry, 3.6, 0, twoPi);
+          ctx.fill();
+
+          bctx.fillStyle = '#efefef';
+          bctx.beginPath();
+          bctx.arc(r, ry, 4.0, 0, twoPi);
+          bctx.fill();
+        });
+      }
+    } else if (type.startsWith('container_')) {
+      const isRustType = type === 'container_rust';
+      // Top & Bottom Container Structural Frame Rails
+      ctx.fillStyle = 'rgba(20, 24, 29, 0.36)';
+      ctx.fillRect(0, 0, size, 20);
+      ctx.fillRect(0, size - 20, size, 20);
+      bctx.fillStyle = '#c8c8c8';
+      bctx.fillRect(0, 0, size, 20);
+      bctx.fillRect(0, size - 20, size, 20);
+
+      // Paint Chipping & Iron-Oxide Rust along Corrugation Crests
+      const rustCount = isRustType ? 48 : 26;
+      for (let r = 0; r < rustCount; r++) {
+        const crestX = (Math.floor(rand() * 16) * 32) + rand() * 8;
+        const ry = rand() * size;
+        const rw = 5 + rand() * 14;
+        const rh = 12 + rand() * 34;
+
+        // Exposed grey primer halo
+        ctx.fillStyle = 'rgba(108, 116, 126, 0.34)';
+        ctx.fillRect(crestX - 1.5, ry - 2, rw + 3, rh + 4);
+
+        // Oxidized rust core
+        ctx.fillStyle = isRustType ? 'rgba(98, 44, 18, 0.48)' : 'rgba(84, 38, 16, 0.36)';
+        ctx.fillRect(crestX, ry, rw, rh);
+
+        bctx.fillStyle = '#5e5e5e';
+        bctx.fillRect(crestX, ry, rw, rh);
+      }
+
+      // Horizontal forklift scuff scrapes
+      for (let sc = 0; sc < 6; sc++) {
+        const sy = 60 + rand() * 390;
+        const sx = rand() * 260;
+        const sw = 80 + rand() * 180;
+        ctx.fillStyle = 'rgba(210, 216, 224, 0.16)';
+        ctx.fillRect(sx, sy, sw, 2.5);
+      }
+
+      // Crisp Weathered Military Stencils
+      ctx.fillStyle = 'rgba(238, 242, 246, 0.68)';
+      ctx.font = 'bold 24px monospace';
+      ctx.fillText('MIL-LOG // 40HC', 36, 72);
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText('MAX GROSS 30,480 KG', 36, 98);
+      ctx.fillText(type === 'container_blue' ? 'SEC-A // DERBARAN' : type === 'container_red' ? 'SEC-B // N.I.U.' : 'ORD-DEPOT // 07', 36, 122);
+    } else if (type === 'wood') {
+      // 6 Plank Horizontal Seams & Staggered Vertical Joints
+      for (let p = 0; p < 6; p++) {
+        const py = Math.round(p * 85.34);
+        ctx.fillStyle = 'rgba(34, 20, 8, 0.68)';
+        ctx.fillRect(0, py, size, 3);
+        ctx.fillStyle = 'rgba(225, 185, 140, 0.16)';
+        ctx.fillRect(0, py + 3, size, 1.5);
+        bctx.fillStyle = '#242424';
+        bctx.fillRect(0, py, size, 3.5);
+
+        const jointX = ((p * 173 + 96) % 420) + 46;
+        ctx.fillStyle = 'rgba(34, 20, 8, 0.58)';
+        ctx.fillRect(jointX, py, 2.5, 85);
+        bctx.fillStyle = '#2a2a2a';
+        bctx.fillRect(jointX, py, 3, 85);
+
+        // Natural Wood Knot
+        if (p % 2 === 1) {
+          const kx = ((p * 131 + 140) % 380) + 60;
+          const ky = py + 42;
+          ctx.fillStyle = 'rgba(54, 32, 14, 0.45)';
+          ctx.beginPath();
+          ctx.ellipse(kx, ky, 14, 7, 0.12, 0, twoPi);
+          ctx.fill();
+          bctx.fillStyle = '#525252';
+          bctx.beginPath();
+          bctx.ellipse(kx, ky, 14, 7, 0.12, 0, twoPi);
+          bctx.fill();
+        }
+      }
+
+      // Crate Edge Reinforcement Battens & Nail Heads
+      [18, size - 18].forEach(nx => {
+        for (let ny = 42; ny < size; ny += 85) {
+          ctx.fillStyle = '#2b2623';
+          ctx.beginPath();
+          ctx.arc(nx, ny, 3.2, 0, twoPi);
+          ctx.fill();
+          bctx.fillStyle = '#404040';
+          bctx.beginPath();
+          bctx.arc(nx, ny, 3.5, 0, twoPi);
+          bctx.fill();
+        }
+      });
+    } else if (type === 'sandbag') {
+      // Stitched Bag Ends & Crevice Seam Lines
+      for (let c = 0; c < 4; c++) {
+        const yTop = c * 128;
+        const offsetX = (c & 1) ? 128 : 0;
+
+        ctx.strokeStyle = 'rgba(42, 34, 22, 0.58)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, yTop);
+        ctx.lineTo(size, yTop);
+        ctx.stroke();
+
+        for (let b = -1; b < 3; b++) {
+          const bx = b * 256 + offsetX;
+          // Vertical bag-to-bag seam
+          ctx.strokeStyle = 'rgba(38, 30, 20, 0.62)';
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.moveTo(bx, yTop + 4);
+          ctx.lineTo(bx, yTop + 124);
+          ctx.stroke();
+
+          // Stitched burlap end-hem dashes
+          ctx.strokeStyle = 'rgba(65, 54, 38, 0.55)';
+          ctx.lineWidth = 1.6;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(bx + 14, yTop + 12);
+          ctx.lineTo(bx + 14, yTop + 116);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+    } else if (type === 'hazard') {
+      // Top & Bottom Metallic Trim Borders & Restrained Scuffs
+      ctx.fillStyle = 'rgba(18, 22, 27, 0.72)';
+      ctx.fillRect(0, 0, size, 12);
+      ctx.fillRect(0, size - 12, size, 12);
+      bctx.fillStyle = '#5a5a5a';
+      bctx.fillRect(0, 0, size, 12);
+      bctx.fillRect(0, size - 12, size, 12);
+
+      for (let s = 0; s < 14; s++) {
+        const sx = rand() * size;
+        const sy = 16 + rand() * (size - 32);
+        ctx.fillStyle = 'rgba(55, 62, 70, 0.32)';
+        ctx.fillRect(sx, sy, 8 + rand() * 18, 2 + rand() * 4);
+      }
+    }
+
+    const maxAniso = (typeof renderer !== 'undefined' && renderer.capabilities)
+      ? Math.min(8, renderer.capabilities.getMaxAnisotropy())
+      : 4;
+
+    const map = new THREE.CanvasTexture(diffCanvas);
+    map.wrapS = THREE.RepeatWrapping;
+    map.wrapT = THREE.RepeatWrapping;
+    map.repeat.set(repeatX, repeatY);
+    map.anisotropy = maxAniso;
+    map.needsUpdate = true;
+
+    const bumpMap = new THREE.CanvasTexture(bumpCanvas);
+    bumpMap.wrapS = THREE.RepeatWrapping;
+    bumpMap.wrapT = THREE.RepeatWrapping;
+    bumpMap.repeat.set(repeatX, repeatY);
+    bumpMap.anisotropy = maxAniso;
+    bumpMap.needsUpdate = true;
+
+    return { map, bumpMap };
+  }
 
       // =========================================================================
       // 5. MARIEN-CQC MAP 3.0 (3-LANE ARCHITECTURAL & INDUSTRIAL ENVIRONMENT)
@@ -5560,7 +5699,7 @@
               const vertAlpha = 1 - Math.exp(-(hasVertInput ? 13.0 : 11.0) * dt);
 
               drone.vel.x += (targetVel.x - drone.vel.x) * horizAlpha;
-              drone.vel.z += (targetVel.z - drone.vel.z) * vertAlpha;
+              drone.vel.z += (targetVel.z - drone.vel.z) * horizAlpha;
               drone.vel.y += (targetVel.y - drone.vel.y) * vertAlpha;
 
               if (!hasHorizInput && !hasVertInput) {
@@ -6002,6 +6141,7 @@
           const concealedStand = !hasLineOfSight(_coverThreatEye, _coverStandEye);
           const isFullCover = concealedCrouch && concealedStand;
           const isPartialCover = concealedCrouch && !concealedStand;
+          if (!isFullCover && !isPartialCover) continue; // V20: reject positions without actual cover
 
           let score = dBot * 0.95;
 
@@ -6076,6 +6216,26 @@
       // =========================================================================
       // 10A. TEAM COORDINATION 3C — SQUAD RALLIES, INTEL SHARING & COVERING FIRE
       // =========================================================================
+function buildSquadLeadership() {
+        const squadRallyPos = {};
+        const squadLeaderId = {};
+        const squadBestPriority = {};
+        const roleLeadPriority = { assault: 5, heavy: 4, medic: 3, engineer: 2, sniper: 1 };
+        for (let i = 0; i < bots.length; i++) {
+          const member = bots[i];
+          if (!member.alive) continue;
+          const key = `${member.team}_${member.squadId}`;
+          const priority = (roleLeadPriority[member.classId] || 1) + (member.hp > 45 ? 10 : 0);
+          const currentPriority = squadBestPriority[key];
+          if (currentPriority === undefined || priority > currentPriority) {
+            squadBestPriority[key] = priority;
+            squadLeaderId[key] = member.id;
+            squadRallyPos[key] = member.pos.clone();
+          }
+        }
+        return { squadRallyPos, squadLeaderId };
+      }
+
       const TEAM_INTEL = {
         blue: { sightings: {}, retreatAlerts: [] },
         red:  { sightings: {}, retreatAlerts: [] }
@@ -6109,7 +6269,10 @@
       }
 
       function reportTeamVisualSighting(team, squadId, reporterId, targetId, frozenPos) {
-        if (!team || !targetId || !frozenPos) return;
+        if (!TEAM_INTEL[team] || !targetId || !frozenPos || !isEntityStillAlive(targetId)) return;
+        if (![frozenPos.x, frozenPos.y, frozenPos.z].every(Number.isFinite)) return;
+        const targetTeam = targetId === 'player' ? player.team : (bots.find((b) => b.id === targetId) || {}).team;
+        if (targetTeam === team) return;
         const nowSec = performance.now() / 1000;
         TEAM_INTEL[team].sightings[targetId] = {
           targetId,
@@ -8183,26 +8346,11 @@
         pruneTeamIntel(nowSec);
 
         const targetClaimCounts = {};
-        const squadRallyPos = {};
-        const squadLeaderId = {};
-        const roleLeadPriority = { assault: 5, heavy: 4, medic: 3, engineer: 2, sniper: 1 };
-        const squadBestPriority = {};
-
+        const { squadRallyPos, squadLeaderId } = buildSquadLeadership();
         for (let i = 0; i < bots.length; i++) {
           const b = bots[i];
-          if (!b.alive) continue;
-          if (b.targetId) {
+          if (b.alive && b.targetId) {
             targetClaimCounts[b.targetId] = (targetClaimCounts[b.targetId] || 0) + 1;
-          }
-          const key = `${b.team}_${b.squadId}`;
-          const prio = (roleLeadPriority[b.classId] || 1) + (b.hp > 45 ? 10 : 0);
-          if (squadBestPriority[key] === undefined || prio > squadBestPriority[key]) {
-            squadBestPriority[key] = prio;
-            squadLeaderId[key] = b.id;
-            squadRallyPos[key] = b.pos.clone();
-          }
-          if (b.visibleEnemy) {
-            squadRallyPos[key] = b.pos.clone();
           }
         }
 
