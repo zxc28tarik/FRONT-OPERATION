@@ -366,61 +366,132 @@
       #menu-overlay .class-card, #menu-overlay .fo-deploy { transition: none; }
     }
 
-    /* V28 KISS: compact class selector with one context panel. */
-    #menu-overlay #class-grid { grid-template-columns: repeat(5, minmax(0,1fr)); gap: 9px; }
-    #menu-overlay .fo-class-step {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px; font-weight: 700; letter-spacing: .07em;
-      color: #a6b4ba; margin: 0 0 8px;
+    /* V30: faithful reference — compact, five icon cards, neutral palette. */
+    #menu-overlay {
+      background: rgba(11, 17, 23, .88);
+      backdrop-filter: blur(7px);
+      font-family: 'Inter', sans-serif;
+    }
+    #menu-overlay .fo-menu-panel {
+      width: min(100%, 682px);
+      padding: 23px 24px 20px;
+      background: #182127;
+      border: 1px solid rgba(163, 179, 187, .18);
+      border-radius: 13px;
+      box-shadow: 0 16px 54px rgba(0, 0, 0, .32);
+      color: #e5eaed;
+    }
+    #menu-overlay .fo-menu-header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-bottom: 15px;
+    }
+    #menu-overlay #menu-title {
+      font: 700 11px/1.4 'JetBrains Mono', monospace;
+      letter-spacing: .11em; color: #aab8bf; margin: 0;
+    }
+    #menu-overlay .fo-map-caption {
+      font: 600 10px/1.4 'JetBrains Mono', monospace;
+      color: #84969f; white-space: nowrap;
+    }
+    #menu-overlay .fo-menu-status {
+      font-size: 12px; color: #adbdc5;
+      margin: -6px 0 14px;
+    }
+    #menu-overlay .fo-menu-status.hidden { display: none; }
+    #menu-overlay .fo-match-result {
+      margin-bottom: 14px; padding: 9px 11px;
+      display: flex; justify-content: space-between; align-items: center;
+      border: 1px solid #46565c; background: #202d34;
+      border-radius: 7px; gap: 8px;
+    }
+    #menu-overlay .fo-match-result.hidden { display: none; }
+    #menu-overlay .fo-match-result span { font-size: 10px; color: #a9b8be; }
+    #menu-overlay .fo-match-result strong { font-size: 12px; color: #dce6e7; font-weight: 750; }
+    #menu-overlay .fo-class-grid {
+      display: grid; grid-template-columns: repeat(5,minmax(0,1fr));
+      gap: 7px; margin: 0 0 15px;
     }
     #menu-overlay .class-card {
-      min-height: 111px; padding: 13px 12px; display: flex; flex-direction: column;
-      gap: 7px; align-items: flex-start; justify-content: flex-start;
-      position: relative; border-radius: 10px;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 9px; min-width: 0; min-height: 116px;
+      padding: 12px 6px 9px; border: 1px solid #414f57;
+      background: #202a30; border-radius: 9px; color: #a6b5bc;
+      cursor: pointer; transition: border-color .15s ease, background .15s ease;
+      box-shadow: none; transform: none;
     }
-    #menu-overlay .class-card.selected::after {
-      content: ''; position: absolute; left: 0; top: 9px;
-      bottom: 9px; width: 3px; border-radius: 2px; background: #c0ad84;
+    #menu-overlay .class-card:hover {
+      border-color: #82949b; background: #28363d;
+      transform: none; box-shadow: none;
     }
-    #menu-overlay .fo-card-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
-    #menu-overlay .fo-card-key {
-      display: inline-flex; align-items: center; justify-content: center;
-      min-width: 20px; height: 20px; border: 1px solid #53616a;
-      border-radius: 5px; color: #d5dde1; font-size: 11px; font-weight: 700;
+    #menu-overlay .class-card.selected {
+      background: #303d40; border: 2px solid #b2c0b8;
+      color: #e1e8e4; box-shadow: none;
+      padding: 11px 5px 8px;
     }
-    #menu-overlay .fo-card-name { font-size: 12px; font-weight: 800; color: #e9eef0; }
-    #menu-overlay .fo-card-role { font-size: 12px; color: #c6d1d4; }
-    #menu-overlay .fo-card-weapon { font-size: 11px; color: #9cafb6; }
+    #menu-overlay .fo-card-icon { width: 29px; height: 29px; flex: 0 0 29px; }
+    #menu-overlay .fo-card-name {
+      font-size: 10px; line-height: 1.3;
+      font-weight: 800; letter-spacing: .025em;
+      text-align: center; white-space: nowrap; color: inherit;
+    }
+    #menu-overlay .fo-card-check { width: 13px; height: 13px; opacity: 0; margin-top: -1px; }
+    #menu-overlay .class-card.selected .fo-card-check { opacity: 1; }
+    #menu-overlay .class-card:focus-visible, #menu-overlay .fo-deploy:focus-visible {
+      outline: 2px solid #c2cfca; outline-offset: 3px;
+    }
     #menu-overlay .fo-class-detail {
-      display: grid; grid-template-columns: 1fr 1.8fr; align-items: center;
-      gap: 16px; margin-bottom: 18px; padding: 13px 16px;
-      border: 1px solid rgba(162,178,185,.18); background: #202a31;
-      border-radius: 9px;
+      padding: 15px 2px 16px; border-top: 1px solid #394750;
+      margin: 0; background: none; border-radius: 0;
+      display: flex; flex-direction: column; gap: 11px;
     }
-    #menu-overlay .fo-class-detail h2 {
-      margin: 0; font-size: 17px; font-weight: 750; color: #edf0f2;
+    #menu-overlay .fo-class-summary {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
     }
-    #menu-overlay .fo-class-detail p { margin: 4px 0 0; color: #adbdc3; font-size: 12px; }
-    #menu-overlay .fo-slot-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px 10px; }
-    #menu-overlay .fo-slot-list span { font-size: 12px; color: #d0dade; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #menu-overlay #selected-class-title {
+      font-size: 16px; line-height: 1.3; font-weight: 800;
+      margin: 0; color: #e9edf0; letter-spacing: -.01em;
+    }
+    #menu-overlay #selected-class-description {
+      font: 700 10px/1.3 'JetBrains Mono', monospace;
+      letter-spacing: .045em; color: #9faeb5; text-align: right;
+    }
+    #menu-overlay .fo-slot-list {
+      display: grid; grid-template-columns: repeat(4,minmax(0,1fr));
+      gap: 7px; align-items: stretch;
+    }
+    #menu-overlay .fo-slot-list span {
+      display: flex; align-items: center; gap: 5px; min-width: 0;
+      padding: 9px 10px; border: 1px solid rgba(173,188,193,.12);
+      border-radius: 5px; background: #27333b;
+      color: #c9d4da; font-size: 11px; line-height: 1.3;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    }
     #menu-overlay .fo-slot-list b {
-      display: inline-block; color: #d9c7a4; margin-right: 6px; width: 12px;
-      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      font: 700 11px/1 'JetBrains Mono', monospace;
+      color: #c7b697; flex: 0 0 auto;
+    }
+    #menu-overlay .fo-deploy {
+      display: block; width: 100%; height: 47px;
+      margin-top: 4px; border: 1px solid #bdccc8; border-radius: 7px;
+      background: #a9bdb9; color: #18252a;
+      font-size: 13px; font-weight: 800; letter-spacing: .04em;
+      cursor: pointer; transition: background .15s ease; box-shadow: none;
+    }
+    #menu-overlay .fo-deploy:hover { background: #c0d0cb; }
+    @media (max-width: 580px) {
+      #menu-overlay .fo-menu-panel { padding: 15px 12px; }
+      #menu-overlay .fo-class-grid { gap: 5px; }
+      #menu-overlay .class-card { min-height: 95px; gap: 6px; padding: 9px 2px 6px; }
+      #menu-overlay .class-card.selected { padding: 8px 1px 5px; }
+      #menu-overlay .fo-card-icon { width: 24px; height: 24px; flex-basis: 24px; }
+      #menu-overlay .fo-card-name { font-size: 8.5px; letter-spacing: 0; }
+      #menu-overlay .fo-slot-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      #menu-overlay #selected-class-title { font-size: 15px; }
     }
     #hud .fo-top-shortcuts { display: none !important; }
     #hud #slot-bar > div { opacity: .83; }
     #hud #slot-bar > div.border-amber-400\\/80 { opacity: 1; border-color: #b7a988 !important; }
     #hud .fo-scoreboard { border-color: rgba(151,166,175,.17); }
-    @media (max-width: 830px) {
-      #menu-overlay #class-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
-      #menu-overlay .fo-class-detail { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 520px) {
-      #menu-overlay #class-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
-      #menu-overlay .class-card { min-height: 94px; padding: 10px; gap: 5px; }
-      #menu-overlay .fo-class-detail { padding: 12px; }
-      #menu-overlay .fo-slot-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
-    }
     /* Secondary HUD labels recede; primary combat readouts remain visible. */
     #hud #radar-canvas + div { display: none; }
     #hud #zone-indicator { margin-top: 5px; font-weight: 600; letter-spacing: .01em; }
@@ -869,96 +940,58 @@
     </div>
   </div>
 
-  <!-- Start / Class Selection / Match End Menu -->
-  <div id="menu-overlay" class="fixed inset-0 z-40 bg-slate-950/82 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-    <div class="hud-glass fo-menu-panel rounded-2xl w-full max-w-4xl p-5 sm:p-7 border border-slate-600/50 my-auto">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700/80 pb-4 mb-5">
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 mono text-[10px] font-extrabold text-amber-300 tracking-widest">
-              6v6 • TAKIM SAVAŞI
-            </span>
-            <span class="mono text-xs text-slate-400">MARIEN • TAKIM ÖLÜM MAÇI</span>
-          </div>
-          <h1 id="menu-title" class="text-2xl sm:text-3xl font-black tracking-tight text-white mt-1">
-            FRONT OPERATION
-          </h1>
-          <p id="menu-subtitle" class="text-xs sm:text-sm text-slate-300 mt-0.5">
-            Sınıfını seç, çatışmaya katıl.
-          </p>
+  <!-- V30: exact dark-minimal reference layout — five icons, one loadout row, one CTA. -->
+  <div id="menu-overlay" class="fixed inset-0 z-40 flex items-center justify-center p-3 overflow-y-auto">
+    <div class="fo-menu-panel my-auto" role="region" aria-label="Sınıf seçimi">
+      <div class="fo-menu-header">
+        <h1 id="menu-title">SINIF SEÇİMİ</h1>
+        <span class="fo-map-caption">MARIEN • 6V6</span>
+      </div>
+      <p id="menu-subtitle" class="fo-menu-status hidden">Sınıfını seç, çatışmaya katıl.</p>
+      <div id="match-result-badge" class="hidden fo-match-result">
+        <span>MAÇ SONUCU</span>
+        <strong id="match-result-text">DERBARAN KAZANDI</strong>
+      </div>
+      <div id="class-grid" class="fo-class-grid" aria-label="Beş piyade sınıfından birini seç">
+        <div class="class-card selected" data-class="assault" role="button" tabindex="0" aria-pressed="true" aria-label="Hücum sınıfını seç">
+          <svg class="fo-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>
+          <span class="fo-card-name">HÜCUM</span>
+          <svg class="fo-card-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
         </div>
-
-        <div id="match-result-badge" class="hidden px-4 py-2 rounded-xl bg-slate-900 border border-amber-400/50 text-center">
-          <div class="text-[10px] mono text-slate-400 uppercase">MAÇ SONUCU</div>
-          <div id="match-result-text" class="text-lg font-black text-amber-400">DERBARAN KAZANDI</div>
+        <div class="class-card" data-class="medic" role="button" tabindex="0" aria-pressed="false" aria-label="Sıhhiye sınıfını seç">
+          <svg class="fo-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 7.1a5.2 5.2 0 0 0-8.8-1.5 5.2 5.2 0 0 0-8.8 1.5c-1.3 3.1.2 6 2.8 8.5L12 21l6-5.4c2.6-2.5 4.1-5.4 2.8-8.5Z"/><path d="M3.7 12h4l2-3.4 3.1 6.8 2.1-3.4h5.4"/></svg>
+          <span class="fo-card-name">SIHHİYE</span>
+          <svg class="fo-card-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+        </div>
+        <div class="class-card" data-class="engineer" role="button" tabindex="0" aria-pressed="false" aria-label="Drone sınıfını seç">
+          <svg class="fo-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21v-8m-3 8h6M10.2 13.5l1.8-3.5 1.8 3.5"/><path d="M7.8 8.5a6 6 0 0 1 8.4 0M5 5.5a10 10 0 0 1 14 0"/><circle cx="12" cy="10" r="1"/></svg>
+          <span class="fo-card-name">DRONE</span>
+          <svg class="fo-card-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+        </div>
+        <div class="class-card" data-class="sniper" role="button" tabindex="0" aria-pressed="false" aria-label="Sniper sınıfını seç">
+          <svg class="fo-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/><circle cx="12" cy="12" r="3"/><path d="M12 6v2m0 8v2M6 12h2m8 0h2"/></svg>
+          <span class="fo-card-name">SNIPER</span>
+          <svg class="fo-card-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+        </div>
+        <div class="class-card" data-class="heavy" role="button" tabindex="0" aria-pressed="false" aria-label="Heavy sınıfını seç">
+          <svg class="fo-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="M12 7v10m-4-5h8"/></svg>
+          <span class="fo-card-name">HEAVY</span>
+          <svg class="fo-card-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
         </div>
       </div>
-
-      <!-- V28 KISS: one compact choice per class; one shared detail area. -->
-      <div class="fo-class-step">1. SINIF SEÇ</div>
-      <div class="grid gap-3 mb-3" id="class-grid">
-        <div class="class-card selected" data-class="assault" role="button" tabindex="0" aria-pressed="true" aria-label="ASSAULT sınıfını seç">
-          <div class="fo-card-top"><span class="fo-card-key">1</span><span class="fo-card-name">ASSAULT</span></div>
-          <span class="fo-card-role">Hücum</span>
-          <span class="fo-card-weapon">HK416A5</span>
-        </div>
-        <div class="class-card" data-class="medic" role="button" tabindex="0" aria-pressed="false" aria-label="MEDIC sınıfını seç">
-          <div class="fo-card-top"><span class="fo-card-key">2</span><span class="fo-card-name">MEDIC</span></div>
-          <span class="fo-card-role">Sıhhiye</span>
-          <span class="fo-card-weapon">MP7A1</span>
-        </div>
-        <div class="class-card" data-class="engineer" role="button" tabindex="0" aria-pressed="false" aria-label="DRONE sınıfını seç">
-          <div class="fo-card-top"><span class="fo-card-key">3</span><span class="fo-card-name">DRONE</span></div>
-          <span class="fo-card-role">Operatör</span>
-          <span class="fo-card-weapon">MP7A1</span>
-        </div>
-        <div class="class-card" data-class="sniper" role="button" tabindex="0" aria-pressed="false" aria-label="SNIPER sınıfını seç">
-          <div class="fo-card-top"><span class="fo-card-key">4</span><span class="fo-card-name">SNIPER</span></div>
-          <span class="fo-card-role">Nişancı</span>
-          <span class="fo-card-weapon">MRAD</span>
-        </div>
-        <div class="class-card" data-class="heavy" role="button" tabindex="0" aria-pressed="false" aria-label="HEAVY sınıfını seç">
-          <div class="fo-card-top"><span class="fo-card-key">5</span><span class="fo-card-name">HEAVY</span></div>
-          <span class="fo-card-role">Ağır piyade</span>
-          <span class="fo-card-weapon">MINIMI</span>
-        </div>
-      </div>
-      <div class="fo-class-detail" id="class-detail" aria-live="polite">
-        <div class="fo-detail-identity">
-          <div class="fo-class-step">SEÇİLİ SINIF</div>
+      <div id="class-detail" class="fo-class-detail" aria-live="polite">
+        <div class="fo-class-summary">
           <h2 id="selected-class-title">Hücum Piyadesi</h2>
-          <p id="selected-class-description">Çok yönlü piyade</p>
+          <span id="selected-class-description">ÇOK YÖNLÜ</span>
         </div>
-        <div class="fo-detail-loadout">
-          <div class="fo-class-step">EKİPMAN</div>
-          <div class="fo-slot-list" id="selected-class-loadout">
-            <span><b>1</b> HK416A5</span><span><b>2</b> P320</span>
-            <span><b>3</b> Bıçak</span><span><b>4</b> M67</span>
-          </div>
+        <div id="selected-class-loadout" class="fo-slot-list">
+          <span><b>1.</b> HK416A5</span>
+          <span><b>2.</b> P320</span>
+          <span><b>3.</b> Bıçak</span>
+          <span><b>4.</b> M67</span>
         </div>
       </div>
-
-      <!-- Controls Legend & Play Button -->
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-900/75 rounded-xl p-3.5 border border-slate-800">
-        <details class="fo-control-details">
-          <summary>Kontroller ve kısayollar <span class="text-slate-400">— tıkla</span></summary>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-[11px] text-slate-300 mono mt-3">
-          <div><span class="text-amber-400 font-bold">WASD:</span> Hareket / Uçuş</div>
-          <div><span class="text-amber-400 font-bold">SHIFT:</span> Depar / Hızlan</div>
-          <div><span class="text-amber-400 font-bold">Q/E:</span> Sola / Sağa Takla</div>
-          <div><span class="text-amber-400 font-bold">SPACE / C:</span> Zıpla / İrtifa</div>
-          <div><span class="text-amber-400 font-bold">SOL TIK:</span> Ateş / Hızlı Mod</div>
-          <div><span class="text-amber-400 font-bold">SAĞ TIK:</span> Nişan / Patlat</div>
-          <div><span class="text-amber-400 font-bold">1-4 / R:</span> Slot / Şarjör</div>
-          <div><span class="text-amber-400 font-bold">ESC / P:</span> Duraklat</div>
-          <div><span class="text-amber-400 font-bold">B / TAB:</span> Sınıf / Skor</div>
-          </div>
-        </details>
-
-        <button id="btn-deploy" class="fo-deploy w-full sm:w-auto px-7 py-3.5 rounded-xl font-black tracking-wider text-sm uppercase transition cursor-pointer shrink-0">
-          ÇATIŞMAYA KATIL
-        </button>
-      </div>
+      <button id="btn-deploy" class="fo-deploy" type="button">ÇATIŞMAYA KATIL</button>
     </div>
   </div>
 
