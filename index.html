@@ -7374,7 +7374,12 @@ function buildSquadLeadership() {
             role: b.teamRole, difficulty: b.difficulty
           })),
           started: matchState.started,
-          tacticTeams: Object.keys(TEAM_TACTICS)
+          playerAlive: player.alive,
+          tacticTeams: Object.keys(TEAM_TACTICS),
+          soundEvents: BOT_NOISE_EVENTS.map(e => ({
+            kind: e.kind, team: e.team, sourceId: e.sourceId,
+            age: botAiClockSec - e.timestamp
+          }))
         });
       }
 
