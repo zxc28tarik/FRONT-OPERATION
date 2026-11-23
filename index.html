@@ -6695,6 +6695,99 @@
         hard: Object.freeze({ reactionScale: 0.90, accuracyScale: 1.12, aimSettleSec: 0.34 }),
         expert: Object.freeze({ reactionScale: 0.78, accuracyScale: 1.23, aimSettleSec: 0.34 })
       });
+
+      // V40: In-memory telemetry only. No new HUD and no network transfer.
+      const BOT_METRIC_FIELDS = [
+        'spawns','shots','hits','droneShots','droneHits','kills','deaths',
+        'stuckRecoveries','heard','heardArrived','heardInterrupted',
+        'flankStarts','sightings','aliveSeconds','engagedSeconds'
+      ];
+      const newBotMetricBucket = () =>
+        Object.fromEntries(BOT_METRIC_FIELDS.map(field => [field, 0]));
+      const BOT_METRICS = {
+        version: 40, seconds: 0, carry: 0, samples: 0,
+        difficulty: {}, classes: {}, teams: {}, actors: {},
+        spread: {blue:{sum:0,observations:0,closePairs:0},
+                 red:{sum:0,observations:0,closePairs:0}},
+        recent: []
+      };
+      function resetBotMetrics() {
+        BOT_METRICS.seconds = BOT_METRICS.carry = BOT_METRICS.samples = 0;
+        for (const key of ['difficulty','classes','teams','actors'])
+          BOT_METRICS[key] = {};
+        for (const team of ['blue','red'])
+          BOT_METRICS.spread[team] = {sum:0,observations:0,closePairs:0};
+        BOT_METRICS.recent.length = 0;
+      }
+      function recordBotMetric(bot, field) {
+        if (!bot || !BOT_METRIC_FIELDS.includes(field)) return;
+        for (const [key,id] of [
+          ['difficulty',bot.difficulty || 'normal'],
+          ['classes',bot.classId || 'unknown'],
+          ['teams',bot.team || 'unknown'],
+          ['actors',bot.id || 'unknown']
+        ]) {
+          const bucket=BOT_METRICS[key];
+          if (!bucket[id]) bucket[id]=newBotMetricBucket();
+          bucket[id][field]++;
+        }
+      }
+      function recordBotShot(bot, hit, drone = false) {
+        recordBotMetric(bot,drone?'droneShots':'shots');
+        if(hit) recordBotMetric(bot,drone?'droneHits':'hits');
+      }
+      function sampleBotMetrics(dt, roster) {
+        if (!Number.isFinite(dt) || dt <= 0) return;
+        BOT_METRICS.carry += Math.min(dt,0.1);
+        while (BOT_METRICS.carry >= 1) {
+          BOT_METRICS.carry--;
+          BOT_METRICS.samples++;
+          BOT_METRICS.seconds++;
+          const sample={second:BOT_METRICS.seconds};
+          for (const bot of roster) {
+            if (!bot.alive) continue;
+            recordBotMetric(bot,'aliveSeconds');
+            if (bot.visibleEnemy) recordBotMetric(bot,'engagedSeconds');
+          }
+          for (const team of ['blue','red']) {
+            const group=roster.filter(b=>b.alive && b.team===team);
+            if (!group.length) {sample[team]=null;continue;}
+            const cx=group.reduce((n,b)=>n+b.pos.x,0)/group.length;
+            const cz=group.reduce((n,b)=>n+b.pos.z,0)/group.length;
+            const radius=group.reduce((n,b)=>
+              n+Math.hypot(b.pos.x-cx,b.pos.z-cz),0)/group.length;
+            let closePairs=0;
+            for(let i=0;i<group.length;i++)for(let j=i+1;j<group.length;j++) {
+              const a=group[i],b=group[j];
+              if(Math.abs(a.pos.y-b.pos.y)<1.4 &&
+                 Math.hypot(a.pos.x-b.pos.x,a.pos.z-b.pos.z)<2.2)closePairs++;
+            }
+            const stats=BOT_METRICS.spread[team];
+            stats.sum+=radius;stats.observations++;stats.closePairs+=closePairs;
+            sample[team]={alive:group.length,radius:Math.round(radius*10)/10,closePairs};
+          }
+          BOT_METRICS.recent.push(sample);
+          if(BOT_METRICS.recent.length>20)BOT_METRICS.recent.shift();
+        }
+      }
+      function getBotMetricsSnapshot() {
+        const copy=JSON.parse(JSON.stringify(BOT_METRICS));
+        for(const table of ['difficulty','classes','teams','actors'])
+          for(const stats of Object.values(copy[table])) {
+            stats.accuracy=stats.shots?Math.round(stats.hits/stats.shots*1000)/1000:null;
+            stats.droneAccuracy=stats.droneShots?
+              Math.round(stats.droneHits/stats.droneShots*1000)/1000:null;
+            stats.kd=stats.deaths?Math.round(stats.kills/stats.deaths*100)/100:null;
+          }
+        for(const team of ['blue','red']) {
+          const d=copy.spread[team];
+          d.meanRadius=d.observations?Math.round(d.sum/d.observations*100)/100:null;
+          d.meanClosePairs=d.observations?
+            Math.round(d.closePairs/d.observations*100)/100:null;
+        }
+        return copy;
+      }
+
       let botLifeSequence = 0;
       function chooseBotDifficultyForSpawn() {
         const index = botLifeSequence++;
@@ -7376,6 +7469,7 @@ function buildSquadLeadership() {
           started: matchState.started,
           playerAlive: player.alive,
           tacticTeams: Object.keys(TEAM_TACTICS),
+          botMetrics: getBotMetricsSnapshot(),
           soundEvents: BOT_NOISE_EVENTS.map(e => ({
             kind: e.kind, team: e.team, sourceId: e.sourceId,
             age: botAiClockSec - e.timestamp
@@ -7473,6 +7567,7 @@ function buildSquadLeadership() {
       function initBots() {
         resetTeamIntel();
         resetBotNoiseEvents();
+        resetBotMetrics();
         bots.forEach((b) => scene.remove(b.mesh.root));
         bots.length = 0;
         // A fresh match starts a fresh per-five/per-fifteen spawn cycle.
@@ -7718,7 +7813,10 @@ function buildSquadLeadership() {
           });
         }
 
-        bots.forEach((b) => assignBotTacticalGoal(b));
+        bots.forEach((b) => {
+          assignBotTacticalGoal(b);
+          recordBotMetric(b, 'spawns');
+        });
       }
 
       function respawnBot(bot) {
@@ -7729,10 +7827,12 @@ function buildSquadLeadership() {
         bot.deathAnimTimer = 0;
         // Each new life counts as one bot spawn, including respawns.
         bot.difficulty = chooseBotDifficultyForSpawn();
+        recordBotMetric(bot, 'spawns');
         bot.aimSettleTimer = 0;
         resetBotAimTracking(bot);
         resetBotHearing(bot);
         bot.hearingLastNoiseId = 0;
+        bot.telemetryTargetId = null;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -8305,6 +8405,7 @@ function buildSquadLeadership() {
           bot.deathAnimTimer = 0.65;
           bot.respawnTimer = 3.5;
           bot.deaths++;
+          recordBotMetric(bot, 'deaths');
           bot.mesh.muzzleFlash.visible = false;
 
           droneSystem.onOperatorDied(bot.id);
@@ -8318,7 +8419,10 @@ function buildSquadLeadership() {
             showKillBanner(bannerText, isHeadshot);
           } else {
             const killerBot = bots.find((b) => b.name === attackerName);
-            if (killerBot) killerBot.kills++;
+            if (killerBot) {
+            killerBot.kills++;
+            recordBotMetric(killerBot, 'kills');
+          }
           }
 
           clearDeadTargetMemory(bot.id);
@@ -8395,7 +8499,10 @@ function buildSquadLeadership() {
           document.getElementById('respawn-overlay').classList.remove('hidden');
 
           const killerBot = bots.find((b) => b.name === attackerName);
-          if (killerBot) killerBot.kills++;
+          if (killerBot) {
+            killerBot.kills++;
+            recordBotMetric(killerBot, 'kills');
+          }
 
           clearDeadTargetMemory('player');
           addKillfeedEntry(attackerName, 'red', player.name, 'blue', weaponLabel, false);
@@ -10221,9 +10328,17 @@ function buildSquadLeadership() {
             continue;
           }
 
+          const previousTarget = bot.telemetryTargetId || null;
+          const previouslyHeard = !!(bot.hearingPos && bot.hearingTimer > 0);
           updateBotPerception(bot, dt, targetClaimCounts);
           considerBotHeardNoise(bot, nowSec, dt);
           const bestEnemy = bot.visibleEnemy;
+          const currentTarget = bestEnemy ? bestEnemy.id : null;
+          if (currentTarget && currentTarget !== previousTarget) recordBotMetric(bot,'sightings');
+          bot.telemetryTargetId = currentTarget;
+          if (!previouslyHeard && bot.hearingPos && bot.hearingTimer > 0)
+            recordBotMetric(bot,'heard');
+          if (previouslyHeard && currentTarget) recordBotMetric(bot,'heardInterrupted');
           if (bestEnemy) {
             bot.hearingPos = null;
             bot.hearingTimer = 0;
@@ -10431,7 +10546,10 @@ function buildSquadLeadership() {
             // A single squad flanker can approach the same observed enemy
             // from another navigable lane, without overruling emergency retreat.
             if (!isWounded && !isSniperTooClose) {
+              const previousFlank = bot.teamFlankGoalNode;
               const flankWp = getTeamFlankWaypoint(bot, nowSec);
+              if (previousFlank < 0 && bot.teamFlankGoalNode >= 0)
+                recordBotMetric(bot,'flankStarts');
               if (flankWp) {
                 bot.coverNode = -1;
                 bot.coverPhase = 'NONE';
@@ -10510,6 +10628,8 @@ function buildSquadLeadership() {
 
               const aimDir = new THREE.Vector3().subVectors(bestEnemy.eye, botEye).normalize();
               const hitSuccess = Math.random() < hitChance;
+              recordBotShot(bot, hitSuccess && (bestEnemy.isPlayer ? player.alive :
+                bots.some(other => other.id === bestEnemy.id && other.alive)));
               // A miss visibly clears the target silhouette rather than
               // using a near-center tracer that secretly does no damage.
               const endTracer = hitSuccess
@@ -10585,6 +10705,7 @@ function buildSquadLeadership() {
                 const aimDir = new THREE.Vector3().subVectors(visibleEnemyDrone.pos, botEyeNoTarget).normalize();
                 const hitChance = Math.max(0.18, 0.52 * (1 - dDist / 40));
                 const hitSuccess = Math.random() < hitChance;
+                recordBotShot(bot, hitSuccess && !visibleEnemyDrone.resolved, true);
                 const endPt = hitSuccess ? visibleEnemyDrone.pos.clone() : botEyeNoTarget.clone().addScaledVector(aimDir, dDist + 3);
                 spawnTracer(getBotVisibleMuzzlePosition(bot, botEyeNoTarget.clone().addScaledVector(aimDir, 0.55)), endPt, bw.category);
 
@@ -10809,6 +10930,7 @@ function buildSquadLeadership() {
                   const canApproach = bot.classId !== 'sniper' &&
                     bot.classId !== 'engineer' && bot.hp >= 55;
                   if (distanceToSound < 3.4 || bot.hearingTimer <= 0) {
+                    if (distanceToSound < 3.4) recordBotMetric(bot,'heardArrived');
                     bot.hearingPos = null;
                     bot.hearingGoalNode = -1;
                     bot.hearingRoute = [];
@@ -11039,6 +11161,7 @@ function buildSquadLeadership() {
               bot.stuckTimer = 0;
               if (movedDist < 0.55) {
                 bot.stuckFailures++;
+                recordBotMetric(bot, 'stuckRecoveries');
                 const obstructedWp = bot.teamFlankGoalNode >= 0
                   ? bot.teamFlankRoute[bot.teamFlankPathIndex]
                   : (bot.path && bot.path[bot.pathIndex]);
@@ -11143,6 +11266,7 @@ function buildSquadLeadership() {
             bot.mesh.upperBody.position.y = 0.93 + breath;
           }
         }
+        sampleBotMetrics(dt,bots);
       }
 
       // =========================================================================
