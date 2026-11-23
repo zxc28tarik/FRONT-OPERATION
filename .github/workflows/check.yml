@@ -20,3 +20,5 @@ jobs:
         run: node tests/bot_ai_v32_regression.cjs
       - name: Run BOT AI V33 behavior regression
         run: node tests/bot_ai_v33_regression.cjs
+      - name: Run BOT AI V34 behavior regression
+        run: node tests/bot_ai_v34_regression.cjs
