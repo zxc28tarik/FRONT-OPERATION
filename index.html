@@ -1870,11 +1870,13 @@
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.08;
+      // V26F: restrained exposure to preserve bright concrete and metal details.
+      renderer.toneMappingExposure = 1.04;
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x6e7b88);
-      scene.fog = new THREE.FogExp2(0x6e7b88, 0.0092);
+      scene.background = new THREE.Color(0x78838c);
+      // V26F: slightly cleaner long-range silhouettes, no changes to geometry or view distance.
+      scene.fog = new THREE.FogExp2(0x78838c, 0.0077);
 
       const camera = new THREE.PerspectiveCamera(74, window.innerWidth / window.innerHeight, 0.03, 280);
       camera.rotation.order = 'YXZ';
@@ -1889,11 +1891,11 @@
       viewmodelGroup.add(muzzleLight);
 
       // Overcast War Rock Industrial Lighting
-      const hemiLight = new THREE.HemisphereLight(0xcbd5e1, 0x3b424c, 0.96);
+      const hemiLight = new THREE.HemisphereLight(0xcdd8e1, 0x454348, 1.00);
       hemiLight.position.set(0, 50, 0);
       scene.add(hemiLight);
 
-      const dirLight = new THREE.DirectionalLight(0xfff1dc, 1.15);
+      const dirLight = new THREE.DirectionalLight(0xffefdc, 1.12);
       dirLight.position.set(42, 68, 34);
       dirLight.castShadow = true;
       dirLight.shadow.mapSize.width = 2048;
@@ -1909,11 +1911,11 @@
       scene.add(dirLight);
 
       // Warehouse interior warm industrial lights
-      const warehouseLight1 = new THREE.PointLight(0xffb36b, 1.35, 34, 1.6);
+      const warehouseLight1 = new THREE.PointLight(0xffc28b, 1.18, 31, 1.7);
       warehouseLight1.position.set(-28, 7.6, -18);
       scene.add(warehouseLight1);
 
-      const warehouseLight2 = new THREE.PointLight(0xffb36b, 1.35, 34, 1.6);
+      const warehouseLight2 = new THREE.PointLight(0xffc28b, 1.18, 31, 1.7);
       warehouseLight2.position.set(-28, 7.6, 18);
       scene.add(warehouseLight2);
 
@@ -2638,22 +2640,22 @@
         const texContRust = makeProceduralTextureSet('container_rust', 2, 1);
 
         const matAsphalt = new THREE.MeshStandardMaterial({
-          map: texAsphalt.map, bumpMap: texAsphalt.bumpMap, bumpScale: 0.05, roughness: 0.88, metalness: 0.06
+          map: texAsphalt.map, bumpMap: texAsphalt.bumpMap, bumpScale: 0.042, roughness: 0.93, metalness: 0.02
         });
         const matConcrete = new THREE.MeshStandardMaterial({
-          map: texConcrete.map, bumpMap: texConcrete.bumpMap, bumpScale: 0.05, roughness: 0.84, metalness: 0.06
+          map: texConcrete.map, bumpMap: texConcrete.bumpMap, bumpScale: 0.047, roughness: 0.90, metalness: 0.025
         });
         const matWeathered = new THREE.MeshStandardMaterial({
-          map: texWeathered.map, bumpMap: texWeathered.bumpMap, bumpScale: 0.06, roughness: 0.86, metalness: 0.08
+          map: texWeathered.map, bumpMap: texWeathered.bumpMap, bumpScale: 0.054, roughness: 0.91, metalness: 0.025
         });
         const matSteel = new THREE.MeshStandardMaterial({
-          map: texSteel.map, bumpMap: texSteel.bumpMap, bumpScale: 0.04, roughness: 0.44, metalness: 0.72
+          map: texSteel.map, bumpMap: texSteel.bumpMap, bumpScale: 0.032, roughness: 0.54, metalness: 0.66
         });
         const matDarkIron = new THREE.MeshStandardMaterial({
           color: 0x262d36, roughness: 0.48, metalness: 0.78
         });
         const matGalvanized = new THREE.MeshStandardMaterial({
-          color: 0x9aa5b1, roughness: 0.36, metalness: 0.82
+          color: 0x929da7, roughness: 0.49, metalness: 0.73
         });
         const matPipe = new THREE.MeshStandardMaterial({
           color: 0x4b5563, roughness: 0.42, metalness: 0.75
@@ -2668,13 +2670,13 @@
           map: texHazard.map, bumpMap: texHazard.bumpMap, bumpScale: 0.03, roughness: 0.62, metalness: 0.25
         });
         const matContRed = new THREE.MeshStandardMaterial({
-          map: texContRed.map, bumpMap: texContRed.bumpMap, bumpScale: 0.08, roughness: 0.56, metalness: 0.48
+          map: texContRed.map, bumpMap: texContRed.bumpMap, bumpScale: 0.068, roughness: 0.68, metalness: 0.37
         });
         const matContBlue = new THREE.MeshStandardMaterial({
-          map: texContBlue.map, bumpMap: texContBlue.bumpMap, bumpScale: 0.08, roughness: 0.56, metalness: 0.48
+          map: texContBlue.map, bumpMap: texContBlue.bumpMap, bumpScale: 0.068, roughness: 0.68, metalness: 0.37
         });
         const matContRust = new THREE.MeshStandardMaterial({
-          map: texContRust.map, bumpMap: texContRust.bumpMap, bumpScale: 0.09, roughness: 0.64, metalness: 0.42
+          map: texContRust.map, bumpMap: texContRust.bumpMap, bumpScale: 0.075, roughness: 0.75, metalness: 0.29
         });
         const matBlueTrim = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.52, metalness: 0.3 });
         const matRedTrim = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.52, metalness: 0.3 });
