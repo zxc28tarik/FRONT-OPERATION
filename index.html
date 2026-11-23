@@ -7873,7 +7873,8 @@ function buildSquadLeadership() {
         }
 
         titleEl.textContent = 'MAÇ TAMAMLANDI';
-        subEl.textContent = `Senin Skorun: ${player.kills} Öldürme / ${player.deaths} Ölüm • Yeni maç başlatmak için sınıf seç.`;
+        subEl.textContent = `Senin skorun: ${player.kills} eleme / ${player.deaths} ölüm • Yeni maç için sınıfını seç.`;
+        subEl.classList.remove('hidden');
         btn.textContent = 'YENİ MAÇ BAŞLAT';
         document.getElementById('menu-overlay').classList.remove('hidden');
       }
@@ -10403,6 +10404,7 @@ function buildSquadLeadership() {
         const menuEl = document.getElementById('menu-overlay');
         document.getElementById('menu-title').textContent = 'SINIF SEÇ';
         document.getElementById('menu-subtitle').textContent = 'Sınıfını seç ve çatışmaya dön.';
+        document.getElementById('menu-subtitle').classList.add('hidden');
         document.getElementById('btn-deploy').textContent = 'SINIFI ONAYLA';
         menuEl.classList.remove('hidden');
         if (document.pointerLockElement === canvas) document.exitPointerLock();
@@ -10429,12 +10431,19 @@ function buildSquadLeadership() {
 
 
       // V28 KISS: one shared class description, driven by the REAL game loadout.
+      // Visual labels only; weapon IDs and gameplay stats stay unchanged.
       const CLASS_MENU_DESCRIPTIONS = Object.freeze({
-        assault: ['Hücum Piyadesi', 'Çok yönlü çatışma • el bombası'],
-        medic: ['Sıhhiye', 'Yakın mesafe çatışma • sağlık desteği'],
-        engineer: ['Drone Operatörü', 'FPV keşif • her canda bir drone'],
-        sniper: ['Keskin Nişancı', 'Uzak mesafe • hassas atış'],
-        heavy: ['Ağır Piyade', 'Baskı ateşi • ağır silah desteği']
+        assault: ['Hücum Piyadesi', 'ÇOK YÖNLÜ'],
+        medic: ['Sıhhiye', 'DESTEK'],
+        engineer: ['Drone Operatörü', 'KEŞİF / FPV'],
+        sniper: ['Keskin Nişancı', 'UZAK MESAFE'],
+        heavy: ['Ağır Piyade', 'AĞIR ATEŞ']
+      });
+      const CLASS_MENU_WEAPON_LABELS = Object.freeze({
+        hk416: 'HK416A5', p320: 'P320', knife: 'Bıçak', m67: 'M67',
+        mp7: 'MP7A1', medkit: 'Medkit', drone: 'FPV Drone',
+        mrad: 'MRAD', glock18c: 'Glock 18C',
+        minimi: 'Minimi', carlgustaf: 'Carl Gustaf'
       });
       function updateClassMenuPreview() {
         const description = CLASS_MENU_DESCRIPTIONS[selectedMenuClass];
@@ -10447,11 +10456,12 @@ function buildSquadLeadership() {
         for (const slot of [1, 2, 3, 4]) {
           const item = document.createElement('span');
           const key = document.createElement('b');
-          key.textContent = String(slot);
+          key.textContent = slot + '.';
           const weaponId = cls.slots[slot];
           const weapon = weaponId && WEAPONS[weaponId];
-          const weaponName = weapon ? weapon.slotName : (weaponId ? weaponId.toUpperCase() : 'Yok');
-          item.append(key, document.createTextNode(' ' + weaponName));
+          const weaponName = !weaponId ? 'Yok'
+            : (CLASS_MENU_WEAPON_LABELS[weaponId] || (weapon ? weapon.slotName : weaponId.toUpperCase()));
+          item.append(key, document.createTextNode(weaponName));
           slots.appendChild(item);
         }
       }
@@ -10486,6 +10496,7 @@ function buildSquadLeadership() {
         scoreboardReturnToPause = false;
         document.getElementById('pause-overlay').classList.add('hidden');
         document.getElementById('scoreboard-overlay').classList.add('hidden');
+        document.getElementById('menu-subtitle').classList.add('hidden');
         const isNewMatch = matchState.ended;
         if (isNewMatch) {
           matchState.ended = false;
