@@ -148,6 +148,28 @@ try {
     };
   });
 
+  await test('V39 real player gunfire creates acoustic cue', async () => {
+    await page.mouse.move(700, 440);
+    // First click may acquire pointer lock. A held follow-up click
+    // spans game animation frames and confirms actual firing input.
+    await page.mouse.click(700, 440, { button: 'left' });
+    await page.mouse.down({ button: 'left' });
+    await delay(280);
+    await page.mouse.up({ button: 'left' });
+    await delay(100);
+    const state = await page.evaluate(() => window.__frontOperationAiQaSnapshot?.());
+    if (!state) throw Error('Local V39 acoustic QA snapshot missing');
+    const sounds = state.soundEvents.filter(e =>
+      e.sourceId === 'player' && e.team === 'blue' &&
+      ['gun', 'sniper', 'pistol'].includes(e.kind) &&
+      e.age >= 0 && e.age < 1.4
+    );
+    if (!sounds.length) {
+      throw Error('Player gunfire failed to emit a V39 acoustic event');
+    }
+    return { events: sounds.length, kinds: sounds.map(e => e.kind) };
+  });
+
   await test('sniper class and MRAD scope', async () => {
     await changeClass('sniper');
     await page.mouse.click(700, 440, { button: 'right' });
