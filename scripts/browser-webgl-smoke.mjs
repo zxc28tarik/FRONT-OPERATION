@@ -94,7 +94,7 @@ try {
       webgl2: !!document.getElementById('game-canvas').getContext('webgl2'),
       webgl1: !!document.getElementById('game-canvas').getContext('webgl')
     }));
-    if (state.classes !== 5 || !state.menuText.includes('FRONT OPERATION')) throw Error('Menu or class cards missing');
+    if (state.classes !== 5 || !state.title.includes('FRONT OPERATION') || !state.menuText.includes('SINIF')) throw Error('Menu, class tabs or game branding missing');
     if (!state.webgl1 && !state.webgl2) throw Error('No active WebGL rendering context');
     await screenshot('01-menu');
     return state;
