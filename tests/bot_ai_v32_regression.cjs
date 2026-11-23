@@ -85,7 +85,7 @@ function runBotAiV32Regression(html) {
   const scan = new Function('THREE','bots','player','BOT_PERCEPTION_INTERVAL','_percEyeVec',
     'getLiveEntitySnapshot','evaluateCandidatePerception','scoreEnemyCandidate',
     'computeReactionDelay','isEntityStillAlive','clearDeadTargetMemory',
-    'reportTeamVisualSighting','getSharedTeamSighting','botAiClockSec','getBotSkillProfile',
+    'reportTeamVisualSighting','getSharedTeamSighting','botAiClockSec','getBotSkillProfile','resetBotAimTracking',
     perceptionSrc + '\nreturn updateBotPerception;')(
     THREE,Object.values(actors),{team:'blue',alive:false},0.12,new Vec3(),
     (id) => {
@@ -103,7 +103,8 @@ function runBotAiV32Regression(html) {
     () => {},
     () => null,
     0,
-    () => ({ reactionScale: 1.18 })
+    () => ({ reactionScale: 1.18 }),
+    () => {}
   );
   const tick = () => scan(bot,0.04,{});
   tick();
@@ -130,7 +131,7 @@ function runBotAiV32Regression(html) {
   const scanPlayer = new Function('THREE','bots','player','BOT_PERCEPTION_INTERVAL','_percEyeVec',
     'getLiveEntitySnapshot','evaluateCandidatePerception','scoreEnemyCandidate',
     'computeReactionDelay','isEntityStillAlive','clearDeadTargetMemory',
-    'reportTeamVisualSighting','getSharedTeamSighting','botAiClockSec','getBotSkillProfile',
+    'reportTeamVisualSighting','getSharedTeamSighting','botAiClockSec','getBotSkillProfile','resetBotAimTracking',
     perceptionSrc + '\nreturn updateBotPerception;')(
     THREE,[],human,0.12,new Vec3(),
     (id) => id === 'player' ? {id:'player',pos:human.pos,eye:human.eye,isPlayer:true} : null,
@@ -139,7 +140,8 @@ function runBotAiV32Regression(html) {
     () => 0.24,
     (id) => id === 'player',
     () => {}, () => {}, () => null, 0,
-    () => ({ reactionScale: 1.18 })
+    () => ({ reactionScale: 1.18 }),
+    () => {}
   );
   const redBot = {...bot,id:'red0',team:'red',targetId:null,visibleEnemy:null,
     perceptionTimer:0,targetLockTimer:0,lastKnownEnemyPos:null,reactionTimer:0};
