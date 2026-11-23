@@ -26,3 +26,5 @@ jobs:
         run: node tests/bot_ai_v35_regression.cjs
       - name: Run BOT AI V36 movement regression
         run: node tests/bot_ai_v36_regression.cjs
+      - name: Run BOT AI V37 observed aim regression
+        run: node tests/bot_ai_v37_regression.cjs
