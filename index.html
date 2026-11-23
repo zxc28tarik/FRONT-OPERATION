@@ -6686,6 +6686,27 @@
       const BOT_NAMES_RED = ['Valkyrie', 'Kobra_X', 'Shadow99', 'Ghost_TR', 'Scorpion', 'Reaper'];
       const CLASS_ORDER = ['assault', 'medic', 'engineer', 'sniper', 'heavy'];
 
+      // V35: Each five bot lives contain three Normal and two Hard bots.
+      // Every third group of five substitutes one Normal with an Expert.
+      // The Expert is a DIFFICULTY, not a sixth soldier/weapon class.
+      const BOT_DIFFICULTY_SEQUENCE = ['normal', 'hard', 'normal', 'hard', 'normal'];
+      const BOT_SKILL_PROFILES = Object.freeze({
+        normal: Object.freeze({ reactionScale: 1.18, accuracyScale: 1.00, aimSettleSec: 0.34 }),
+        hard: Object.freeze({ reactionScale: 0.90, accuracyScale: 1.12, aimSettleSec: 0.34 }),
+        expert: Object.freeze({ reactionScale: 0.78, accuracyScale: 1.23, aimSettleSec: 0.34 })
+      });
+      let botLifeSequence = 0;
+      function chooseBotDifficultyForSpawn() {
+        const index = botLifeSequence++;
+        // Slot 13 / 15 is Normal in the base 3+2 pattern. Substitute it.
+        return index % 15 === 12
+          ? 'expert'
+          : BOT_DIFFICULTY_SEQUENCE[index % BOT_DIFFICULTY_SEQUENCE.length];
+      }
+      function getBotSkillProfile(bot) {
+        return BOT_SKILL_PROFILES[bot.difficulty] || BOT_SKILL_PROFILES.normal;
+      }
+
       const NAV_NODES = [
         // 0..3: South Base (Derbaran)
         { x: -12, y: 0, z: 50, tag: 'blue_spawn' },
@@ -7290,6 +7311,8 @@ function buildSquadLeadership() {
         resetTeamIntel();
         bots.forEach((b) => scene.remove(b.mesh.root));
         bots.length = 0;
+        // A fresh match starts a fresh per-five/per-fifteen spawn cycle.
+        botLifeSequence = 0;
 
         for (let i = 0; i < 5; i++) {
           const cls = CLASS_ORDER[i % CLASS_ORDER.length];
@@ -7302,6 +7325,8 @@ function buildSquadLeadership() {
             name: BOT_NAMES_BLUE[i],
             team: 'blue',
             classId: cls,
+            difficulty: chooseBotDifficultyForSpawn(),
+            aimSettleTimer: 0,
             squadId: i % 3,
             assignedLane: i % 3,
             hp: 100,
@@ -7391,6 +7416,8 @@ function buildSquadLeadership() {
             name: BOT_NAMES_RED[i],
             team: 'red',
             classId: cls,
+            difficulty: chooseBotDifficultyForSpawn(),
+            aimSettleTimer: 0,
             squadId: i % 3,
             assignedLane: i % 3,
             hp: 100,
@@ -7478,6 +7505,9 @@ function buildSquadLeadership() {
         bot.alive = true;
         bot.dying = false;
         bot.deathAnimTimer = 0;
+        // Each new life counts as one bot spawn, including respawns.
+        bot.difficulty = chooseBotDifficultyForSpawn();
+        bot.aimSettleTimer = 0;
         bot.hp = bot.maxHp;
         bot.state = 'ADVANCE';
         bot.assignedLane = bot.squadId;
@@ -7698,7 +7728,8 @@ function buildSquadLeadership() {
         const angleFactor = Math.min(0.18, (percInfo.angleRad / Math.PI) * 0.24);
         const distFactor = Math.min(0.14, (percInfo.dist / 60) * 0.14);
         const alertMult = bot.alertTimer > 0 ? 0.50 : 1.0;
-        return (baseDelay + angleFactor + distFactor) * alertMult;
+        return (baseDelay + angleFactor + distFactor) * alertMult *
+          getBotSkillProfile(bot).reactionScale;
       }
 
       function scoreEnemyCandidate(bot, cand, percInfo, targetClaimCounts) {
@@ -7818,7 +7849,10 @@ function buildSquadLeadership() {
               bot.targetId = bestCand.id;
               bot.targetLockTimer = 2.4;
               bot.reactionTimer = 0;
-              bot.reactionRequired = hadVisible ? 0.11 : computeReactionDelay(bot, bestPerc);
+              bot.reactionRequired = hadVisible
+                ? 0.11 * getBotSkillProfile(bot).reactionScale
+                : computeReactionDelay(bot, bestPerc);
+              bot.aimSettleTimer = 0;
             }
             // Snapshot observed positions; never retain mutable references
             // to enemy world coordinates after losing visual contact.
@@ -7843,6 +7877,7 @@ function buildSquadLeadership() {
             bot.visibleEnemy = null;
             bot.targetId = null;
             bot.reactionTimer = 0;
+            bot.aimSettleTimer = 0;
             bot.targetLockTimer = 0;
           }
         } else if (bot.visibleEnemy) {
@@ -7857,6 +7892,7 @@ function buildSquadLeadership() {
             bot.visibleEnemy = null;
             bot.targetId = null;
             bot.reactionTimer = 0;
+            bot.aimSettleTimer = 0;
             bot.targetLockTimer = 0;
           } else {
             bot.visibleEnemy = {
@@ -9611,6 +9647,15 @@ function buildSquadLeadership() {
           updateBotPerception(bot, dt, targetClaimCounts);
           const bestEnemy = bot.visibleEnemy;
           const isReactionReady = bestEnemy && bot.reactionTimer >= bot.reactionRequired;
+          const skill = getBotSkillProfile(bot);
+          // All three difficulties use MEDIUM aim-settle speed (0.34 s).
+          // Difficulty changes reaction and precision, not instant snap-aim.
+          if (isReactionReady && isBotAimAligned(bot, bestEnemy.eye)) {
+            bot.aimSettleTimer = Math.min(skill.aimSettleSec + 0.02, bot.aimSettleTimer + dt);
+          } else {
+            bot.aimSettleTimer = 0;
+          }
+          const isAimSettled = bot.aimSettleTimer >= skill.aimSettleSec;
           if (!bestEnemy) {
             bot.fireLaneBlockTimer = 0;
             bot.fireLaneRecoveryGoal = null;
@@ -9787,7 +9832,7 @@ function buildSquadLeadership() {
               }
             }
 
-            if (isReactionReady && bot.abilityCooldown <= 0 &&
+            if (isReactionReady && isAimSettled && bot.abilityCooldown <= 0 &&
                 isBotAimAligned(bot, bestEnemy.eye) && isBotFireLaneClear(bot, bestEnemy.eye)) {
               const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
               const aimDir = new THREE.Vector3().subVectors(bestEnemy.eye, botEye).normalize();
@@ -9820,10 +9865,10 @@ function buildSquadLeadership() {
               bot.fireLaneBlockTimer = 0;
               bot.fireLaneRecoveryGoal = null;
             }
-            if (isReactionReady && canShootFromStance && fireLaneClear && aimAligned) {
+            if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned) {
               bot.fireTimer -= dt;
             }
-            if (isReactionReady && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0) {
+            if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0) {
               const botWeaponId = bot.classId === 'assault' ? 'hk416'
                 : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
                 : (bot.classId === 'sniper' ? (distToEnemy < 11 ? 'glock18c' : 'mrad') : 'minimi');
@@ -9845,7 +9890,8 @@ function buildSquadLeadership() {
               const distFactor = Math.max(0.14, 1 - distToEnemy / 62);
               const classAcc = botWeaponId === 'mrad' ? 0.62 : botWeaponId === 'hk416' ? 0.38 : 0.30;
               const targetEvasion = bestEnemy.rolling ? 0.32 : (bestEnemy.crouching ? 0.82 : 1.0);
-              const hitChance = classAcc * distFactor * targetEvasion;
+              const hitChance = Math.min(0.75, classAcc * distFactor * targetEvasion *
+                skill.accuracyScale);
 
               const aimDir = new THREE.Vector3().subVectors(bestEnemy.eye, botEye).normalize();
               const spreadDir = aimDir.clone().add(new THREE.Vector3(
