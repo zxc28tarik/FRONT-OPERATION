@@ -6,6 +6,7 @@ on:
       - ai/v33-fire-lane-discipline
       - ai/v34-squad-passage-cover
       - ai/v35-difficulty-mix-medium-aim
+      - ai/v36-natural-movement-steering
   workflow_dispatch:
 
 jobs:
