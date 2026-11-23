@@ -118,14 +118,8 @@ try {
   });
 
   await test('V38 live squad roles and V35 bot distribution', async () => {
-    const state = await page.evaluate(() => ({
-      members: bots.map(b => ({
-        id: b.id, team: b.team, classId: b.classId,
-        role: b.teamRole, difficulty: b.difficulty
-      })),
-      started: matchState.started,
-      tacticTeams: Object.keys(TEAM_TACTICS)
-    }));
+    const state = await page.evaluate(() => window.__frontOperationAiQaSnapshot?.());
+    if (!state) throw Error('Local Chromium AI test snapshot missing');
     const blue = state.members.filter(b => b.team === 'blue');
     const red = state.members.filter(b => b.team === 'red');
     const number = (a, key, value) => a.filter(b => b[key] === value).length;
