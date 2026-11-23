@@ -117,6 +117,43 @@ try {
     return { blueCount, redCount, timer: await page.locator('#match-timer').textContent() };
   });
 
+  await test('V38 live squad roles and V35 bot distribution', async () => {
+    const state = await page.evaluate(() => ({
+      members: bots.map(b => ({
+        id: b.id, team: b.team, classId: b.classId,
+        role: b.teamRole, difficulty: b.difficulty
+      })),
+      started: matchState.started,
+      tacticTeams: Object.keys(TEAM_TACTICS)
+    }));
+    const blue = state.members.filter(b => b.team === 'blue');
+    const red = state.members.filter(b => b.team === 'red');
+    const number = (a, key, value) => a.filter(b => b[key] === value).length;
+    if (!state.started || blue.length !== 5 || red.length !== 6) {
+      throw Error('Live game is not a 5-bot plus 6-bot match');
+    }
+    const roles = ['FLANK', 'PIN', 'SUPPORT', 'OVERWATCH', 'RECON'];
+    if (roles.some(role => number(blue, 'role', role) !== 1) ||
+        number(red, 'role', 'FLANK') !== 1 ||
+        number(red, 'role', 'POINT') !== 1) {
+      throw Error('Live team tactics did not allocate coordinated roles');
+    }
+    if (number(blue, 'difficulty', 'normal') !== 3 ||
+        number(blue, 'difficulty', 'hard') !== 2 ||
+        number(red.slice(0, 5), 'difficulty', 'normal') !== 3 ||
+        number(red.slice(0, 5), 'difficulty', 'hard') !== 2) {
+      throw Error('Approved V35 bot difficulty ratio changed');
+    }
+    if (!state.tacticTeams.includes('blue') || !state.tacticTeams.includes('red')) {
+      throw Error('V38 team tactical memory was not initialized');
+    }
+    return {
+      blueRoles: blue.map(b => b.role),
+      redRoles: red.map(b => b.role),
+      blueDifficulties: blue.map(b => b.difficulty)
+    };
+  });
+
   await test('sniper class and MRAD scope', async () => {
     await changeClass('sniper');
     await page.mouse.click(700, 440, { button: 'right' });
