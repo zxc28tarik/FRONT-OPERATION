@@ -2932,6 +2932,19 @@
 
         // WEST LANE (X = -39 to -18): ENCLOSED INDUSTRIAL WAREHOUSE
         addSolidBox(-28.5, 8.2, 0, 23, 0.6, 86, matSteel, true, true, true);
+        // V26G: fine standing-seam roof, edge flashing and roof weathering.
+        // Low-profile non-colliding meshes preserve the original warehouse silhouette.
+        const roofSeamGeo = new THREE.BoxGeometry(0.034, 0.025, 82.8);
+        const roofEndFlashingGeo = new THREE.BoxGeometry(22.8, 0.085, 0.12);
+        const matRoofSeam = new THREE.MeshStandardMaterial({
+          color: 0x505b65, roughness: 0.72, metalness: 0.53
+        });
+        for (let roofX = -38.5; roofX <= -18.5; roofX += 2.5) {
+          addDecoMesh(roofSeamGeo, matRoofSeam, roofX, 8.516, 0, 0, 0, 0, false, false, false);
+        }
+        for (const roofZ of [-42.8, 42.8]) {
+          addDecoMesh(roofEndFlashingGeo, matGalvanized, -28.5, 8.53, roofZ, 0, 0, 0, false, false, false);
+        }
         addSolidBox(-18, 5.8, 0, 1.2, 4.4, 84, matWeathered);
         addSolidBox(-18, 1.8, -28, 1.2, 3.6, 16, matWeathered);
         addSolidBox(-18, 1.8, 0, 1.2, 3.6, 16, matWeathered);
@@ -3073,6 +3086,19 @@
           addDecoMesh(new THREE.CylinderGeometry(0.12, 0.12, 0.55, 9),
             matGalvanized, cx - 2.5, 6.66, canopyZ);
           addDecoMesh(new THREE.BoxGeometry(8.35, 0.065, 0.065), matGalvanized, cx, 4.93, frontZ);
+          // V26G: concrete formwork joints and narrow roof-cap edge define the
+          // building silhouette without covering windows, entrances or sight lines.
+          const panelJointGeo = new THREE.BoxGeometry(0.026, 1.58, 0.016);
+          const matMortarJoint = new THREE.MeshStandardMaterial({
+            color: 0x626b73, roughness: 0.96, metalness: 0.0
+          });
+          for (const offsetX of [-3.00, -1.50, 1.50, 3.00]) {
+            addDecoMesh(panelJointGeo, matMortarJoint, cx + offsetX, 1.94,
+              frontZ + faceDirection * 0.081, 0, 0, 0, false, false, false);
+          }
+          const capTrimGeo = new THREE.BoxGeometry(8.7, 0.065, 0.16);
+          addDecoMesh(capTrimGeo, matGalvanized, cx, 4.78,
+            frontZ + faceDirection * 0.04, 0, 0, 0, false, false, false);
         }
 
         // SOUTH BUILDING (Blue side, Z = +19)
