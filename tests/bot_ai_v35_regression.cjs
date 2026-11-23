@@ -24,8 +24,8 @@ function runBotAiV35Regression(html){
   'Blue team starts with three Normal and two Hard bots');
  ok(count(all.slice(5,10),'normal')===3&&count(all.slice(5,10),'hard')===2,
   'First five Red team bots also contain three Normal and two Hard');
- ok(all.slice(0,11).every(x=>x!=='expert')&&all[12]==='expert',
-  'Expert replaces Normal on life 13 of each 15-life block');
+ ok(all.slice(0,14).every(x=>x!=='expert')&&all[14]==='expert',
+  'Expert replaces Normal on life 15 of each 15-life block');
  p.reset();ok(p.counter()===0&&p.spawn()==='normal','New match resets the life cycle');
  const skill=['normal','hard','expert'].map(d=>p.profile({difficulty:d}));
  ok(skill.every(x=>x.aimSettleSec===0.34),
