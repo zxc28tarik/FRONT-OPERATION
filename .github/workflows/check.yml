@@ -24,3 +24,5 @@ jobs:
         run: node tests/bot_ai_v34_regression.cjs
       - name: Run BOT AI V35 difficulty mix regression
         run: node tests/bot_ai_v35_regression.cjs
+      - name: Run BOT AI V36 movement regression
+        run: node tests/bot_ai_v36_regression.cjs
