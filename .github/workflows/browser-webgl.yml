@@ -9,6 +9,7 @@ on:
       - ai/v36-natural-movement-steering
       - ai/v37-observed-target-tracking
       - ai/v38-squad-tactics
+      - ai/v39-acoustic-investigation
   workflow_dispatch:
 
 jobs:
