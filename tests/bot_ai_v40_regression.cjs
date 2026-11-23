@@ -13,7 +13,8 @@ function runBotAiV40Regression(html) {
  const code=html.slice(start,end);
  const api=new Function(code+'\nreturn {FIELDS:BOT_METRIC_FIELDS,state:BOT_METRICS,'+
    'reset:resetBotMetrics,record:recordBotMetric,shot:recordBotShot,'+
-   'sample:sampleBotMetrics,snapshot:getBotMetricsSnapshot,frame:recordBotFrameTiming};')();
+   'sample:sampleBotMetrics,snapshot:getBotMetricsSnapshot,frame:recordBotFrameTiming,'+
+   'hotspot:recordBotStuckHotspot};')();
  const bot=(id,team,cls,difficulty,x=0,z=0)=>({
    id,team,classId:cls,difficulty,alive:true,visibleEnemy:null,
    pos:{x,y:0,z}
@@ -63,6 +64,16 @@ function runBotAiV40Regression(html) {
  api.record(teamBlue[1],'heardInterrupted');
  api.record(teamBlue[0],'kills');
  api.record(teamBlue[0],'deaths');
+ api.hotspot(teamBlue[0],12);
+ api.hotspot(teamBlue[1],12);
+ api.hotspot(teamRed[0],-1);
+ expect(api.state.stuckNodes['12'].total===2 &&
+   api.state.stuckNodes['12'].classes.assault===1 &&
+   api.state.stuckNodes['12'].classes.medic===1,
+   'A-star hotspot counts identify node and class concentration');
+ expect(api.state.stuckNodes.unknown.total===1 &&
+   api.state.stuckNodes.unknown.teams.red===1,
+   'Unknown route positions are counted without fabricating node IDs');
  expect(api.state.actors.blue_0.stuckRecoveries===1&&
    api.state.actors.blue_0.heard===1&&
    api.state.actors.blue_0.heardArrived===1&&
@@ -151,6 +162,8 @@ function runBotAiV40Regression(html) {
    'No NaN or Infinity in long-run exported telemetry');
  const old=api.snapshot();
  api.reset();
+ expect(!Object.keys(api.state.stuckNodes).length,
+   'New match clears previous route hotspots');
  expect(api.state.frame.count===0&&api.state.frame.slowFrames===0,
    'New match clears previous frame interval samples');
  expect(api.state.seconds===0&&api.state.recent.length===0 &&
@@ -172,6 +185,8 @@ function runBotAiV40Regression(html) {
    html.includes('recordBotMetric(bot,\'heardArrived\');') &&
    html.includes('recordBotMetric(bot,\'flankStarts\');'),
    'Real movement, sound and tactical events feed telemetry');
+ expect(html.includes('recordBotStuckHotspot(bot, obstructedWp);'),
+   'Real stuck recovery is attributed to navigation hotspot');
  expect(html.includes('recordBotFrameTiming(rawDt);'),
    'Real game loop records browser frame intervals without replacing game dt');
  expect(html.includes('sampleBotMetrics(dt,bots);'),
