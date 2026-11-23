@@ -7664,6 +7664,9 @@ function buildSquadLeadership() {
           let bestCand = null;
           let bestPerc = null;
           let bestScore = Infinity;
+          let retainedCand = null;
+          let retainedPerc = null;
+          let retainedScore = Infinity;
 
           if (player.alive && player.team !== bot.team) {
             const pCand = getLiveEntitySnapshot('player');
@@ -7671,6 +7674,11 @@ function buildSquadLeadership() {
               const pPerc = evaluateCandidatePerception(bot, _percEyeVec, pCand);
               if (pPerc) {
                 const s = scoreEnemyCandidate(bot, pCand, pPerc, targetClaimCounts);
+                if (pCand.id === prevTargetId) {
+                  retainedCand = pCand;
+                  retainedPerc = pPerc;
+                  retainedScore = s;
+                }
                 if (s < bestScore) {
                   bestScore = s;
                   bestCand = pCand;
@@ -7688,6 +7696,11 @@ function buildSquadLeadership() {
             const bPerc = evaluateCandidatePerception(bot, _percEyeVec, bCand);
             if (bPerc) {
               const s = scoreEnemyCandidate(bot, bCand, bPerc, targetClaimCounts);
+              if (bCand.id === prevTargetId) {
+                retainedCand = bCand;
+                retainedPerc = bPerc;
+                retainedScore = s;
+              }
               if (s < bestScore) {
                 bestScore = s;
                 bestCand = bCand;
@@ -7696,14 +7709,39 @@ function buildSquadLeadership() {
             }
           }
 
+          // Keep a confirmed target while it remains visible. Permit a
+          // significantly better target or an immediate close-range threat
+          // to override it, avoiding scan-to-scan target flicker.
+          if (bestCand && retainedCand && bestCand.id !== retainedCand.id) {
+            const urgentThreat = bestPerc.dist < 6.5 && bestPerc.dist + 5 < retainedPerc.dist;
+            const meaningfulImprovement = bestScore < retainedScore - 9.0;
+            if (!urgentThreat && (bot.targetLockTimer > 0 || !meaningfulImprovement)) {
+              bestCand = retainedCand;
+              bestPerc = retainedPerc;
+              bestScore = retainedScore;
+            }
+          }
+
           if (bestCand) {
             if (bestCand.id !== prevTargetId) {
+              // Cover selected against the previous enemy may expose the bot
+              // to the new one. Re-evaluate only after an actual switch.
+              bot.coverNode = -1;
+              bot.coverPhase = 'NONE';
+              bot.coverSearchCooldown = 0;
+            }
               bot.targetId = bestCand.id;
               bot.targetLockTimer = 2.4;
               bot.reactionTimer = 0;
               bot.reactionRequired = hadVisible ? 0.11 : computeReactionDelay(bot, bestPerc);
             }
-            bot.visibleEnemy = bestCand;
+            // Snapshot observed positions; never retain mutable references
+            // to enemy world coordinates after losing visual contact.
+            bot.visibleEnemy = {
+              ...bestCand,
+              pos: bestCand.pos.clone(),
+              eye: bestCand.eye.clone()
+            };
             bot.lastKnownEnemyPos = bestCand.pos.clone();
             bot.memoryTargetId = bestCand.id;
             bot.investigateTimer = 5.5;
@@ -7711,8 +7749,9 @@ function buildSquadLeadership() {
             bot.alertTimer = 0;
             reportTeamVisualSighting(bot.team, bot.squadId, bot.id, bestCand.id, bestCand.pos);
           } else {
-            if (bot.visibleEnemy) {
-              bot.lastKnownEnemyPos = bot.visibleEnemy.pos.clone();
+            if (bot.visibleEnemy && bot.lastKnownEnemyPos) {
+              // lastKnownEnemyPos was frozen at last validated sighting.
+              // Do NOT read live entity positions while visibility is lost.
               bot.memoryTargetId = bot.visibleEnemy.id;
               bot.investigateTimer = 5.5;
             }
@@ -7723,9 +7762,10 @@ function buildSquadLeadership() {
           }
         } else if (bot.visibleEnemy) {
           const liveTarget = getLiveEntitySnapshot(bot.visibleEnemy.id);
-          if (!liveTarget || !hasLineOfSight(_percEyeVec, liveTarget.eye)) {
-            if (bot.visibleEnemy) {
-              bot.lastKnownEnemyPos = bot.visibleEnemy.pos.clone();
+          if (!liveTarget || !evaluateCandidatePerception(bot, _percEyeVec, liveTarget)) {
+            if (bot.visibleEnemy && bot.lastKnownEnemyPos) {
+              // lastKnownEnemyPos was frozen at last validated sighting.
+              // Do NOT read live entity positions while visibility is lost.
               bot.memoryTargetId = bot.visibleEnemy.id;
               bot.investigateTimer = 5.5;
             }
@@ -7734,7 +7774,11 @@ function buildSquadLeadership() {
             bot.reactionTimer = 0;
             bot.targetLockTimer = 0;
           } else {
-            bot.visibleEnemy = liveTarget;
+            bot.visibleEnemy = {
+              ...liveTarget,
+              pos: liveTarget.pos.clone(),
+              eye: liveTarget.eye.clone()
+            };
             bot.lastKnownEnemyPos = liveTarget.pos.clone();
             bot.memoryTargetId = liveTarget.id;
             reportTeamVisualSighting(bot.team, bot.squadId, bot.id, liveTarget.id, liveTarget.pos);
