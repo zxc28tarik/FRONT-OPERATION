@@ -7329,6 +7329,8 @@ function buildSquadLeadership() {
             aimSettleTimer: 0,
             moveVelX: 0,
             moveVelZ: 0,
+            combatStrafeGoal: null,
+            combatStrafeTargetId: null,
             squadId: i % 3,
             assignedLane: i % 3,
             hp: 100,
@@ -7422,6 +7424,8 @@ function buildSquadLeadership() {
             aimSettleTimer: 0,
             moveVelX: 0,
             moveVelZ: 0,
+            combatStrafeGoal: null,
+            combatStrafeTargetId: null,
             squadId: i % 3,
             assignedLane: i % 3,
             hp: 100,
@@ -7514,6 +7518,8 @@ function buildSquadLeadership() {
         bot.aimSettleTimer = 0;
         bot.moveVelX = 0;
         bot.moveVelZ = 0;
+        bot.combatStrafeGoal = null;
+        bot.combatStrafeTargetId = null;
         bot.hp = bot.maxHp;
         bot.state = 'ADVANCE';
         bot.assignedLane = bot.squadId;
@@ -9579,6 +9585,42 @@ function buildSquadLeadership() {
         return true;
       }
 
+      // V36: A persistent lateral dodge that respects collision and allies.
+      function chooseBotCombatStrafeGoal(bot, facingYaw) {
+        const rightX = Math.cos(facingYaw), rightZ = -Math.sin(facingYaw);
+        const preferred = bot.strafeDir === -1 ? -1 : 1;
+        for (const side of [preferred, -preferred]) {
+          for (const distance of [2.35, 1.55]) {
+            const dx = rightX * side * distance, dz = rightZ * side * distance;
+            let safe = true;
+            for (const t of [0.25, 0.5, 0.75, 1]) {
+              if (!isPositionWalkable(bot.pos.x + dx * t, bot.pos.y, bot.pos.z + dz * t)) {
+                safe = false;
+                break;
+              }
+            }
+            if (!safe) continue;
+            const gx = bot.pos.x + dx, gz = bot.pos.z + dz;
+            for (let i = 0; i < bots.length; i++) {
+              const ally = bots[i];
+              if (!ally.alive || ally.team !== bot.team || ally.id === bot.id ||
+                  Math.abs(ally.pos.y - bot.pos.y) > 1.35) continue;
+              if (Math.hypot(gx - ally.pos.x, gz - ally.pos.z) < 1.2) {
+                safe = false;
+                break;
+              }
+            }
+            if (!safe) continue;
+            if (player.alive && player.team === bot.team &&
+                Math.abs(player.pos.y - bot.pos.y) <= 1.35 &&
+                Math.hypot(gx - player.pos.x, gz - player.pos.z) < 1.2) continue;
+            bot.strafeDir = side;
+            return new THREE.Vector3(gx, bot.pos.y, gz);
+          }
+        }
+        return null;
+      }
+
       // V36: Smooth steering. Path decisions remain in the tactical layer.
       function computeBotSteeringVelocity(bot, target, speed, desiredX, desiredZ, dt, isIntermediate = false) {
         if (!Number.isFinite(bot.moveVelX)) bot.moveVelX = 0;
@@ -9681,6 +9723,7 @@ function buildSquadLeadership() {
           if (activeBotDrone) {
             bot.moveVelX = 0;
             bot.moveVelZ = 0;
+            bot.combatStrafeGoal = null;
             bot.crouchAmt += (1.0 - bot.crouchAmt) * Math.min(1, dt * 10);
             bot.mesh.root.position.set(bot.pos.x, bot.pos.y - bot.crouchAmt * 0.32, bot.pos.z);
             bot.mesh.root.rotation.set(0, bot.legYaw, 0);
@@ -9707,6 +9750,8 @@ function buildSquadLeadership() {
           }
           const isAimSettled = bot.aimSettleTimer >= skill.aimSettleSec;
           if (!bestEnemy) {
+            bot.combatStrafeGoal = null;
+            bot.combatStrafeTargetId = null;
             bot.fireLaneBlockTimer = 0;
             bot.fireLaneRecoveryGoal = null;
           } else if (bot.passageStepTarget && bot.coverPhase !== 'MOVE_TO_COVER') {
@@ -9740,6 +9785,7 @@ function buildSquadLeadership() {
             }
 
             if (isWounded || isSniperTooClose) {
+              bot.combatStrafeGoal = null;
               const targetRetreatState = isSniperTooClose ? 'RETREAT' : 'TAKE_COVER';
               setBotState(bot, targetRetreatState, 1.25, distToEnemy < 7.5 || bot.hp < 28);
               broadcastRetreatCoverRequest(bot, activeThreatPos, bot.targetId || bot.memoryTargetId, nowSec);
@@ -9807,6 +9853,7 @@ function buildSquadLeadership() {
               }
 
               if (bot.coverNode !== -1 && distToEnemy >= 7.0) {
+                bot.combatStrafeGoal = null;
                 const cn = NAV_NODES[bot.coverNode];
                 const dCover = Math.hypot(cn.x - bot.pos.x, cn.z - bot.pos.z);
 
@@ -9865,18 +9912,20 @@ function buildSquadLeadership() {
                 bot.coverNode = -1;
                 bot.coverPhase = 'NONE';
                 setBotState(bot, 'ENGAGE', 0.85, distToEnemy < 7.0);
+                // Keep the same short side-step destination until reached
+                // or the situation changes; no per-frame random zig-zag.
                 bot.strafeTimer -= dt;
-                if (bot.strafeTimer <= 0) {
-                  bot.strafeTimer = 1.1 + Math.random() * 1.5;
-                  bot.strafeDir *= -1;
+                const changedThreat = bot.combatStrafeTargetId !== bot.targetId;
+                if (changedThreat || bot.strafeTimer <= 0 ||
+                    (bot.combatStrafeGoal &&
+                     Math.hypot(bot.combatStrafeGoal.x - bot.pos.x,
+                                bot.combatStrafeGoal.z - bot.pos.z) <= 0.65)) {
+                  if (!changedThreat) bot.strafeDir *= -1;
+                  bot.strafeTimer = 1.75 + Math.random() * 0.85;
+                  bot.combatStrafeTargetId = bot.targetId;
+                  bot.combatStrafeGoal = chooseBotCombatStrafeGoal(bot, desiredUpperYaw);
                 }
-                const perpX = Math.cos(desiredUpperYaw) * bot.strafeDir;
-                const perpZ = -Math.sin(desiredUpperYaw) * bot.strafeDir;
-                const candX = bot.pos.x + perpX * 2.2;
-                const candZ = bot.pos.z + perpZ * 2.2;
-                if (isPositionWalkable(candX, bot.pos.y, candZ)) {
-                  moveTargetPos = new THREE.Vector3(candX, bot.pos.y, candZ);
-                }
+                if (bot.combatStrafeGoal) moveTargetPos = bot.combatStrafeGoal;
                 moveSpeed = bot.classId === 'sniper' ? 1.8 : 3.4;
                 targetCrouch = (bot.classId === 'sniper' || distToEnemy > 24) ? 0.65 : 0;
               }
