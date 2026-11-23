@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - restore/v25-approved-components-20261122
+      - ai/v33-fire-lane-discipline
   workflow_dispatch:
 
 jobs:
