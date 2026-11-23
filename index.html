@@ -6867,6 +6867,35 @@
         return true;
       }
 
+      // Recover from collisions by walking around obstacles, never by
+      // teleporting the soldier through geometry.
+      function findBotEscapePoint(bot, desiredPos) {
+        if (!desiredPos) return null;
+        const dx = desiredPos.x - bot.pos.x;
+        const dz = desiredPos.z - bot.pos.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 0.5) return null;
+        const forwardX = dx / dist, forwardZ = dz / dist;
+        const sideX = -forwardZ, sideZ = forwardX;
+        const firstSide = bot.unstuckSide === -1 ? -1 : 1;
+        for (const side of [firstSide, -firstSide]) {
+          const offsetX = sideX * side * 1.9 + forwardX * 0.28;
+          const offsetZ = sideZ * side * 1.9 + forwardZ * 0.28;
+          let routeClear = true;
+          for (const t of [0.25, 0.5, 0.75, 1]) {
+            if (!isPositionWalkable(bot.pos.x + offsetX * t, bot.pos.y, bot.pos.z + offsetZ * t)) {
+              routeClear = false;
+              break;
+            }
+          }
+          if (routeClear) {
+            bot.unstuckSide = -side; // alternate the next escape direction
+            return new THREE.Vector3(bot.pos.x + offsetX, bot.pos.y, bot.pos.z + offsetZ);
+          }
+        }
+        return null;
+      }
+
       const _coverThreatEye = new THREE.Vector3();
       const _coverCrouchEye = new THREE.Vector3();
       const _coverStandEye = new THREE.Vector3();
@@ -7294,6 +7323,12 @@ function buildSquadLeadership() {
             goalNode: 19,
             blockedNode: -1,
             stuckTimer: 0,
+            stuckFailures: 0,
+            blockedNodeTimer: 0,
+            unstuckTarget: null,
+            unstuckTimer: 0,
+            unstuckSide: 1,
+            investigateGoalNode: -1,
             lastCheckPos: new THREE.Vector3(-12 + i * 6, 0, 50),
             fireTimer: 0.4 + Math.random() * 0.5,
             burstCount: 0,
@@ -7364,6 +7399,12 @@ function buildSquadLeadership() {
             goalNode: 20,
             blockedNode: -1,
             stuckTimer: 0,
+            stuckFailures: 0,
+            blockedNodeTimer: 0,
+            unstuckTarget: null,
+            unstuckTimer: 0,
+            unstuckSide: 1,
+            investigateGoalNode: -1,
             lastCheckPos: new THREE.Vector3(-14 + i * 5.6, 0, -50),
             fireTimer: 0.4 + Math.random() * 0.5,
             burstCount: 0,
@@ -7416,7 +7457,13 @@ function buildSquadLeadership() {
         bot.assignedLane = bot.squadId;
         bot.burstCount = 0;
         bot.stuckTimer = 0;
+        bot.stuckFailures = 0;
         bot.blockedNode = -1;
+        bot.blockedNodeTimer = 0;
+        bot.unstuckTarget = null;
+        bot.unstuckTimer = 0;
+        bot.unstuckSide = 1;
+        bot.investigateGoalNode = -1;
         bot.targetId = null;
         bot.visibleEnemy = null;
         bot.lastKnownEnemyPos = null;
@@ -9282,6 +9329,10 @@ function buildSquadLeadership() {
           if (bot.abilityCooldown > 0) bot.abilityCooldown = Math.max(0, bot.abilityCooldown - dt);
           if (bot.stateLockTimer > 0) bot.stateLockTimer = Math.max(0, bot.stateLockTimer - dt);
           if (bot.coverSearchCooldown > 0) bot.coverSearchCooldown = Math.max(0, bot.coverSearchCooldown - dt);
+          if (bot.blockedNodeTimer > 0) {
+            bot.blockedNodeTimer = Math.max(0, bot.blockedNodeTimer - dt);
+            if (bot.blockedNodeTimer === 0) bot.blockedNode = -1;
+          }
           if (bot.muzzleTimer > 0) {
             bot.muzzleTimer -= dt;
             if (bot.muzzleTimer <= 0) bot.mesh.muzzleFlash.visible = false;
@@ -9790,6 +9841,24 @@ function buildSquadLeadership() {
             }
           }
 
+          // Complete a short walkable lateral sidestep before retrying A*.
+          if (bot.unstuckTarget && bot.unstuckTimer > 0) {
+            bot.unstuckTimer = Math.max(0, bot.unstuckTimer - dt);
+            const remaining = Math.hypot(
+              bot.unstuckTarget.x - bot.pos.x,
+              bot.unstuckTarget.z - bot.pos.z
+            );
+            if (remaining > 0.32 && bot.unstuckTimer > 0) {
+              moveTargetPos = bot.unstuckTarget;
+              moveSpeed = Math.max(3.8, moveSpeed);
+            } else {
+              bot.unstuckTarget = null;
+              bot.unstuckTimer = 0;
+            }
+          }
+
+          const hasRouteIntent = moveTargetPos && moveSpeed > 2.2 &&
+            Math.hypot(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z) > 1.55;
           let moveX = 0;
           let moveZ = 0;
           if (moveTargetPos && moveSpeed > 0) {
@@ -9824,6 +9893,8 @@ function buildSquadLeadership() {
             }
           }
 
+          const beforeMoveX = bot.pos.x;
+          const beforeMoveZ = bot.pos.z;
           bot.pos.x += moveX * dt;
           bot.pos.z += moveZ * dt;
           resolveHorizontalCollision(bot.pos, 0.42, 1.7);
@@ -9837,20 +9908,44 @@ function buildSquadLeadership() {
             bot.pos.y = Math.max(targetFloorY, bot.pos.y + bot.velY * dt);
           }
 
-          if (moveSpeed > 2.2) {
+          if (hasRouteIntent) {
             bot.stuckTimer += dt;
             if (bot.stuckTimer >= 1.1) {
-              const movedDist = bot.pos.distanceTo(bot.lastCheckPos);
+              const movedDist = Math.hypot(
+                bot.pos.x - bot.lastCheckPos.x, bot.pos.z - bot.lastCheckPos.z
+              );
               bot.lastCheckPos.copy(bot.pos);
               bot.stuckTimer = 0;
               if (movedDist < 0.55) {
+                bot.stuckFailures++;
                 if (bot.path && bot.path[bot.pathIndex] !== undefined) {
                   bot.blockedNode = bot.path[bot.pathIndex];
+                  bot.blockedNodeTimer = 4.5;
                 }
-                bot.pos.x += (Math.random() - 0.5) * 1.1;
-                bot.pos.z += (Math.random() - 0.5) * 1.1;
-                resolveHorizontalCollision(bot.pos, 0.42, 1.7);
-                assignBotTacticalGoal(bot);
+
+                // Preserve the tactical objective: seek a different route
+                // before requesting a new random assignment.
+                const goal = bot.coverNode !== -1 ? bot.coverNode :
+                  (bot.state === 'INVESTIGATE' && bot.lastKnownEnemyPos
+                    ? findNearestNavNode(bot.lastKnownEnemyPos) : bot.goalNode);
+                if (goal >= 0 && goal < NAV_NODES.length) {
+                  bot.path = findPathAStar(findNearestNavNode(bot.pos), goal, bot.blockedNode);
+                  bot.pathIndex = 0;
+                }
+                const escape = findBotEscapePoint(bot, moveTargetPos);
+                if (escape) {
+                  bot.unstuckTarget = escape;
+                  bot.unstuckTimer = 0.95;
+                }
+                if (bot.stuckFailures >= 4 && !escape) {
+                  bot.stuckFailures = 0;
+                  bot.coverNode = -1;
+                  bot.coverPhase = 'NONE';
+                  bot.investigateGoalNode = -1;
+                  assignBotTacticalGoal(bot);
+                }
+              } else {
+                bot.stuckFailures = 0;
               }
             }
           } else {
@@ -9858,7 +9953,10 @@ function buildSquadLeadership() {
             bot.lastCheckPos.copy(bot.pos);
           }
 
-          const actualSpeed = Math.hypot(moveX, moveZ);
+          // Animate actual resolved movement, not attempted movement into a wall.
+          const actualSpeed = Math.hypot(
+            bot.pos.x - beforeMoveX, bot.pos.z - beforeMoveZ
+          ) / Math.max(0.001, dt);
           if (actualSpeed > 0.35) {
             const targetLegYaw = Math.atan2(moveX, moveZ);
             bot.legYaw = lerpAngle(bot.legYaw, targetLegYaw, dt * 10);
