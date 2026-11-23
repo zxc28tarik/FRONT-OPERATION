@@ -365,6 +365,62 @@
     @media (prefers-reduced-motion: reduce) {
       #menu-overlay .class-card, #menu-overlay .fo-deploy { transition: none; }
     }
+
+    /* V28 KISS: compact class selector with one context panel. */
+    #menu-overlay #class-grid { grid-template-columns: repeat(5, minmax(0,1fr)); gap: 9px; }
+    #menu-overlay .fo-class-step {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: .07em;
+      color: #a6b4ba; margin: 0 0 8px;
+    }
+    #menu-overlay .class-card {
+      min-height: 111px; padding: 13px 12px; display: flex; flex-direction: column;
+      gap: 7px; align-items: flex-start; justify-content: flex-start;
+      position: relative; border-radius: 10px;
+    }
+    #menu-overlay .class-card.selected::after {
+      content: ''; position: absolute; left: 0; top: 9px;
+      bottom: 9px; width: 3px; border-radius: 2px; background: #c0ad84;
+    }
+    #menu-overlay .fo-card-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+    #menu-overlay .fo-card-key {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 20px; height: 20px; border: 1px solid #53616a;
+      border-radius: 5px; color: #d5dde1; font-size: 11px; font-weight: 700;
+    }
+    #menu-overlay .fo-card-name { font-size: 12px; font-weight: 800; color: #e9eef0; }
+    #menu-overlay .fo-card-role { font-size: 12px; color: #c6d1d4; }
+    #menu-overlay .fo-card-weapon { font-size: 11px; color: #9cafb6; }
+    #menu-overlay .fo-class-detail {
+      display: grid; grid-template-columns: 1fr 1.8fr; align-items: center;
+      gap: 16px; margin-bottom: 18px; padding: 13px 16px;
+      border: 1px solid rgba(162,178,185,.18); background: #202a31;
+      border-radius: 9px;
+    }
+    #menu-overlay .fo-class-detail h2 {
+      margin: 0; font-size: 17px; font-weight: 750; color: #edf0f2;
+    }
+    #menu-overlay .fo-class-detail p { margin: 4px 0 0; color: #adbdc3; font-size: 12px; }
+    #menu-overlay .fo-slot-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px 10px; }
+    #menu-overlay .fo-slot-list span { font-size: 12px; color: #d0dade; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #menu-overlay .fo-slot-list b {
+      display: inline-block; color: #d9c7a4; margin-right: 6px; width: 12px;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    }
+    #hud .fo-top-shortcuts { display: none !important; }
+    #hud #slot-bar > div { opacity: .83; }
+    #hud #slot-bar > div.border-amber-400\\/80 { opacity: 1; border-color: #b7a988 !important; }
+    #hud .fo-scoreboard { border-color: rgba(151,166,175,.17); }
+    @media (max-width: 830px) {
+      #menu-overlay #class-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+      #menu-overlay .fo-class-detail { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      #menu-overlay #class-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      #menu-overlay .class-card { min-height: 94px; padding: 10px; gap: 5px; }
+      #menu-overlay .fo-class-detail { padding: 12px; }
+      #menu-overlay .fo-slot-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    }
   </style>
 </head>
 <body>
@@ -653,8 +709,8 @@
     <div class="hud-glass rounded-2xl w-full max-w-3xl p-5 border border-slate-600/50">
       <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
         <div>
-          <h2 class="text-lg font-black tracking-wider text-white">MARIEN-CQC • TAKIM ÖLÜM MAÇI</h2>
-          <p class="text-xs text-slate-400">6v6 Piyade Çatışması • İlk 50 Öldürmeye Ulaşan Kazanır</p>
+          <h2 class="text-lg font-black tracking-wide text-white">SKOR TABLOSU</h2>
+          <p class="text-xs text-slate-400">MARIEN • 6v6 • HEDEF 50</p>
         </div>
         <div class="mono text-sm font-bold text-amber-400" id="sb-timer">10:00</div>
       </div>
@@ -698,7 +754,7 @@
             <span class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 mono text-[10px] font-extrabold text-amber-300 tracking-widest">
               6v6 • TAKIM SAVAŞI
             </span>
-            <span class="mono text-xs text-slate-400">MARIEN</span>
+            <span class="mono text-xs text-slate-400">MARIEN • TAKIM ÖLÜM MAÇI</span>
           </div>
           <h1 id="menu-title" class="text-2xl sm:text-3xl font-black tracking-tight text-white mt-1">
             FRONT OPERATION
@@ -714,77 +770,47 @@
         </div>
       </div>
 
-      <!-- 5 Classes Grid (Engineer internal key preserved as Drone Operator) -->
-      <div class="grid gap-3 mb-5" id="class-grid">
-        <div class="class-card selected rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="assault" role="button" tabindex="0" aria-pressed="true">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="mono text-[10px] font-extrabold text-amber-400">[1] ASSAULT</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold">TAARRUZ</span>
-          </div>
-          <div class="text-sm font-black text-white mb-2">Hücum Piyadesi</div>
-          <ul class="space-y-1 text-[11px] text-slate-300 mono">
-            <li><span class="text-slate-500">1:</span> HK416A5</li>
-            <li><span class="text-slate-500">2:</span> SIG P320</li>
-            <li><span class="text-slate-500">3:</span> Taktik Bıçak</li>
-            <li class="text-amber-300"><span class="text-slate-500">4:</span> M67 El Bombası</li>
-          </ul>
+      <!-- V28 KISS: one compact choice per class; one shared detail area. -->
+      <div class="fo-class-step">1. SINIF SEÇ</div>
+      <div class="grid gap-3 mb-3" id="class-grid">
+        <div class="class-card selected" data-class="assault" role="button" tabindex="0" aria-pressed="true" aria-label="ASSAULT sınıfını seç">
+          <div class="fo-card-top"><span class="fo-card-key">1</span><span class="fo-card-name">ASSAULT</span></div>
+          <span class="fo-card-role">Hücum</span>
+          <span class="fo-card-weapon">HK416A5</span>
         </div>
-
-        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="medic" role="button" tabindex="0" aria-pressed="false">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="mono text-[10px] font-extrabold text-emerald-400">[2] MEDIC</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">DESTEK</span>
-          </div>
-          <div class="text-sm font-black text-white mb-2">Sıhhiye</div>
-          <ul class="space-y-1 text-[11px] text-slate-300 mono">
-            <li><span class="text-slate-500">1:</span> H&amp;K MP7A1</li>
-            <li><span class="text-slate-500">2:</span> SIG P320</li>
-            <li><span class="text-slate-500">3:</span> Taktik Bıçak</li>
-            <li class="text-emerald-300"><span class="text-slate-500">4:</span> Taktik Medkit</li>
-          </ul>
+        <div class="class-card" data-class="medic" role="button" tabindex="0" aria-pressed="false" aria-label="MEDIC sınıfını seç">
+          <div class="fo-card-top"><span class="fo-card-key">2</span><span class="fo-card-name">MEDIC</span></div>
+          <span class="fo-card-role">Sıhhiye</span>
+          <span class="fo-card-weapon">MP7A1</span>
         </div>
-
-        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="engineer" role="button" tabindex="0" aria-pressed="false">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="mono text-[10px] font-extrabold text-cyan-400">[3] DRONE OP.</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold">KEŞİF / FPV</span>
-          </div>
-          <div class="text-sm font-black text-white mb-0.5">Drone Operator</div>
-          <div class="text-[10px] text-slate-400 mb-1.5 leading-tight">Her canda 1 FPV keşif ve kamikaze drone</div>
-          <ul class="space-y-1 text-[11px] text-slate-300 mono">
-            <li><span class="text-slate-500">1:</span> H&amp;K MP7A1</li>
-            <li><span class="text-slate-500">2:</span> SIG P320</li>
-            <li><span class="text-slate-500">3:</span> Taktik Bıçak</li>
-            <li class="text-cyan-300"><span class="text-slate-500">4:</span> FPV Drone (1/Can)</li>
-          </ul>
+        <div class="class-card" data-class="engineer" role="button" tabindex="0" aria-pressed="false" aria-label="DRONE sınıfını seç">
+          <div class="fo-card-top"><span class="fo-card-key">3</span><span class="fo-card-name">DRONE</span></div>
+          <span class="fo-card-role">Operatör</span>
+          <span class="fo-card-weapon">MP7A1</span>
         </div>
-
-        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="sniper" role="button" tabindex="0" aria-pressed="false">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="mono text-[10px] font-extrabold text-purple-400">[4] SNIPER</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">DÜRBÜN</span>
-          </div>
-          <div class="text-sm font-black text-white mb-2">Keskin Nişancı</div>
-          <ul class="space-y-1 text-[11px] text-slate-300 mono">
-            <li><span class="text-slate-500">1:</span> Barrett MRAD</li>
-            <li><span class="text-slate-500">2:</span> Glock 18C</li>
-            <li><span class="text-slate-500">3:</span> Taktik Bıçak</li>
-            <li class="text-slate-500 italic">4: Özel Yetenek Yok</li>
-          </ul>
+        <div class="class-card" data-class="sniper" role="button" tabindex="0" aria-pressed="false" aria-label="SNIPER sınıfını seç">
+          <div class="fo-card-top"><span class="fo-card-key">4</span><span class="fo-card-name">SNIPER</span></div>
+          <span class="fo-card-role">Nişancı</span>
+          <span class="fo-card-weapon">MRAD</span>
         </div>
-
-        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="heavy" role="button" tabindex="0" aria-pressed="false">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="mono text-[10px] font-extrabold text-rose-400">[5] HEAVY</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">AĞIR ATEŞ</span>
+        <div class="class-card" data-class="heavy" role="button" tabindex="0" aria-pressed="false" aria-label="HEAVY sınıfını seç">
+          <div class="fo-card-top"><span class="fo-card-key">5</span><span class="fo-card-name">HEAVY</span></div>
+          <span class="fo-card-role">Ağır piyade</span>
+          <span class="fo-card-weapon">MINIMI</span>
+        </div>
+      </div>
+      <div class="fo-class-detail" id="class-detail" aria-live="polite">
+        <div class="fo-detail-identity">
+          <div class="fo-class-step">SEÇİLİ SINIF</div>
+          <h2 id="selected-class-title">Hücum Piyadesi</h2>
+          <p id="selected-class-description">Çok yönlü piyade</p>
+        </div>
+        <div class="fo-detail-loadout">
+          <div class="fo-class-step">EKİPMAN</div>
+          <div class="fo-slot-list" id="selected-class-loadout">
+            <span><b>1</b> HK416A5</span><span><b>2</b> P320</span>
+            <span><b>3</b> Bıçak</span><span><b>4</b> M67</span>
           </div>
-          <div class="text-sm font-black text-white mb-2">Ağır Piyade</div>
-          <ul class="space-y-1 text-[11px] text-slate-300 mono">
-            <li><span class="text-slate-500">1:</span> FN Minimi Mk3</li>
-            <li><span class="text-slate-500">2:</span> SIG P320</li>
-            <li><span class="text-slate-500">3:</span> Taktik Bıçak</li>
-            <li class="text-rose-300"><span class="text-slate-500">4:</span> Carl Gustaf M4</li>
-          </ul>
         </div>
       </div>
 
