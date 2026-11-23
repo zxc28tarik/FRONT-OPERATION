@@ -69,3 +69,32 @@ Bu koşuda Zor'un ham isabet oranının Normal'den daha yüksek çıkması *gara
 ## 5. Sıradaki teknik karar
 
 **Öncelik: A* tıkanma kurtarmalarını azaltmak.** V40'daki `stuckNodes` ve `actors` raporu hangi düğümün, sınıfın ve botun sorun yarattığını gösterecek. V41'de körlemesine hız artırmak yerine o düğümlerde yol seçimi, siper kapısı, ağırlık/sınıf geçişi ve dar alan bekleme davranışları ölçümle karşılaştırılarak düzeltilebilir. Önce/sonra 600 sim saniye ve gerçek 6v6 Chromium QA tekrarlanmalıdır.
+
+## 6. Düğüm bazlı ikinci stres ölçümü — bulgu kesinleşiyor
+
+V40'a eklenen `stuckNodes` verisiyle yapılan **ikinci, bağımsız** hızlandırılmış 600 saniye bot motoru çalışmasında şu sonuçlar alındı:
+
+[GitHub Actions — 45250513668](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45250513668)
+
+- 600 simüle saniye / 600 bir saniyelik ölçüm örneği
+- 1.421 bot atışı, 222 isabet
+- 754 takılma kurtarma olayı
+- **Ağır sınıfta 461** kurtarma olayı
+- 20 örneklik son pencere sınırına uyuldu; tarayıcıda yakalanmamış JavaScript hatası: 0
+
+| Yol düğümü | Harita noktası | Kurtarma | Ana kaynak |
+|---|---|---:|---|
+| **39** | Kırmızı üs kapısı `red_gate`, (x: 0, z: -45) | **264** | 260 Ağır, 4 Sıhhiye — tamamı Kırmızı takım |
+| **3** | Mavi üs kapısı `blue_gate`, (x: 0, z: 45) | **259** | 168 Ağır, 56 Mühendis, 33 Hücum, 2 Sıhhiye — tamamı Mavi takım |
+| 40 | Kırmızı doğuş (x: -12, z: -50) | 49 | Sıhhiye |
+| 34 | Doğu giriş (x: 22, z: -10) | 44 | Mühendis, Hücum |
+
+Tek başına **Kırmızı takımın ağır botu `red_4` 286 kez takılma kurtarması yapmış, buna karşılık bu simülasyonda hiç normal hedef atışı yapamamıştır.** Bu büyük bir arıza sinyalidir. Ancak nedenin kapı çarpışması, yanlış A* kenarı, dar geçit geçiş önceliği veya başka bir mekanizma olduğu, yalnız sayaca bakarak kesinleşmez.
+
+**Navigasyonun sonraki sürümde ilk incelenecek iki yeri, 39 ve 3 numaralı üs kapısı düğümleridir.** Orijinal `NAV_EDGES` grafiğinde bu noktaların yakınındaki fiziksel geçit uygunluğu, bot yarıçapı, komşu düğümlerin yürünebilirliği ve yavaş hareket eden ağır botun `movedDist < 0.55` eşiğiyle ilişkisi kontrol edilmelidir.
+
+İki bağımsız stres koşusunda da Ağır sınıf tıkanma kurtarmalarına büyük ölçüde katkıda bulunmuştur (ilk koşu 610, ikinci koşu 461). Bu tekrar, problemi **V41'de önceliklendirir**; fakat otomatik olarak başka tüm bot davranışlarının bozuk olduğu sonucunu vermez.
+
+### Denge konusunda sınır
+
+İkinci koşuda Normal 503 atış/111 isabet, Zor 794/101, Uzman 124/10 üretmiştir. Ham sonuçlar basit, monoton bir zorluk sıralaması göstermiyor. Üç grubun harita konumu, asker silahları, hedef mesafesi ve hayat sayıları eşitlenmeden "Uzman zayıf" veya "Zor daha az isabetli" sonucuna varılamaz. **Nişan oturtma hızı ve mevcut beceri profilleri bu nedenle değiştirilmemiştir.**
