@@ -10114,7 +10114,9 @@ function buildSquadLeadership() {
                 moveSpeed = 5.5;
               }
             } else {
-              const wantsTacticalCover = distToEnemy > 11.5 || bot.classId === 'sniper' || bot.classId === 'heavy';
+              const wantsTacticalCover = !(bot.teamRole === 'FLANK' &&
+                bot.teamFlankGoalNode >= 0) &&
+                (distToEnemy > 11.5 || bot.classId === 'sniper' || bot.classId === 'heavy');
 
               if (wantsTacticalCover && bot.coverNode === -1 && bot.coverSearchCooldown <= 0) {
                 bot.coverSearchCooldown = 1.2;
@@ -10791,8 +10793,11 @@ function buildSquadLeadership() {
               bot.stuckTimer = 0;
               if (movedDist < 0.55) {
                 bot.stuckFailures++;
-                if (bot.path && bot.path[bot.pathIndex] !== undefined) {
-                  bot.blockedNode = bot.path[bot.pathIndex];
+                const obstructedWp = bot.teamFlankGoalNode >= 0
+                  ? bot.teamFlankRoute[bot.teamFlankPathIndex]
+                  : (bot.path && bot.path[bot.pathIndex]);
+                if (obstructedWp !== undefined) {
+                  bot.blockedNode = obstructedWp;
                   bot.blockedNodeTimer = 4.5;
                 }
 
