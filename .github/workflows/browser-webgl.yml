@@ -8,6 +8,7 @@ on:
       - ai/v35-difficulty-mix-medium-aim
       - ai/v36-natural-movement-steering
       - ai/v37-observed-target-tracking
+      - ai/v38-squad-tactics
   workflow_dispatch:
 
 jobs:
