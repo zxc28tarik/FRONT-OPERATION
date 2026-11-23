@@ -124,6 +124,30 @@ function runBotAiV32Regression(html) {
   results.push(assert(bot.targetId === 'redA', 'Immediate close threat overrides lock'));
   results.push(assert(bot.coverNode === -1, 'Cover re-evaluated on enemy switch'));
 
+  // Red infantry must acquire a visible BLUE player, but blue allies must not.
+  const human = {alive:true,team:'blue',pos:new Vec3(15,0,0),eye:new Vec3(15,1.48,0)};
+  const scanPlayer = new Function('THREE','bots','player','BOT_PERCEPTION_INTERVAL','_percEyeVec',
+    'getLiveEntitySnapshot','evaluateCandidatePerception','scoreEnemyCandidate',
+    'computeReactionDelay','isEntityStillAlive','clearDeadTargetMemory',
+    'reportTeamVisualSighting','getSharedTeamSighting','botAiClockSec',
+    perceptionSrc + '\nreturn updateBotPerception;')(
+    THREE,[],human,0.12,new Vec3(),
+    (id) => id === 'player' ? {id:'player',pos:human.pos,eye:human.eye,isPlayer:true} : null,
+    (_b,_eye,cand) => ({dist:Math.hypot(cand.pos.x,cand.pos.z),angleRad:0,inPrimaryCone:true}),
+    (_b,_cand,info) => info.dist,
+    () => 0.24,
+    (id) => id === 'player',
+    () => {}, () => {}, () => null, 0
+  );
+  const redBot = {...bot,id:'red0',team:'red',targetId:null,visibleEnemy:null,
+    perceptionTimer:0,targetLockTimer:0,lastKnownEnemyPos:null,reactionTimer:0};
+  scanPlayer(redBot,0.04,{});
+  results.push(assert(redBot.targetId === 'player', 'Red infantry acquires visible human player'));
+  const blueBot = {...redBot,id:'blue1',team:'blue',targetId:null,visibleEnemy:null,
+    perceptionTimer:0,targetLockTimer:0,lastKnownEnemyPos:null,reactionTimer:0};
+  scanPlayer(blueBot,0.04,{});
+  results.push(assert(blueBot.targetId === null, 'Friendly infantry does not target human ally'));
+
   return results;
 }
 
