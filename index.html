@@ -7467,6 +7467,7 @@ function buildSquadLeadership() {
 
       function initBots() {
         resetTeamIntel();
+        resetBotNoiseEvents();
         bots.forEach((b) => scene.remove(b.mesh.root));
         bots.length = 0;
         // A fresh match starts a fresh per-five/per-fifteen spawn cycle.
@@ -7493,6 +7494,17 @@ function buildSquadLeadership() {
             teamFlankPathIndex: 0,
             teamFlankCommitUntil: 0,
             teamFlankRestUntil: 0,
+            hearingPos: null,
+            hearingKind: null,
+            hearingSourceId: null,
+            hearingGoalNode: -1,
+            hearingRoute: [],
+            hearingRouteIndex: 0,
+            hearingTimer: 0,
+            hearingScanCooldown: 0,
+            hearingCommitUntil: 0,
+            hearingLastNoiseId: 0,
+            stepDistance: 0,
             aimTrackTargetId: null,
             aimTrackPoint: null,
             aimTrackSeenEye: null,
@@ -7602,6 +7614,17 @@ function buildSquadLeadership() {
             teamFlankPathIndex: 0,
             teamFlankCommitUntil: 0,
             teamFlankRestUntil: 0,
+            hearingPos: null,
+            hearingKind: null,
+            hearingSourceId: null,
+            hearingGoalNode: -1,
+            hearingRoute: [],
+            hearingRouteIndex: 0,
+            hearingTimer: 0,
+            hearingScanCooldown: 0,
+            hearingCommitUntil: 0,
+            hearingLastNoiseId: 0,
+            stepDistance: 0,
             aimTrackTargetId: null,
             aimTrackPoint: null,
             aimTrackSeenEye: null,
@@ -7703,6 +7726,9 @@ function buildSquadLeadership() {
         bot.difficulty = chooseBotDifficultyForSpawn();
         bot.aimSettleTimer = 0;
         resetBotAimTracking(bot);
+        resetBotHearing(bot);
+        bot.hearingLastNoiseId = 0;
+        bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
         bot.teamFlankThreatAnchor = null;
@@ -8803,6 +8829,7 @@ function buildSquadLeadership() {
       function triggerExplosion(pos, radius, maxDamage, ownerName, team, weaponLabel, allowSelfDamage = true) {
         const distToPlayer = pos.distanceTo(player.pos);
         sound.playExplosion(distToPlayer);
+        emitBotNoise(team, pos, 'explosion', ownerName);
 
         for (let i = 0; i < 16 && activeParticles.length < VFX_CAPS.maxParticles; i++) {
           const isSmoke = i % 2 === 0;
@@ -9022,6 +9049,8 @@ function buildSquadLeadership() {
         }
 
         sound.playGunshot(w.category, 0, w.id);
+        emitBotNoise(player.team, player.pos, w.category === 'sniper' ? 'sniper' :
+          (w.category === 'pistol' ? 'pistol' : 'gun'), 'player');
 
         if (w.category !== 'rocket') {
           const flashStar = createMuzzleFlashStar(w.category);
@@ -9411,6 +9440,10 @@ function buildSquadLeadership() {
           if (player.stepTimer <= 0) {
             player.stepTimer = 0.44;
             sound.playStep(player.sprinting);
+            if (!player.crouching) {
+              emitBotNoise(player.team, player.pos,
+                player.sprinting ? 'sprint' : 'step', 'player');
+            }
           }
         } else {
           player.bobTimer = 0;
@@ -9948,6 +9981,161 @@ function buildSquadLeadership() {
         return { x: bot.moveVelX, z: bot.moveVelZ };
       }
 
+      // =========================================================================
+      // V39: Acoustic suspicion. Noise reports are approximate locations,
+      // NEVER target IDs or confirmed line-of-sight sightings.
+      // =========================================================================
+      const BOT_NOISE_EVENTS = [];
+      const BOT_NOISE_MAX_EVENTS = 40;
+      let botNoiseSerial = 0;
+
+      function resetBotNoiseEvents() {
+        BOT_NOISE_EVENTS.length = 0;
+        botNoiseSerial = 0;
+      }
+
+      function resetBotHearing(bot) {
+        bot.hearingPos = null;
+        bot.hearingKind = null;
+        bot.hearingSourceId = null;
+        bot.hearingGoalNode = -1;
+        bot.hearingRoute = [];
+        bot.hearingRouteIndex = 0;
+        bot.hearingTimer = 0;
+        bot.hearingScanCooldown = 0;
+        bot.hearingCommitUntil = 0;
+      }
+
+      function emitBotNoise(team, pos, kind, sourceId = null) {
+        if (!matchState.started || matchState.ended || !pos ||
+            (team !== 'blue' && team !== 'red') ||
+            ![pos.x, pos.y, pos.z].every(Number.isFinite)) return false;
+        const radius = kind === 'explosion' ? 62
+          : kind === 'sniper' ? 66
+          : kind === 'gun' ? 47
+          : kind === 'pistol' ? 31
+          : kind === 'sprint' ? 14
+          : kind === 'step' ? 9 : 0;
+        if (!radius) return false;
+        const minimumGap = kind === 'sprint' || kind === 'step' ? 0.35 : 0.18;
+        for (let i = BOT_NOISE_EVENTS.length - 1; i >= 0; i--) {
+          const prior = BOT_NOISE_EVENTS[i];
+          if (prior.team === team && prior.sourceId === sourceId &&
+              prior.kind === kind &&
+              botAiClockSec - prior.timestamp < minimumGap) return false;
+          if (botAiClockSec - prior.timestamp > prior.ttl) BOT_NOISE_EVENTS.splice(i, 1);
+        }
+        BOT_NOISE_EVENTS.push({
+          id: ++botNoiseSerial, team, sourceId, kind,
+          origin: pos.clone(), radius, timestamp: botAiClockSec,
+          ttl: kind === 'explosion' ? 1.65 : (kind === 'step' || kind === 'sprint' ? 0.7 : 1.2)
+        });
+        while (BOT_NOISE_EVENTS.length > BOT_NOISE_MAX_EVENTS) BOT_NOISE_EVENTS.shift();
+        return true;
+      }
+
+      function considerBotHeardNoise(bot, nowSec, dt) {
+        if (bot.hearingScanCooldown > 0) {
+          bot.hearingScanCooldown = Math.max(0, bot.hearingScanCooldown - dt);
+          return false;
+        }
+        bot.hearingScanCooldown = 0.24 + (parseInt(bot.id.split('_')[1], 10) % 3) * 0.035;
+        if (bot.visibleEnemy || (bot.lastKnownEnemyPos && bot.investigateTimer > 0) ||
+            bot.hp < (bot.classId === 'heavy' ? 52 : 42) ||
+            nowSec < bot.hearingCommitUntil) return false;
+        let best = null, bestScore = -Infinity;
+        const ear = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
+        for (let i = BOT_NOISE_EVENTS.length - 1; i >= 0; i--) {
+          const noise = BOT_NOISE_EVENTS[i];
+          if (noise.id <= bot.hearingLastNoiseId || noise.team === bot.team ||
+              noise.sourceId === bot.id) continue;
+          const age = nowSec - noise.timestamp;
+          if (age < 0 || age > noise.ttl) continue;
+          const diffY = Math.abs(noise.origin.y - bot.pos.y);
+          if (diffY > (noise.kind === 'step' || noise.kind === 'sprint' ? 1.7 : 5.5)) continue;
+          const distance = Math.hypot(noise.origin.x - bot.pos.x, noise.origin.z - bot.pos.z);
+          if (distance < 0.8 || distance > noise.radius) continue;
+          const soundEye = new THREE.Vector3(noise.origin.x,
+            noise.origin.y + (noise.kind === 'explosion' ? 0.4 : 1.25),
+            noise.origin.z);
+          // Walls damp footsteps heavily and gunshots moderately, but loud
+          // blasts can still be heard through cover.
+          const clear = hasLineOfSight(ear, soundEye);
+          const effectiveRadius = noise.radius * (clear ? 1.0
+            : (noise.kind === 'explosion' ? 0.73 :
+                (noise.kind === 'step' || noise.kind === 'sprint' ? 0.38 : 0.55)));
+          if (distance > effectiveRadius) continue;
+          const rank = (noise.kind === 'explosion' ? 30 :
+            noise.kind === 'sniper' ? 24 :
+            noise.kind === 'gun' ? 18 :
+            noise.kind === 'pistol' ? 13 :
+            noise.kind === 'sprint' ? 9 : 5) -
+            distance * 0.10 - age * 4;
+          if (rank > bestScore) { bestScore = rank; best = noise; }
+        }
+        if (!best) return false;
+        // We know only a region. This location must be independent of any
+        // moving actor and never becomes a confirmed combat target.
+        const baseError = best.kind === 'explosion' ? 4.5 :
+          best.kind === 'step' || best.kind === 'sprint' ? 1.6 : 3.0;
+        const error = baseError + Math.random() * baseError * 0.65;
+        const angle = Math.random() * Math.PI * 2;
+        const noiseX = best.origin.x + Math.cos(angle) * error;
+        const noiseZ = best.origin.z + Math.sin(angle) * error;
+        let heard = null;
+        for (const t of [1, 0.6, 0.2]) {
+          const x = best.origin.x + (noiseX - best.origin.x) * t;
+          const z = best.origin.z + (noiseZ - best.origin.z) * t;
+          if (isPositionWalkable(x, best.origin.y, z)) {
+            heard = new THREE.Vector3(x, best.origin.y, z);
+            break;
+          }
+        }
+        // A sound coming from blocked terrain still creates caution,
+        // but cannot produce a walk-through-walls investigation goal.
+        if (!heard) {
+          bot.hearingLastNoiseId = best.id;
+          bot.hearingCommitUntil = nowSec + 0.8;
+          return false;
+        }
+        bot.hearingPos = heard;
+        bot.hearingKind = best.kind;
+        bot.hearingSourceId = best.sourceId;
+        bot.hearingLastNoiseId = best.id;
+        bot.hearingGoalNode = -1;
+        bot.hearingRoute = [];
+        bot.hearingRouteIndex = 0;
+        bot.hearingTimer = best.kind === 'explosion' ? 4.2 : 3.2;
+        bot.hearingCommitUntil = nowSec + 1.8;
+        return true;
+      }
+
+      function getBotHearingWaypoint(bot) {
+        const goal = bot.hearingPos;
+        if (!goal) return null;
+        const from = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.0, bot.pos.z);
+        const to = new THREE.Vector3(goal.x, goal.y + 1.0, goal.z);
+        if (hasLineOfSight(from, to)) return goal.clone();
+        const goalNode = findNearestNavNode(goal);
+        if (bot.hearingGoalNode !== goalNode || !bot.hearingRoute ||
+            bot.hearingRouteIndex >= bot.hearingRoute.length) {
+          bot.hearingRoute = findPathAStar(findNearestNavNode(bot.pos),
+            goalNode, bot.blockedNode);
+          bot.hearingRouteIndex = 0;
+          bot.hearingGoalNode = goalNode;
+        }
+        const route = bot.hearingRoute;
+        while (route && bot.hearingRouteIndex < route.length) {
+          const point = NAV_NODES[route[bot.hearingRouteIndex]];
+          if (Math.hypot(point.x - bot.pos.x, point.z - bot.pos.z) >= 1.35 ||
+              Math.abs(point.y - bot.pos.y) >= 1.5) {
+            return new THREE.Vector3(point.x, point.y, point.z);
+          }
+          bot.hearingRouteIndex++;
+        }
+        return null;
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -10024,7 +10212,12 @@ function buildSquadLeadership() {
           }
 
           updateBotPerception(bot, dt, targetClaimCounts);
+          considerBotHeardNoise(bot, nowSec, dt);
           const bestEnemy = bot.visibleEnemy;
+          if (bestEnemy) {
+            bot.hearingPos = null;
+            bot.hearingTimer = 0;
+          }
           const trackedEnemyEye = updateBotAimTracking(bot, bestEnemy, dt);
           const isReactionReady = bestEnemy && bot.reactionTimer >= bot.reactionRequired;
           const skill = getBotSkillProfile(bot);
@@ -10292,6 +10485,8 @@ function buildSquadLeadership() {
               const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
               const distToPlayer = botEye.distanceTo(camera.position);
               sound.playGunshot(bw.category, distToPlayer, bw.id);
+              emitBotNoise(bot.team, bot.pos, bw.category === 'sniper' ? 'sniper' :
+                (bw.category === 'pistol' ? 'pistol' : 'gun'), bot.id);
 
               const distFactor = Math.max(0.14, 1 - distToEnemy / 62);
               const classAcc = botWeaponId === 'mrad' ? 0.62 : botWeaponId === 'hk416' ? 0.38 : 0.30;
@@ -10375,6 +10570,7 @@ function buildSquadLeadership() {
                 bot.muzzleTimer = 0.055;
                 bot.mesh.muzzleFlash.visible = true;
                 sound.playGunshot(bw.category, botEyeNoTarget.distanceTo(camera.position), bw.id);
+                emitBotNoise(bot.team, bot.pos, bw.category === 'pistol' ? 'pistol' : 'gun', bot.id);
 
                 const aimDir = new THREE.Vector3().subVectors(visibleEnemyDrone.pos, botEyeNoTarget).normalize();
                 const hitChance = Math.max(0.18, 0.52 * (1 - dDist / 40));
@@ -10420,6 +10616,7 @@ function buildSquadLeadership() {
                   bot.mesh.muzzleFlash.visible = true;
 
                   sound.playGunshot(sw.category, botEyeNoTarget.distanceTo(camera.position), sw.id);
+                  emitBotNoise(bot.team, bot.pos, 'gun', bot.id);
                   const aimDir = new THREE.Vector3().subVectors(coverOpp.targetEye, botEyeNoTarget).normalize();
                   const jitteredDir = aimDir.clone().add(new THREE.Vector3(
                     (Math.random() - 0.5) * 0.09,
@@ -10588,6 +10785,32 @@ function buildSquadLeadership() {
                     bot.investigateTimer = 0;
                     bot.investigateGoalNode = -1;
                     assignBotTacticalGoal(bot);
+                  }
+                } else if (bot.hearingPos && bot.hearingTimer > 0) {
+                  // Investigating sound is NOT visual contact: no damage,
+                  // perfect target information or grenades at an unseen enemy.
+                  bot.hearingTimer = Math.max(0, bot.hearingTimer - dt);
+                  bot.investigateGoalNode = -1;
+                  setBotState(bot, 'INVESTIGATE', 0.8);
+                  desiredUpperYaw = Math.atan2(
+                    bot.hearingPos.x - bot.pos.x, bot.hearingPos.z - bot.pos.z);
+                  const distanceToSound = Math.hypot(
+                    bot.hearingPos.x - bot.pos.x, bot.hearingPos.z - bot.pos.z);
+                  const canApproach = bot.classId !== 'sniper' &&
+                    bot.classId !== 'engineer' && bot.hp >= 55;
+                  if (distanceToSound < 3.4 || bot.hearingTimer <= 0) {
+                    bot.hearingPos = null;
+                    bot.hearingGoalNode = -1;
+                    bot.hearingRoute = [];
+                    bot.hearingTimer = 0;
+                    bot.hearingCommitUntil = nowSec + 1.1;
+                  } else if (canApproach) {
+                    moveTargetPos = getBotHearingWaypoint(bot);
+                    moveSpeed = bot.classId === 'heavy' ? 3.3 : 3.8;
+                    if (!moveTargetPos) moveSpeed = 0;
+                  } else {
+                    moveSpeed = 0;
+                    targetCrouch = bot.classId === 'sniper' ? 0.55 : 0.2;
                   }
                 } else {
                   const rallyKey = `${bot.team}_${bot.squadId}`;
@@ -10881,6 +11104,18 @@ function buildSquadLeadership() {
           bot.mesh.weaponPivot.rotation.x = -bot.aimPitch * 0.75;
           bot.mesh.head.rotation.x = -bot.aimPitch * 0.65;
 
+          // Ground movement produces approximate audible footsteps only
+          // when fast enough; the player shares the same acoustic cue model.
+          if (actualSpeed > 3.1 && bot.state !== 'RETREAT' &&
+              Math.abs(bot.pos.y - getFloorHeightAt(bot.pos.x, bot.pos.z, bot.pos.y + 0.45)) < 0.25) {
+            bot.stepDistance += actualSpeed * dt;
+            if (bot.stepDistance > 2.8) {
+              bot.stepDistance = 0;
+              emitBotNoise(bot.team, bot.pos, 'sprint', bot.id);
+            }
+          } else {
+            bot.stepDistance = 0;
+          }
           if (actualSpeed > 0.4) {
             bot.mesh.upperBody.position.y = 0.93;
             bot.animPhase += dt * actualSpeed * 2.35;
