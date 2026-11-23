@@ -9726,8 +9726,14 @@ function buildSquadLeadership() {
               bot.aimPitch = Math.max(-0.85, Math.min(0.85, Math.atan2(dyDrone, Math.max(0.5, dDist))));
               moveSpeed = 1.8;
 
-              bot.fireTimer -= dt;
-              if (bot.fireTimer <= 0) {
+              // Drones use the same aim and ally-line rules as infantry.
+              if (isBotAimAligned(bot, visibleEnemyDrone.pos) &&
+                  isBotFireLaneClear(bot, visibleEnemyDrone.pos)) {
+                bot.fireTimer -= dt;
+              }
+              if (bot.fireTimer <= 0 &&
+                  isBotAimAligned(bot, visibleEnemyDrone.pos) &&
+                  isBotFireLaneClear(bot, visibleEnemyDrone.pos)) {
                 const botWeaponId = bot.classId === 'assault' ? 'hk416'
                   : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
                   : (bot.classId === 'sniper' ? 'glock18c' : 'minimi');
@@ -9761,8 +9767,15 @@ function buildSquadLeadership() {
                 moveSpeed = bot.classId === 'heavy' ? 1.4 : 2.4;
                 targetCrouch = bot.classId === 'heavy' ? 0.55 : 0;
 
-                bot.suppressFireTimer -= dt;
-                if (bot.suppressFireTimer <= 0) {
+                // Suppressive tracers must not pass through teammates or
+                // start while the muzzle is still turning toward the threat.
+                if (isBotAimAligned(bot, coverOpp.targetEye) &&
+                    isBotFireLaneClear(bot, coverOpp.targetEye)) {
+                  bot.suppressFireTimer -= dt;
+                }
+                if (bot.suppressFireTimer <= 0 &&
+                    isBotAimAligned(bot, coverOpp.targetEye) &&
+                    isBotFireLaneClear(bot, coverOpp.targetEye)) {
                   const supWeaponId = bot.classId === 'heavy' ? 'minimi'
                     : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7' : 'hk416';
                   const sw = WEAPONS[supWeaponId];
