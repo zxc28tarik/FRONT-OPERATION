@@ -6698,8 +6698,8 @@
       let botLifeSequence = 0;
       function chooseBotDifficultyForSpawn() {
         const index = botLifeSequence++;
-        // Slot 13 / 15 is Normal in the base 3+2 pattern. Substitute it.
-        return index % 15 === 12
+        // Slot 15 / 15 is Normal in the base 3+2 pattern. Substitute it.
+        return index % 15 === 14
           ? 'expert'
           : BOT_DIFFICULTY_SEQUENCE[index % BOT_DIFFICULTY_SEQUENCE.length];
       }
