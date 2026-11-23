@@ -235,6 +235,125 @@
         display: block !important;
       }
     }
+
+    /* V27 Calm UI — presentation only. Do not alter input, combat or crosshair geometry. */
+    :root {
+      --fo-panel: rgba(17, 24, 31, .88);
+      --fo-panel-solid: #182129;
+      --fo-border: rgba(161, 174, 183, .19);
+      --fo-text: #e0e6e9;
+      --fo-muted: #a4b0b8;
+      --fo-accent: #9bafb4;
+      --fo-selected: #bdaf8e;
+    }
+    .hud-glass {
+      background: var(--fo-panel);
+      border: 1px solid var(--fo-border);
+      backdrop-filter: blur(4px);
+      box-shadow: 0 3px 14px rgba(0, 0, 0, .20);
+    }
+    #hud { padding: 11px 14px; }
+    #hud .hud-glass { border-radius: 9px; }
+    #hud #radar-canvas { width: 112px; height: 112px; }
+    #hud .fo-scoreboard { gap: 13px; padding: 8px 14px; }
+    #hud .fo-scoreboard .shadow-\\[0_0_8px_\\#38bdf8\\],
+    #hud .fo-scoreboard .shadow-\\[0_0_8px_\\#f43f5e\\] { box-shadow: none !important; }
+    #hud .fo-status-panel, #hud .fo-ammo-panel {
+      width: min(215px, 28vw);
+      padding: 10px 12px;
+    }
+    #hp-bar { background: #7faaa0 !important; }
+    #sp-bar { background: #819fb3 !important; }
+    #hud #slot-bar { gap: 5px; }
+    #hud #slot-bar > div { min-width: 72px; padding: 6px 9px; }
+    #hud #slot-bar > div > div:first-child { color: var(--fo-muted); }
+    #hud #slot-bar > div > div:nth-child(2) { font-size: 11px; }
+    #hud #slot-bar > div[style*="border"] { border-color: var(--fo-selected); }
+    #hud .fo-top-shortcuts { color: var(--fo-muted); background: rgba(17,24,31,.66); }
+    #kill-banner-text { color: #dbc597; border-color: rgba(190,170,130,.38); box-shadow: none; }
+    #drone-hud { background: radial-gradient(circle at center, transparent 67%, rgba(12,21,28,.30) 100%); }
+    .drone-corner { border-color: rgba(150,185,193,.35); }
+    #drone-controls-hint { font-weight: 500; color: #c1ced3; white-space: normal; max-width: 580px; }
+    #drone-mode-badge { box-shadow: none; border-color: rgba(142,180,184,.40); }
+    #menu-overlay {
+      background: rgba(7,12,17,.87);
+      backdrop-filter: blur(7px);
+    }
+    #menu-overlay .fo-menu-panel {
+      max-width: 970px;
+      padding: 24px 26px;
+      background: rgba(18,26,33,.97);
+      box-shadow: 0 20px 70px rgba(0,0,0,.35);
+    }
+    #menu-overlay #class-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+    #menu-overlay .class-card {
+      background: #202b33;
+      border: 1px solid rgba(165,179,186,.18);
+      border-radius: 10px;
+      padding: 14px;
+      min-height: 150px;
+      transition: background .12s ease, border-color .12s ease;
+    }
+    #menu-overlay .class-card:hover {
+      transform: none; background: #26343c;
+      border-color: rgba(176,191,194,.45);
+      box-shadow: none;
+    }
+    #menu-overlay .class-card.selected {
+      border-color: var(--fo-selected);
+      background: #30383b;
+      box-shadow: inset 0 0 0 1px rgba(189,175,142,.32);
+    }
+    #menu-overlay .class-card .text-amber-400,
+    #menu-overlay .class-card .text-cyan-400,
+    #menu-overlay .class-card .text-purple-400,
+    #menu-overlay .class-card .text-rose-400,
+    #menu-overlay .class-card .text-emerald-400 { color: #c6d1d3; }
+    #menu-overlay .class-card ul { color: #adb9bd; line-height: 1.4; }
+    #menu-overlay .class-card li:last-child { color: #d7c8a7; }
+    #menu-overlay .class-card [class*="bg-"][class*="/20"] {
+      background: rgba(163,180,184,.10); color: #b9c6c9;
+    }
+    #menu-overlay .fo-control-details { flex: 1 1 520px; color: #bcc9cf; }
+    #menu-overlay .fo-control-details summary {
+      cursor: pointer; list-style-position: inside;
+      display: inline-block; padding: 9px 12px; border-radius: 7px;
+      background: #253039; border: 1px solid #3b4951;
+      font-size: 12px; font-weight: 600;
+    }
+    #menu-overlay .fo-control-details summary:hover { background: #2c3a44; }
+    #menu-overlay .fo-control-details summary:focus-visible,
+    #menu-overlay .class-card:focus-visible,
+    #menu-overlay .fo-deploy:focus-visible {
+      outline: 2px solid #b9c5c7; outline-offset: 3px;
+    }
+    #menu-overlay .fo-deploy {
+      background: #a4b9b7; color: #111d25; border: 1px solid #b8c9c7;
+      box-shadow: none; min-height: 48px;
+    }
+    #menu-overlay .fo-deploy:hover { background: #bed0cd; }
+    #scoreboard-overlay .hud-glass, #respawn-overlay .hud-glass {
+      background: rgba(19,27,35,.96); box-shadow: 0 16px 50px rgba(0,0,0,.30);
+    }
+    #low-hp-warning { animation-duration: 2.8s; }
+    @media (max-width: 830px) {
+      #menu-overlay #class-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      #menu-overlay .fo-menu-panel { padding: 16px; }
+      #hud .fo-top-shortcuts { display:none; }
+    }
+    @media (max-width: 520px) {
+      #menu-overlay #class-grid { grid-template-columns: 1fr; }
+      #menu-overlay .class-card { min-height: 0; }
+      #menu-overlay .fo-control-details { flex-basis: 100%; }
+      #hud { padding: 6px; }
+      #hud #radar-canvas { width: 88px; height: 88px; }
+      #hud .fo-scoreboard { gap: 5px; padding: 6px; }
+      #hud .fo-status-panel, #hud .fo-ammo-panel { width: 100%; }
+      #hud #slot-bar > div { min-width: 58px; padding: 5px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #menu-overlay .class-card, #menu-overlay .fo-deploy { transition: none; }
+    }
   </style>
 </head>
 <body>
@@ -374,7 +493,7 @@
       </div>
 
       <!-- Top-Center: 6v6 Team Deathmatch Scoreboard Bar -->
-      <div class="hud-glass rounded-xl px-3 sm:px-5 py-2 flex items-center gap-3 sm:gap-5">
+      <div class="hud-glass fo-scoreboard rounded-xl px-3 sm:px-5 py-2 flex items-center gap-3 sm:gap-5">
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]"></span>
           <div class="text-right">
@@ -401,7 +520,7 @@
       <!-- Top-Right: Killfeed & Quick Controls -->
       <div class="flex flex-col items-end gap-1.5 max-w-[210px] sm:max-w-[270px]">
         <div id="killfeed" class="flex flex-col items-end gap-1 w-full"></div>
-        <div class="hidden sm:flex items-center gap-1.5 text-[10px] mono text-slate-400 bg-slate-950/60 px-2 py-1 rounded border border-slate-800">
+        <div class="hidden sm:flex fo-top-shortcuts items-center gap-1.5 text-[10px] mono text-slate-400 bg-slate-950/60 px-2 py-1 rounded border border-slate-800">
           <span>[B] SINIF</span>
           <span>•</span>
           <span>[TAB] SKOR</span>
@@ -424,7 +543,7 @@
     <!-- Bottom Row: HP & Stamina (Left), 4-Slot Bar (Center), Weapon & Ammo (Right) -->
     <div class="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-2.5">
       <!-- Bottom-Left: Health & Stamina (SP) -->
-      <div class="hud-glass rounded-xl p-3 w-full sm:w-64">
+      <div class="hud-glass fo-status-panel rounded-xl p-3 w-full sm:w-64">
         <div class="flex items-center justify-between mb-1">
           <span class="text-[11px] font-bold tracking-wider uppercase text-slate-300">SAĞLIK (HP)</span>
           <span id="hp-value" class="mono text-lg font-extrabold text-emerald-400">100</span>
@@ -443,7 +562,7 @@
       </div>
 
       <!-- Bottom-Center: Front Operation 4-Slot Inventory Bar -->
-      <div id="slot-bar" class="flex items-center justify-center gap-1.5 sm:gap-2">
+      <div id="slot-bar" class="flex fo-inventory items-center justify-center gap-1.5 sm:gap-2">
         <div id="slot-box-1" class="hud-glass rounded-lg px-2.5 py-1.5 min-w-[72px] sm:min-w-[86px] border-amber-400/80">
           <div class="flex items-center justify-between text-[10px] mono text-amber-400 font-bold">
             <span>[1]</span>
@@ -478,7 +597,7 @@
       </div>
 
       <!-- Bottom-Right: Active Class, Weapon & Ammo -->
-      <div class="hud-glass rounded-xl p-3 w-full sm:w-64 text-right">
+      <div class="hud-glass fo-ammo-panel rounded-xl p-3 w-full sm:w-64 text-right">
         <div class="flex items-center justify-between mb-0.5">
           <span id="hud-class-badge" class="mono text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-400/30">
             ASSAULT
@@ -561,20 +680,20 @@
 
   <!-- Start / Class Selection / Match End Menu -->
   <div id="menu-overlay" class="fixed inset-0 z-40 bg-slate-950/82 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-    <div class="hud-glass rounded-2xl w-full max-w-4xl p-5 sm:p-7 border border-slate-600/50 my-auto">
+    <div class="hud-glass fo-menu-panel rounded-2xl w-full max-w-4xl p-5 sm:p-7 border border-slate-600/50 my-auto">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700/80 pb-4 mb-5">
         <div>
           <div class="flex items-center gap-2">
             <span class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 mono text-[10px] font-extrabold text-amber-300 tracking-widest">
-              CQC PIYADE SÜRÜMÜ
+              6v6 • TAKIM SAVAŞI
             </span>
-            <span class="mono text-xs text-slate-400">HARİTA: MARIEN-CQC</span>
+            <span class="mono text-xs text-slate-400">MARIEN</span>
           </div>
           <h1 id="menu-title" class="text-2xl sm:text-3xl font-black tracking-tight text-white mt-1">
             FRONT OPERATION
           </h1>
           <p id="menu-subtitle" class="text-xs sm:text-sm text-slate-300 mt-0.5">
-            Piyade sınıfını seç ve 6v6 yakın mesafe çatışmasına katıl.
+            Sınıfını seç, çatışmaya katıl.
           </p>
         </div>
 
@@ -585,7 +704,7 @@
       </div>
 
       <!-- 5 Classes Grid (Engineer internal key preserved as Drone Operator) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 mb-5" id="class-grid">
+      <div class="grid gap-3 mb-5" id="class-grid">
         <div class="class-card selected rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="assault">
           <div class="flex items-center justify-between mb-1.5">
             <span class="mono text-[10px] font-extrabold text-amber-400">[1] ASSAULT</span>
@@ -660,7 +779,9 @@
 
       <!-- Controls Legend & Play Button -->
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-900/75 rounded-xl p-3.5 border border-slate-800">
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-[11px] text-slate-300 mono">
+        <details class="fo-control-details">
+          <summary>Kontroller ve kısayollar <span class="text-slate-400">— tıkla</span></summary>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-[11px] text-slate-300 mono mt-3">
           <div><span class="text-amber-400 font-bold">WASD:</span> Hareket / Uçuş</div>
           <div><span class="text-amber-400 font-bold">SHIFT:</span> Depar / Hızlan</div>
           <div><span class="text-amber-400 font-bold">Q/E:</span> Sola / Sağa Takla</div>
@@ -669,9 +790,10 @@
           <div><span class="text-amber-400 font-bold">SAĞ TIK:</span> Nişan / Patlat</div>
           <div><span class="text-amber-400 font-bold">1-4 / R:</span> Slot / Şarjör</div>
           <div><span class="text-amber-400 font-bold">B / TAB:</span> Sınıf / Skor</div>
-        </div>
+          </div>
+        </details>
 
-        <button id="btn-deploy" class="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black tracking-wider text-sm uppercase shadow-[0_0_24px_rgba(245,158,11,0.4)] transition cursor-pointer shrink-0">
+        <button id="btn-deploy" class="fo-deploy w-full sm:w-auto px-7 py-3.5 rounded-xl font-black tracking-wider text-sm uppercase transition cursor-pointer shrink-0">
           ÇATIŞMAYA KATIL
         </button>
       </div>
