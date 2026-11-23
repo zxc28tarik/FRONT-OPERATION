@@ -116,6 +116,12 @@ function runBotAiV34Regression(html) {
   self.path = []; self.rallyGoalNode = -1;
   check(api.selectBotRallyWaypoint(self, formation) === null,
     'Unreachable rally never instructs bot to walk through a wall');
+  const unreachableCalls = pathCalls;
+  self.rallyRetryCooldown = 1;
+  api.selectBotRallyWaypoint(self, formation);
+  check(pathCalls === unreachableCalls,
+    'Failed rally route waits before retrying navigation');
+  self.rallyRetryCooldown = 0;
   pathResult = [0, 2];
 
   self.coverNode = 1; self.coverThreatAnchor = new Vector3(0, 0, -10);
@@ -154,9 +160,13 @@ function runBotAiV34Regression(html) {
     html.includes('selectBotRallyWaypoint(bot, formationPoint)'),
     'Live combat and squad loops invoke tactical helpers');
   check((html.match(/passageWaitTimer: 0,/g) || []).length === 2 &&
+    (html.match(/rallyRetryCooldown: 0,/g) || []).length === 2 &&
     html.includes('bot.passageWaitTimer = 0;') &&
+    html.includes('bot.rallyRetryCooldown = 0;') &&
     html.includes('bot.coverRelocateCooldown = 0;'),
     'Spawn and respawn reset new behavior memory');
+  check(html.includes("else if (bot.passageStepTarget && bot.coverPhase !== 'MOVE_TO_COVER')"),
+    'New enemy contact interrupts stale corridor sidestep');
   check(html.includes('Math.abs(bot.pos.y - bots[j].pos.y) > 1.45') &&
     html.includes('Math.abs(bot.pos.y - player.pos.y) <= 1.45'),
     'Movement separation no longer pushes soldiers across floors');
