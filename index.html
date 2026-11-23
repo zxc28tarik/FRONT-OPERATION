@@ -7332,6 +7332,7 @@ function buildSquadLeadership() {
             supportGoalNode: -1,
             supportAllyId: null,
             rallyGoalNode: -1,
+            rallyRetryCooldown: 0,
             passageStepTarget: null,
             passageStepTimer: 0,
             passageWaitTimer: 0,
@@ -7420,6 +7421,7 @@ function buildSquadLeadership() {
             supportGoalNode: -1,
             supportAllyId: null,
             rallyGoalNode: -1,
+            rallyRetryCooldown: 0,
             passageStepTarget: null,
             passageStepTimer: 0,
             passageWaitTimer: 0,
@@ -7491,6 +7493,7 @@ function buildSquadLeadership() {
         bot.supportGoalNode = -1;
         bot.supportAllyId = null;
         bot.rallyGoalNode = -1;
+        bot.rallyRetryCooldown = 0;
         bot.passageStepTarget = null;
         bot.passageStepTimer = 0;
         bot.passageWaitTimer = 0;
@@ -9477,10 +9480,13 @@ function buildSquadLeadership() {
           return formationPoint;
         }
         const goal = findNearestNavNode(formationPoint);
-        if (bot.rallyGoalNode !== goal || !bot.path || bot.pathIndex >= bot.path.length) {
+        const changedGoal = bot.rallyGoalNode !== goal;
+        if (changedGoal ||
+            ((!bot.path || bot.pathIndex >= bot.path.length) && bot.rallyRetryCooldown <= 0)) {
           bot.path = findPathAStar(findNearestNavNode(bot.pos), goal, bot.blockedNode);
           bot.pathIndex = 0;
           bot.rallyGoalNode = goal;
+          bot.rallyRetryCooldown = 1.0;
         }
         while (bot.path && bot.path[bot.pathIndex] !== undefined) {
           const waypoint = NAV_NODES[bot.path[bot.pathIndex]];
@@ -9575,6 +9581,7 @@ function buildSquadLeadership() {
           if (bot.stateLockTimer > 0) bot.stateLockTimer = Math.max(0, bot.stateLockTimer - dt);
           if (bot.coverSearchCooldown > 0) bot.coverSearchCooldown = Math.max(0, bot.coverSearchCooldown - dt);
           if (bot.passageRepathCooldown > 0) bot.passageRepathCooldown = Math.max(0, bot.passageRepathCooldown - dt);
+          if (bot.rallyRetryCooldown > 0) bot.rallyRetryCooldown = Math.max(0, bot.rallyRetryCooldown - dt);
           if (bot.blockedNodeTimer > 0) {
             bot.blockedNodeTimer = Math.max(0, bot.blockedNodeTimer - dt);
             if (bot.blockedNodeTimer === 0) bot.blockedNode = -1;
@@ -9607,6 +9614,10 @@ function buildSquadLeadership() {
           if (!bestEnemy) {
             bot.fireLaneBlockTimer = 0;
             bot.fireLaneRecoveryGoal = null;
+          } else if (bot.passageStepTarget && bot.coverPhase !== 'MOVE_TO_COVER') {
+            // A newly seen attacker takes priority over an old passing detour.
+            bot.passageStepTarget = null;
+            bot.passageStepTimer = 0;
           }
 
           const activeThreatPos = bestEnemy
