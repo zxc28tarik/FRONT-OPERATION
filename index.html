@@ -10323,6 +10323,7 @@ function buildSquadLeadership() {
       // V29: local single-player simulation pause; rendering continues at idle.
       let gamePaused = false;
       let scoreboardReturnToPause = false;
+      let suppressUnlockPauseUntil = 0;
       function resetPausedInputs() {
         Object.keys(keys).forEach((key) => { keys[key] = false; });
         mouseDownLeft = false;
@@ -10529,6 +10530,7 @@ function buildSquadLeadership() {
           if (pauseVisible) resumeFromPause();
           else if (!menuHidden) resumeFromPause();
           else if (e.code === 'Escape' && droneSystem.isPlayerControlling()) {
+            suppressUnlockPauseUntil = performance.now() + 450;
             droneSystem.handlePlayerRecall();
           } else showPauseMenu();
           keys[e.code] = false;
@@ -10608,6 +10610,15 @@ function buildSquadLeadership() {
           mouseDownLeft = false;
           mouseDownRight = false;
           isDraggingLook = false;
+          // Browser ESC may release Pointer Lock without sending a usable keydown.
+          // A true unlock pauses infantry; avoid interrupting a drone recall.
+          if (matchState.started && !matchState.ended && !gamePaused &&
+              document.getElementById('menu-overlay').classList.contains('hidden') &&
+              document.getElementById('scoreboard-overlay').classList.contains('hidden') &&
+              !droneSystem.isPlayerControlling() &&
+              performance.now() > suppressUnlockPauseUntil) {
+            showPauseMenu();
+          }
         }
       });
 
