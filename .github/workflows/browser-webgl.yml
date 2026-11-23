@@ -11,6 +11,7 @@ on:
       - ai/v38-squad-tactics
       - ai/v39-acoustic-investigation
       - ai/v40-bot-telemetry-balance
+      - ai/v41-gate-navigation-fix
   workflow_dispatch:
 
 jobs:
