@@ -4383,7 +4383,7 @@
         model.root.add(rearBuckle);
         // V26B: silhouette layering, class readability and weapon surface details.
         if (!G.shoulderArmor) {
-          G.shoulderArmor = new THREE.CapsuleGeometry(0.052, 0.065, 4, 8);
+          G.shoulderArmor = new THREE.SphereGeometry(0.084, 10, 8);
           G.vestSidePanel = new THREE.BoxGeometry(0.038, 0.182, 0.158);
           G.torsoSeam = new THREE.BoxGeometry(0.018, 0.285, 0.013);
           G.thighFlap = new THREE.BoxGeometry(0.028, 0.105, 0.084);
@@ -4404,6 +4404,7 @@
         for (const side of [-1, 1]) {
           const armor = createLimbMesh(G.shoulderArmor, mats.vestRig, false);
           armor.position.set(side * 0.226, 0.403, -0.014);
+          armor.scale.set(0.78, 0.47, 1.15);
           armor.rotation.z = side * 0.19;
           model.upperBody.add(armor);
           const sidePanel = createLimbMesh(G.vestSidePanel, mats.pouchCoyote, false);
