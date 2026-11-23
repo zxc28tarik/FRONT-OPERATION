@@ -10192,13 +10192,42 @@ function buildSquadLeadership() {
       // =========================================================================
       let selectedMenuClass = 'assault';
 
+      // V28 KISS: one shared class description, driven by the REAL game loadout.
+      const CLASS_MENU_DESCRIPTIONS = Object.freeze({
+        assault: ['Hücum Piyadesi', 'Çok yönlü çatışma • el bombası'],
+        medic: ['Sıhhiye', 'Yakın mesafe çatışma • sağlık desteği'],
+        engineer: ['Drone Operatörü', 'FPV keşif • her canda bir drone'],
+        sniper: ['Keskin Nişancı', 'Uzak mesafe • hassas atış'],
+        heavy: ['Ağır Piyade', 'Baskı ateşi • ağır silah desteği']
+      });
+      function updateClassMenuPreview() {
+        const description = CLASS_MENU_DESCRIPTIONS[selectedMenuClass];
+        const cls = CLASSES[selectedMenuClass];
+        if (!description || !cls) return;
+        document.getElementById('selected-class-title').textContent = description[0];
+        document.getElementById('selected-class-description').textContent = description[1];
+        const slots = document.getElementById('selected-class-loadout');
+        slots.replaceChildren();
+        for (const slot of [1, 2, 3, 4]) {
+          const item = document.createElement('span');
+          const key = document.createElement('b');
+          key.textContent = String(slot);
+          const weaponId = cls.slots[slot];
+          const weapon = weaponId && WEAPONS[weaponId];
+          const weaponName = weapon ? weapon.slotName : (weaponId ? weaponId.toUpperCase() : 'Yok');
+          item.append(key, document.createTextNode(' ' + weaponName));
+          slots.appendChild(item);
+        }
+      }
       function selectMenuClass(card) {
+        if (!card || !CLASS_MENU_DESCRIPTIONS[card.dataset.class]) return;
         document.querySelectorAll('.class-card').forEach((other) => {
           const active = other === card;
           other.classList.toggle('selected', active);
           other.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
         selectedMenuClass = card.dataset.class;
+        updateClassMenuPreview();
       }
 
       document.querySelectorAll('.class-card').forEach((card) => {
@@ -10210,6 +10239,7 @@ function buildSquadLeadership() {
           }
         });
       });
+      updateClassMenuPreview();
 
       document.getElementById('btn-deploy').addEventListener('click', (e) => {
         if (e && e.currentTarget && typeof e.currentTarget.blur === 'function') {
@@ -10292,16 +10322,32 @@ function buildSquadLeadership() {
           return;
         }
 
+        const classHotkeys = {
+          Digit1: 'assault', Digit2: 'medic', Digit3: 'engineer',
+          Digit4: 'sniper', Digit5: 'heavy'
+        };
+        if (!menuHidden) {
+          // Keys are class choices when the menu is visible, never weapon slots.
+          const classId = classHotkeys[e.code];
+          if (classId && !e.repeat) {
+            e.preventDefault();
+            selectMenuClass(document.querySelector('.class-card[data-class="' + classId + '"]'));
+          } else if (e.code === 'Escape' && matchState.started && !matchState.ended) {
+            e.preventDefault();
+            document.getElementById('menu-overlay').classList.add('hidden');
+            if (canvas.requestPointerLock) {
+              try { canvas.requestPointerLock(); } catch (err) {}
+            }
+          }
+          keys[e.code] = false;
+          return;
+        }
+
         if (!player.alive) {
-          const classMap = { Digit1: 'assault', Digit2: 'medic', Digit3: 'engineer', Digit4: 'sniper', Digit5: 'heavy' };
-          if (classMap[e.code]) {
-            selectedMenuClass = classMap[e.code];
+          const classId = classHotkeys[e.code];
+          if (classId) {
+            selectMenuClass(document.querySelector('.class-card[data-class="' + classId + '"]'));
             player.classId = selectedMenuClass;
-            document.querySelectorAll('.class-card').forEach((c) => {
-              const active = c.dataset.class === selectedMenuClass;
-              c.classList.toggle('selected', active);
-              c.setAttribute('aria-pressed', active ? 'true' : 'false');
-            });
           }
           return;
         }
