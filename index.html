@@ -436,6 +436,7 @@
     #hp-bar.from-rose-600 { background: #b86e72 !important; }
 
     /* V29: low-contrast KISS pause / scores; no changes to world visuals. */
+    #pause-overlay.hidden, #scoreboard-overlay.hidden { display: none !important; }
     #pause-overlay {
       background: rgba(9,15,20,.80);
       backdrop-filter: blur(5px);
@@ -838,7 +839,7 @@
             <span class="fo-team-title">DERBARAN</span>
             <span id="sb-blue-score" class="mono text-base font-black text-white">0</span>
           </div>
-          <div class="fo-score-column"><span>OYUNCU</span><span>Ö / ÖL</span></div>
+          <div class="fo-score-column"><span>OYUNCU</span><span>EL / ÖL</span></div>
           <div id="sb-blue-list" class="space-y-1.5 text-xs"></div>
         </div>
 
@@ -847,7 +848,7 @@
             <span class="fo-team-title">N.I.U.</span>
             <span id="sb-red-score" class="mono text-base font-black text-white">0</span>
           </div>
-          <div class="fo-score-column"><span>OYUNCU</span><span>Ö / ÖL</span></div>
+          <div class="fo-score-column"><span>OYUNCU</span><span>EL / ÖL</span></div>
           <div id="sb-red-list" class="space-y-1.5 text-xs"></div>
         </div>
       </div>
@@ -10297,12 +10298,12 @@ function buildSquadLeadership() {
         redRows.sort((a, b) => b.kills - a.kills);
 
         const renderRows = (list) => list.map((r) => `
-          <div class="flex items-center justify-between px-2 py-1 rounded ${r.isPlayer ? 'bg-amber-500/20 border border-amber-400/40 text-amber-200 font-bold' : 'bg-slate-950/60 text-slate-200'}">
-            <div class="flex items-center gap-2">
-              <span class="mono text-[10px] uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${r.classId === 'engineer' ? 'DRN' : r.classId.slice(0, 3)}</span>
-              <span>${r.name}</span>
+          <div class="fo-sb-row ${r.isPlayer ? 'fo-sb-self' : ''}">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="fo-sb-class">${r.classId === 'engineer' ? 'DRN' : r.classId.slice(0, 3).toUpperCase()}</span>
+              <span class="fo-sb-name">${r.name}</span>
             </div>
-            <div class="mono font-bold">${r.kills} / ${r.deaths}</div>
+            <span class="fo-sb-kd">${r.kills} / ${r.deaths}</span>
           </div>
         `).join('');
 
@@ -10479,7 +10480,7 @@ function buildSquadLeadership() {
 
       canvas.addEventListener('click', () => {
         sound.init();
-        if (matchState.started && !matchState.ended && document.getElementById('menu-overlay').classList.contains('hidden')) {
+        if (matchState.started && !matchState.ended && !gamePaused && document.getElementById('menu-overlay').classList.contains('hidden')) {
           if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
             try { canvas.requestPointerLock(); } catch (e) {}
           }
@@ -10550,6 +10551,10 @@ function buildSquadLeadership() {
             e.preventDefault();
             selectMenuClass(document.querySelector('.class-card[data-class="' + classId + '"]'));
           }
+          keys[e.code] = false;
+          return;
+        }
+        if (gamePaused) {
           keys[e.code] = false;
           return;
         }
