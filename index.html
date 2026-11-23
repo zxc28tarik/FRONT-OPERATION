@@ -2798,6 +2798,12 @@
           }
         }
 
+        // V26E: light weathering and identification plates on existing ISO container doors.
+        const matContPlate = new THREE.MeshStandardMaterial({ color: 0xb1aaa0, roughness: 0.86, metalness: 0.12 });
+        const matContScuff = new THREE.MeshStandardMaterial({ color: 0x493e37, roughness: 0.95, metalness: 0.10, transparent: true, opacity: 0.54 });
+        const contPlateGeo = new THREE.BoxGeometry(0.64, 0.22, 0.012);
+        const contRustStreakGeo = new THREE.BoxGeometry(0.032, 0.38, 0.012);
+
         function buildDetailedContainer(x, y, z, w, h, d, matBody, isRotated = false) {
           addSolidBox(x, y, z, w, h, d, matBody, true, true, true);
           const cw = isRotated ? d : w;
@@ -2824,6 +2830,25 @@
             }
           });
           detailShippingContainer(x, y, z, w, h, d, isRotated);
+          // Surface-only plates: keep the crate footprint and original collision intact.
+          if (isRotated) {
+            const faceX = x + w / 2 + 0.052;
+            const plate = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.22, 0.64), matContPlate);
+            plate.position.set(faceX, y + h * 0.19, z);
+            scene.add(plate);
+            mapEnvironmentMeshes.push(plate);
+            for (const dz of [-0.37, 0.37]) {
+              const streak = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.38, 0.032), matContScuff);
+              streak.position.set(faceX + 0.009, y - h * 0.19, z + dz);
+              scene.add(streak);
+              mapEnvironmentMeshes.push(streak);
+            }
+          } else {
+            addDecoMesh(contPlateGeo, matContPlate, x, y + h * 0.19, z + d / 2 + 0.054);
+            for (const dx of [-0.37, 0.37]) {
+              addDecoMesh(contRustStreakGeo, matContScuff, x + dx, y - h * 0.19, z + d / 2 + 0.061);
+            }
+          }
         }
 
 
@@ -2923,6 +2948,14 @@
         const ductGeo = new THREE.BoxGeometry(1.35, 0.85, 82);
         const lampHousingGeo = new THREE.BoxGeometry(2.4, 0.16, 0.48);
         const lampTubeGeo = new THREE.BoxGeometry(2.2, 0.06, 0.32);
+        // V26E: layered industrial fixture assembly, without extra light sources.
+        const lampReflectorGeo = new THREE.BoxGeometry(2.28, 0.025, 0.42);
+        const lampEndCapGeo = new THREE.BoxGeometry(0.10, 0.095, 0.40);
+        const lampSuspensionGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.35, 6);
+        const matLampDiffuser = new THREE.MeshStandardMaterial({
+          color: 0xf3f1dc, emissive: 0xffd9a1, emissiveIntensity: 0.75,
+          roughness: 0.72, metalness: 0.04
+        });
 
         addDecoMesh(ductGeo, matGalvanized, -25.5, 7.35, 0, 0, 0, 0, false, true, true);
         addDecoMesh(new THREE.BoxGeometry(1.1, 0.7, 82), matGalvanized, -33.2, 7.42, 0, 0, 0, 0, false, true, true);
@@ -2932,7 +2965,14 @@
           addDecoMesh(colGeo, matDarkIron, -39.6, 3.95, wz, 0, 0, 0, false, true, true);
           addDecoMesh(colGeo, matDarkIron, -18.8, 3.95, wz, 0, 0, 0, false, true, true);
           addDecoMesh(lampHousingGeo, matDarkIron, -29.2, 7.45, wz, 0, 0, 0, false, false, true);
-          addDecoMesh(lampTubeGeo, matLampGlow, -29.2, 7.35, wz, 0, 0, 0, false, false, false);
+          addDecoMesh(lampReflectorGeo, matGalvanized, -29.2, 7.49, wz, 0, 0, 0, false, false, false);
+          addDecoMesh(lampTubeGeo, matLampDiffuser, -29.2, 7.35, wz, 0, 0, 0, false, false, false);
+          for (const dx of [-1.11, 1.11]) {
+            addDecoMesh(lampEndCapGeo, matDarkIron, -29.2 + dx, 7.36, wz, 0, 0, 0, false, false, false);
+          }
+          for (const dx of [-0.85, 0.85]) {
+            addDecoMesh(lampSuspensionGeo, matDarkIron, -29.2 + dx, 7.67, wz, 0, 0, 0, false, false, false);
+          }
         }
 
         const rackPostGeo = new THREE.BoxGeometry(0.14, 3.4, 0.14);
@@ -3003,6 +3043,15 @@
         // Pure decoration: no path finding or physical collision changes.
         function detailSniperBuilding(cx, cz, south) {
           const frontZ = cz + (south ? -3.92 : 3.92);
+          // V26E: readable facade trim around the existing window, no opening changes.
+          const faceDirection = south ? -1 : 1;
+          const facadeIron = new THREE.BoxGeometry(0.095, 2.0, 0.11);
+          const facadeLintel = new THREE.BoxGeometry(7.8, 0.12, 0.11);
+          for (const px of [-3.72, 3.72]) {
+            addDecoMesh(facadeIron, matDarkIron, cx + px, 2.2, frontZ + faceDirection * 0.024);
+          }
+          addDecoMesh(facadeLintel, matGalvanized, cx, 3.23, frontZ + faceDirection * 0.03);
+          addDecoMesh(new THREE.BoxGeometry(7.8, 0.035, 0.12), matWeathered, cx, 1.17, frontZ + faceDirection * 0.034);
           const canopyZ = cz + (south ? 1.18 : -1.18);
           addDecoMesh(new THREE.BoxGeometry(8.92, 0.18, 0.12), matDarkIron, cx, 3.46, frontZ);
           for (const dx of [-1.3, 0, 1.3]) {
