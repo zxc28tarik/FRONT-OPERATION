@@ -16,3 +16,7 @@ jobs:
         run: node scripts/check-best-components.mjs
       - name: Validate 3D soldier rigs and visual muzzle placement
         run: node scripts/check-soldier-scene.mjs
+      - name: Run BOT AI V32 behavior regression
+        run: node tests/bot_ai_v32_regression.cjs
+      - name: Run BOT AI V33 behavior regression
+        run: node tests/bot_ai_v33_regression.cjs
