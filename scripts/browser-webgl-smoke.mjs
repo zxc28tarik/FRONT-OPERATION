@@ -186,7 +186,10 @@ try {
       .reduce((sum, row) => sum + row.hits, 0);
     if (totalHits > totalShots || stats.recent.length > 20 ||
         !Number.isFinite(stats.spread.blue.meanRadius) ||
-        !Number.isFinite(stats.spread.red.meanRadius)) {
+        !Number.isFinite(stats.spread.red.meanRadius) ||
+        stats.frame.count < 5 ||
+        !Number.isFinite(stats.frame.fps) ||
+        stats.frame.fps <= 0) {
       throw Error('V40 live team distribution or hit accounting invalid');
     }
     return {
@@ -195,6 +198,8 @@ try {
       blueRadius: stats.spread.blue.meanRadius,
       redRadius: stats.spread.red.meanRadius,
       shots: totalShots, hits: totalHits,
+      measuredFps: stats.frame.fps,
+      slowFramePercent: stats.frame.slowPercent,
       byDifficulty: Object.fromEntries(Object.entries(stats.difficulty)
         .map(([key, value]) =>
           [key, { shots: value.shots, hits: value.hits, accuracy: value.accuracy }]))
