@@ -29,3 +29,12 @@ Bu belge oyunun **yalnızca menü, HUD ve kullanıcı arayüzü** kararlarını 
 
 ## Dağıtım
 Geliştirmeler `visual/v29-kiss-pause-scoreboard` dalında tutulur. Ana dal kullanıcı istemedikçe birleştirilmez.
+
+## V30 — Kabul edilen sınıf menüsü referansı
+- Üstte yalnızca **SINIF SEÇİMİ** ve **MARIEN • 6V6**.
+- Yan yana beş ikonik kart: **HÜCUM (nişangâh)**, **SIHHİYE (kalp)**, **DRONE (anten)**, **SNIPER (hedef tarama)**, **HEAVY (kalkan)**.
+- Kartlarda kısa ad, tek çizim ikonu ve yalnız seçili kartta küçük onay işareti; silah görselleri veya uzun açıklamalar yok.
+- Kartların altında bir satırda sınıf adı + kısa rol; ardından 1–4 numaralı dört kompakt ekipman etiketi.
+- Tek geniş, sakin gri-yeşil **ÇATIŞMAYA KATIL** butonu.
+- Takım savaşı, sınıf ve silah kodlarını değiştirmeden mevcut HTML içindeki gerçek menüde uygulanır; ayrı demo ekranı yapılmaz.
+- V29 duraklatma/skor tablosu korunur. Karakter/silah/harita modelleri KISS sadeleştirmesi dışında tutulur.
