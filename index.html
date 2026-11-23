@@ -9750,7 +9750,44 @@ function buildSquadLeadership() {
                 } else if (bot.lastKnownEnemyPos && bot.investigateTimer > 0) {
                   setBotState(bot, 'INVESTIGATE', 0.9);
                   bot.investigateTimer -= dt;
-                  moveTargetPos = bot.lastKnownEnemyPos.clone();
+
+                  // Advance toward the LAST OBSERVED position, not toward the
+                  // hidden target itself. If a wall blocks the route, follow
+                  // the existing A* navigation graph instead of running into it.
+                  const investigationPos = bot.lastKnownEnemyPos.clone();
+                  const routeFrom = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.0, bot.pos.z);
+                  const routeTo = new THREE.Vector3(
+                    investigationPos.x, investigationPos.y + 1.0, investigationPos.z
+                  );
+                  if (!hasLineOfSight(routeFrom, routeTo)) {
+                    const investigationGoal = findNearestNavNode(investigationPos);
+                    if (bot.investigateGoalNode !== investigationGoal ||
+                        !bot.path || bot.pathIndex >= bot.path.length) {
+                      bot.path = findPathAStar(
+                        findNearestNavNode(bot.pos), investigationGoal, bot.blockedNode
+                      );
+                      bot.pathIndex = 0;
+                      bot.investigateGoalNode = investigationGoal;
+                    }
+                    while (bot.path && bot.path[bot.pathIndex] !== undefined) {
+                      const wp = NAV_NODES[bot.path[bot.pathIndex]];
+                      if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) >= 1.35 ||
+                          Math.abs(wp.y - bot.pos.y) >= 1.5) break;
+                      bot.pathIndex++;
+                    }
+                    const wpIdx = bot.path && bot.path[bot.pathIndex];
+                    if (wpIdx !== undefined) {
+                      const wp = NAV_NODES[wpIdx];
+                      moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
+                    } else {
+                      // Next scan may regain line of sight; do not blindly
+                      // drive through blocked geometry on path exhaustion.
+                      moveSpeed = 0;
+                    }
+                  } else {
+                    bot.investigateGoalNode = -1;
+                    moveTargetPos = investigationPos;
+                  }
 
                   const dLastKnown = bot.pos.distanceTo(bot.lastKnownEnemyPos);
                   if (bot.classId === 'assault' && bot.abilityCooldown <= 0 && dLastKnown >= 9 && dLastKnown <= 24) {
@@ -9767,6 +9804,7 @@ function buildSquadLeadership() {
                     bot.lastKnownEnemyPos = null;
                     bot.memoryTargetId = null;
                     bot.investigateTimer = 0;
+                    bot.investigateGoalNode = -1;
                     assignBotTacticalGoal(bot);
                   }
                 } else {
