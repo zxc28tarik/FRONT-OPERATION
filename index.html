@@ -256,8 +256,7 @@
     #hud .hud-glass { border-radius: 9px; }
     #hud #radar-canvas { width: 112px; height: 112px; }
     #hud .fo-scoreboard { gap: 13px; padding: 8px 14px; }
-    #hud .fo-scoreboard .shadow-\\[0_0_8px_\\#38bdf8\\],
-    #hud .fo-scoreboard .shadow-\\[0_0_8px_\\#f43f5e\\] { box-shadow: none !important; }
+    #hud .fo-scoreboard [class*="shadow-"] { box-shadow: none !important; }
     #hud .fo-status-panel, #hud .fo-ammo-panel {
       width: min(215px, 28vw);
       padding: 10px 12px;
@@ -705,7 +704,7 @@
 
       <!-- 5 Classes Grid (Engineer internal key preserved as Drone Operator) -->
       <div class="grid gap-3 mb-5" id="class-grid">
-        <div class="class-card selected rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="assault">
+        <div class="class-card selected rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="assault" role="button" tabindex="0" aria-pressed="true">
           <div class="flex items-center justify-between mb-1.5">
             <span class="mono text-[10px] font-extrabold text-amber-400">[1] ASSAULT</span>
             <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold">TAARRUZ</span>
@@ -719,7 +718,7 @@
           </ul>
         </div>
 
-        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="medic">
+        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="medic" role="button" tabindex="0" aria-pressed="false">
           <div class="flex items-center justify-between mb-1.5">
             <span class="mono text-[10px] font-extrabold text-emerald-400">[2] MEDIC</span>
             <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">DESTEK</span>
@@ -733,7 +732,7 @@
           </ul>
         </div>
 
-        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="engineer">
+        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="engineer" role="button" tabindex="0" aria-pressed="false">
           <div class="flex items-center justify-between mb-1.5">
             <span class="mono text-[10px] font-extrabold text-cyan-400">[3] DRONE OP.</span>
             <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold">KEŞİF / FPV</span>
@@ -748,7 +747,7 @@
           </ul>
         </div>
 
-        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="sniper">
+        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="sniper" role="button" tabindex="0" aria-pressed="false">
           <div class="flex items-center justify-between mb-1.5">
             <span class="mono text-[10px] font-extrabold text-purple-400">[4] SNIPER</span>
             <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">DÜRBÜN</span>
@@ -762,7 +761,7 @@
           </ul>
         </div>
 
-        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="heavy">
+        <div class="class-card rounded-xl p-3 bg-slate-900/90 border border-slate-700" data-class="heavy" role="button" tabindex="0" aria-pressed="false">
           <div class="flex items-center justify-between mb-1.5">
             <span class="mono text-[10px] font-extrabold text-rose-400">[5] HEAVY</span>
             <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">AĞIR ATEŞ</span>
@@ -10155,11 +10154,22 @@ function buildSquadLeadership() {
       // =========================================================================
       let selectedMenuClass = 'assault';
 
+      function selectMenuClass(card) {
+        document.querySelectorAll('.class-card').forEach((other) => {
+          const active = other === card;
+          other.classList.toggle('selected', active);
+          other.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        selectedMenuClass = card.dataset.class;
+      }
+
       document.querySelectorAll('.class-card').forEach((card) => {
-        card.addEventListener('click', () => {
-          document.querySelectorAll('.class-card').forEach((c) => c.classList.remove('selected'));
-          card.classList.add('selected');
-          selectedMenuClass = card.dataset.class;
+        card.addEventListener('click', () => selectMenuClass(card));
+        card.addEventListener('keydown', (e) => {
+          if (e.code === 'Enter' || e.code === 'Space') {
+            e.preventDefault();
+            selectMenuClass(card);
+          }
         });
       });
 
@@ -10250,7 +10260,9 @@ function buildSquadLeadership() {
             selectedMenuClass = classMap[e.code];
             player.classId = selectedMenuClass;
             document.querySelectorAll('.class-card').forEach((c) => {
-              c.classList.toggle('selected', c.dataset.class === selectedMenuClass);
+              const active = c.dataset.class === selectedMenuClass;
+              c.classList.toggle('selected', active);
+              c.setAttribute('aria-pressed', active ? 'true' : 'false');
             });
           }
           return;
