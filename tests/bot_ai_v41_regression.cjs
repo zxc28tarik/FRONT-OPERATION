@@ -85,6 +85,6 @@ check(html.includes('if (movedDist < 0.55)')&&
   html.includes("recordBotStuckHotspot(bot, obstructedWp);"),
   'V40 stall detection and measurement remain intact');
 check(html.includes("return index % 15 === 14")&&
-  (html.match(/aimSettleSec: 0\\.34/g)||[]).length===3,
+  (html.match(/aimSettleSec: 0\.34/g)||[]).length===3,
   'Three Normal/two Hard/expert substitution and common 0.34s aim are unchanged');
 console.log('BOT AI V41 PASS ('+count+' checks)');
