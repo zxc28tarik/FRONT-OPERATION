@@ -170,6 +170,37 @@ try {
     return { events: sounds.length, kinds: sounds.map(e => e.kind) };
   });
 
+  await test('V40 real 6v6 bot metrics integrity', async () => {
+    await delay(1250);
+    const stats = await page.evaluate(() =>
+      window.__frontOperationAiQaSnapshot?.()?.botMetrics);
+    if (!stats) throw Error('V40 live telemetry snapshot missing');
+    if (stats.version !== 40 || stats.samples < 1 ||
+        stats.teams.blue.spawns !== 5 || stats.teams.red.spawns !== 6) {
+      throw Error('V40 match counters did not initialize correctly: ' +
+        JSON.stringify(stats).slice(0, 800));
+    }
+    const totalShots = Object.values(stats.difficulty)
+      .reduce((sum, row) => sum + row.shots, 0);
+    const totalHits = Object.values(stats.difficulty)
+      .reduce((sum, row) => sum + row.hits, 0);
+    if (totalHits > totalShots || stats.recent.length > 20 ||
+        !Number.isFinite(stats.spread.blue.meanRadius) ||
+        !Number.isFinite(stats.spread.red.meanRadius)) {
+      throw Error('V40 live team distribution or hit accounting invalid');
+    }
+    return {
+      simulatedSeconds: stats.seconds,
+      botSamples: stats.samples,
+      blueRadius: stats.spread.blue.meanRadius,
+      redRadius: stats.spread.red.meanRadius,
+      shots: totalShots, hits: totalHits,
+      byDifficulty: Object.fromEntries(Object.entries(stats.difficulty)
+        .map(([key, value]) =>
+          [key, { shots: value.shots, hits: value.hits, accuracy: value.accuracy }]))
+    };
+  });
+
   await test('sniper class and MRAD scope', async () => {
     await changeClass('sniper');
     await page.mouse.click(700, 440, { button: 'right' });
