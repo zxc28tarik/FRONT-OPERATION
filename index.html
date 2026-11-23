@@ -270,6 +270,18 @@
     #hud #slot-bar > div[style*="border"] { border-color: var(--fo-selected); }
     #hud .fo-top-shortcuts { color: var(--fo-muted); background: rgba(17,24,31,.66); }
     #kill-banner-text { color: #dbc597; border-color: rgba(190,170,130,.38); box-shadow: none; }
+    /* Neutral telemetry hues; real low-health / attack warnings remain distinguishable. */
+    #hud #hp-value { color: #a9cbc0; }
+    #hud #sp-value { color: #a2bbc8; }
+    #hud #hud-class-badge {
+      background: rgba(144,170,181,.13); color: #bed0d5;
+      border-color: rgba(144,170,181,.24);
+    }
+    #drone-hud #drone-bat-text, #drone-hud #drone-dist-text { color: #a5c5c8; }
+    #drone-hud #drone-hp-text { color: #d4c5a0; }
+    #drone-hud #drone-bat-bar { background: #8daeb1; }
+    #drone-hud #drone-dist-bar { background: #84aa9e; }
+    #drone-hud #drone-hp-bar { background: #b9a77f; }
     #drone-hud { background: radial-gradient(circle at center, transparent 67%, rgba(12,21,28,.30) 100%); }
     .drone-corner { border-color: rgba(150,185,193,.35); }
     #drone-controls-hint { font-weight: 500; color: #c1ced3; white-space: normal; max-width: 580px; }
