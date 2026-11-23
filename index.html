@@ -421,6 +421,19 @@
       #menu-overlay .fo-class-detail { padding: 12px; }
       #menu-overlay .fo-slot-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
     }
+    /* Secondary HUD labels recede; primary combat readouts remain visible. */
+    #hud #radar-canvas + div { display: none; }
+    #hud #zone-indicator { margin-top: 5px; font-weight: 600; letter-spacing: .01em; }
+    #hud .fo-inventory > div:not(:last-child) > div:first-child span:last-child { display: none; }
+    #hud .fo-inventory > div:not(:last-child) > div:first-child { margin-bottom: 2px; }
+    #hud #killfeed .hud-glass { background: rgba(21,29,36,.78); box-shadow: none; }
+    #drone-hud .drone-corner { display: none; }
+    #drone-controls-hint {
+      font-size: 10px; line-height: 1.5; letter-spacing: 0;
+      background: rgba(20,28,35,.86); border-color: rgba(151,173,181,.22);
+    }
+    /* Red remains reserved for actual danger, rather than permanent neon UI. */
+    #hp-bar.from-rose-600 { background: #b86e72 !important; }
   </style>
 </head>
 <body>
@@ -511,7 +524,7 @@
       </div>
 
       <div id="drone-controls-hint" class="mono text-[10px] font-bold text-slate-200 bg-slate-950/85 px-3 py-1 rounded-lg border border-cyan-500/35 text-center">
-        [W/A/S/D] UÇUŞ • [SPACE/C] İRTİFA • [F] İŞARETLE • [SOL TIK] HIZLI SALDIRI • [SAĞ TIK] PATLAT • [R] GERİ ÇAĞIR
+        WASD UÇUŞ  ·  SPACE/C İRTİFA  ·  F İŞARETLE  ·  SOL TIK HIZLAN  ·  SAĞ TIK PATLAT  ·  R GERİ ÇAĞIR
       </div>
     </div>
   </div>
@@ -572,7 +585,7 @@
         <div class="flex flex-col items-center border-x border-slate-700/70 px-3 sm:px-4">
           <div class="mono text-[10px] text-amber-400 font-bold tracking-widest">HEDEF: 50</div>
           <div id="match-timer" class="mono text-base sm:text-lg font-extrabold text-slate-100 leading-tight">10:00</div>
-          <div class="text-[9px] text-slate-400 uppercase tracking-wider">6v6 PIYADE</div>
+
         </div>
 
         <div class="flex items-center gap-2">
@@ -612,7 +625,7 @@
       <!-- Bottom-Left: Health & Stamina (SP) -->
       <div class="hud-glass fo-status-panel rounded-xl p-3 w-full sm:w-64">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-[11px] font-bold tracking-wider uppercase text-slate-300">SAĞLIK (HP)</span>
+          <span class="text-[11px] font-bold tracking-wider uppercase text-slate-300">CAN</span>
           <span id="hp-value" class="mono text-lg font-extrabold text-emerald-400">100</span>
         </div>
         <div class="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-700/70 mb-2.5">
@@ -620,7 +633,7 @@
         </div>
 
         <div class="flex items-center justify-between mb-1">
-          <span class="text-[11px] font-bold tracking-wider uppercase text-slate-300">DAYANIKLILIK (SP)</span>
+          <span class="text-[11px] font-bold tracking-wider uppercase text-slate-300">DAYANIKLILIK</span>
           <span id="sp-value" class="mono text-xs font-bold text-sky-300">100%</span>
         </div>
         <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-700/70">
@@ -5812,7 +5825,7 @@
               badge.textContent = '⚠ HIZLI SALDIRI MODU (1.5X) // ÇARP VEYA [SAĞ TIK] PATLAT';
               badge.className = 'mono text-xs font-extrabold tracking-widest uppercase px-4 py-1 rounded-full bg-rose-950/92 border border-rose-500 text-rose-300 shadow-lg animate-pulse';
               document.getElementById('drone-controls-hint').textContent =
-                '[W/A/S/D] HIZLI UÇUŞ (1.5X) • [SPACE/C] İRTİFA • [SAĞ TIK / ÇARPMA] PATLAT • [R] GERİ ÇAĞIR';
+                'HIZLI MOD  ·  WASD UÇUŞ  ·  SPACE/C İRTİFA  ·  SAĞ TIK/ÇARPMA PATLAT  ·  R GERİ ÇAĞIR';
             }
           }
           return true;
@@ -6508,7 +6521,7 @@
             badge.textContent = 'DRONE FEED // KEŞİF MODU (0/1)';
             badge.className = 'mono text-xs font-extrabold tracking-widest uppercase px-4 py-1 rounded-full bg-slate-950/88 border border-cyan-400/60 text-cyan-300 shadow-lg';
             document.getElementById('drone-controls-hint').textContent =
-              '[W/A/S/D] UÇUŞ • [SPACE/C] İRTİFA • [F] İŞARETLE • [SOL TIK] HIZLI SALDIRI • [SAĞ TIK] PATLAT • [R] GERİ ÇAĞIR';
+              'WASD UÇUŞ  ·  SPACE/C İRTİFA  ·  F İŞARETLE  ·  SOL TIK HIZLAN  ·  SAĞ TIK PATLAT  ·  R GERİ ÇAĞIR';
             if (touchAlt) touchAlt.classList.remove('hidden');
             if (btnFire) btnFire.textContent = 'HIZLI MOD';
             if (btnAds) btnAds.textContent = 'PATLAT';
