@@ -27,11 +27,11 @@ function runBotAiV40Regression(html) {
    bot('blue_4','blue','heavy','normal',12,0)
  ];
  const teamRed=[
-   bot('red_0','red','assault','hard',-12,30),
-   bot('red_1','red','medic','normal',-6,30),
-   bot('red_2','red','engineer','hard',0,30),
-   bot('red_3','red','sniper','normal',6,30),
-   bot('red_4','red','heavy','hard',12,30),
+   bot('red_0','red','assault','normal',-12,30),
+   bot('red_1','red','medic','hard',-6,30),
+   bot('red_2','red','engineer','normal',0,30),
+   bot('red_3','red','sniper','hard',6,30),
+   bot('red_4','red','heavy','normal',12,30),
    bot('red_5','red','assault','normal',15,30)
  ];
  const bots=teamBlue.concat(teamRed);
@@ -41,8 +41,8 @@ function runBotAiV40Regression(html) {
  bots.forEach(x=>api.record(x,'spawns'));
  expect(api.state.teams.blue.spawns===5&&api.state.teams.red.spawns===6,
    'Spawn accounting reflects original 5 bot allies plus six adversaries');
- expect(api.state.difficulty.normal.spawns===6&&api.state.difficulty.hard.spawns===5,
-   'Initial spawn distribution attributed to actual difficulty values');
+ expect(api.state.difficulty.normal.spawns===7&&api.state.difficulty.hard.spawns===4,
+   'Initial blue5/red6 roster has 7 Normal 4 Hard due the extra Red Normal slot');
  expect(api.state.classes.assault.spawns===3,'Class accounting respects assault slots');
  api.record(bot('blue_0','blue','assault','expert'),'spawns');
  expect(api.state.difficulty.expert.spawns===1,
