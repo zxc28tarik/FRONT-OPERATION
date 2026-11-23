@@ -9452,12 +9452,16 @@ function buildSquadLeadership() {
         const rightX = dz / horizontal, rightZ = -dx / horizontal;
         const side = Math.random() < 0.5 ? -1 : 1;
         const offset = 1.30 + Math.random() * 0.75 + Math.min(0.65, range * 0.015);
-        const trackingDeviationX = trackedEye ? (trackedEye.x - targetEye.x) * 0.22 : 0;
-        const trackingDeviationZ = trackedEye ? (trackedEye.z - targetEye.z) * 0.22 : 0;
+        const trackingDrift = trackedEye
+          ? (trackedEye.x - targetEye.x) * rightX +
+            (trackedEye.z - targetEye.z) * rightZ : 0;
+        // The visible miss must never cross through the hit silhouette:
+        // cap tracking correction rather than canceling the side offset.
+        const lateral = side * offset + Math.max(-0.30, Math.min(0.30, trackingDrift * 0.22));
         return new THREE.Vector3(
-          targetEye.x + rightX * side * offset + trackingDeviationX,
+          targetEye.x + rightX * lateral,
           targetEye.y + (Math.random() - 0.5) * 0.55,
-          targetEye.z + rightZ * side * offset + trackingDeviationZ
+          targetEye.z + rightZ * lateral
         );
       }
 
@@ -10080,8 +10084,11 @@ function buildSquadLeadership() {
               const classAcc = botWeaponId === 'mrad' ? 0.62 : botWeaponId === 'hk416' ? 0.38 : 0.30;
               const targetEvasion = bestEnemy.rolling ? 0.32 : (bestEnemy.crouching ? 0.82 : 1.0);
               const trackingFactor = getBotAimTrackingFactor(bot, bestEnemy.eye);
+              const movementFactor = Math.max(0.86,
+                1 - Math.hypot(bot.moveVelX || 0, bot.moveVelZ || 0) * 0.025);
+              const burstFactor = Math.max(0.88, 1 - Math.max(0, bot.burstCount - 3) * 0.025);
               const hitChance = Math.min(0.75, classAcc * distFactor * targetEvasion *
-                skill.accuracyScale * trackingFactor);
+                skill.accuracyScale * trackingFactor * movementFactor * burstFactor);
 
               const aimDir = new THREE.Vector3().subVectors(bestEnemy.eye, botEye).normalize();
               const hitSuccess = Math.random() < hitChance;
