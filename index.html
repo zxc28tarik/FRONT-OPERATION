@@ -434,6 +434,90 @@
     }
     /* Red remains reserved for actual danger, rather than permanent neon UI. */
     #hp-bar.from-rose-600 { background: #b86e72 !important; }
+
+    /* V29: low-contrast KISS pause / scores; no changes to world visuals. */
+    #pause-overlay {
+      background: rgba(9,15,20,.80);
+      backdrop-filter: blur(5px);
+    }
+    #pause-overlay .fo-pause-panel {
+      width: min(370px, 100%); padding: 28px;
+      background: #1c262d; border: 1px solid rgba(174,190,197,.24);
+      border-radius: 12px; box-shadow: 0 22px 70px rgba(0,0,0,.38);
+      display: flex; flex-direction: column; gap: 9px;
+      font-family: 'Inter', sans-serif;
+    }
+    .fo-pause-eyebrow { font-size: 10px; font-weight: 700; color: #a0b1b8; letter-spacing: .10em; }
+    #pause-title { margin: 3px 0 0; font-size: 24px; font-weight: 800; letter-spacing: .01em; color: #edf0f1; }
+    #pause-overlay .fo-pause-panel > p { margin: 0 0 8px; font-size: 12px; color: #b6c3c8; }
+    .fo-pause-score {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 10px; margin-bottom: 12px; border-radius: 8px;
+      background: #222f36; border: 1px solid rgba(169,187,194,.12);
+    }
+    .fo-pause-score > span { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 78px; }
+    .fo-pause-score b { color: #edf1f2; font-size: 22px; font-weight: 800; }
+    .fo-pause-score small { color: #a7b9bf; font-size: 10px; letter-spacing: .02em; }
+    .fo-pause-score .fo-pause-clock { min-width: 70px; color: #d1dbde; font-size: 15px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    #pause-overlay button {
+      display: flex; justify-content: space-between; align-items: center;
+      width: 100%; padding: 12px 14px; border-radius: 7px; cursor: pointer;
+      text-align: left; font-size: 13px; font-weight: 650; min-height: 44px;
+      transition: background .12s ease;
+    }
+    #pause-overlay button span { font-size: 10px; font-family: 'JetBrains Mono', monospace; opacity: .72; }
+    #pause-overlay .fo-pause-primary {
+      color: #122029; background: #a9bebc; border: 1px solid #c1cfcd;
+      font-weight: 800;
+    }
+    #pause-overlay .fo-pause-primary:hover { background: #c0d0cf; }
+    #pause-overlay .fo-pause-secondary {
+      color: #d4dfe1; background: #27343d; border: 1px solid #3c4b55;
+    }
+    #pause-overlay .fo-pause-secondary:hover { background: #34444e; }
+    #pause-overlay button:focus-visible, #btn-score-close:focus-visible {
+      outline: 2px solid #d6dfdf; outline-offset: 3px;
+    }
+    #scoreboard-overlay { background: rgba(9,15,20,.82); }
+    #scoreboard-overlay > .hud-glass {
+      max-width: 760px; padding: 19px; border-radius: 11px;
+      background: #1c262d; border: 1px solid rgba(174,190,197,.20);
+      box-shadow: 0 20px 65px rgba(0,0,0,.35);
+    }
+    #scoreboard-overlay .fo-team-score {
+      background: #222e36; border: 1px solid #3b4a52; border-radius: 8px; padding: 12px;
+    }
+    #scoreboard-overlay .fo-team-blue { border-top: 2px solid #769cad; }
+    #scoreboard-overlay .fo-team-red { border-top: 2px solid #a88386; }
+    #scoreboard-overlay .fo-team-title { font-size: 11px; font-weight: 800; letter-spacing: .05em; color: #d7e0e2; }
+    #scoreboard-overlay .fo-score-column {
+      display:flex; justify-content:space-between; color:#91a6af;
+      font-size:10px; font-weight:650; padding: 0 8px 7px; letter-spacing: .04em;
+    }
+    #scoreboard-overlay .fo-sb-row {
+      display:flex; justify-content:space-between; align-items:center; gap:8px;
+      padding: 8px; margin-bottom: 3px; border-radius: 5px; background: #27343c;
+      font-size: 11px; color:#d2dcdf;
+    }
+    #scoreboard-overlay .fo-sb-row.fo-sb-self {
+      background:#353d3c; color:#f0e5ca; border-left:2px solid #bbab87;
+    }
+    #scoreboard-overlay .fo-sb-class {
+      font-family: 'JetBrains Mono', monospace; color: #8fa7af;
+      font-size: 10px; width: 30px; flex: 0 0 30px;
+    }
+    #scoreboard-overlay .fo-sb-name {
+      min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    #scoreboard-overlay .fo-sb-kd { font-family: 'JetBrains Mono', monospace; color:#dce3e5; white-space: nowrap; }
+    .fo-score-close {
+      background:#2b3a43; border:1px solid #50616a; padding:7px 10px;
+      border-radius:6px; color:#cfdbdf; cursor:pointer; font-size:11px;
+    }
+    @media(max-width:520px) {
+      #pause-overlay .fo-pause-panel { padding:20px; }
+      #scoreboard-overlay > .hud-glass { padding:14px; }
+    }
   </style>
 </head>
 <body>
@@ -717,6 +801,23 @@
     </div>
   </div>
 
+  <!-- V29 KISS Pause: one clearly prioritized action, two secondary paths. -->
+  <div id="pause-overlay" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+    <div class="fo-pause-panel">
+      <div class="fo-pause-eyebrow">FRONT OPERATION · MARIEN</div>
+      <h2 id="pause-title">DURAKLATILDI</h2>
+      <p>Maç beklemede. Hazır olduğunda devam et.</p>
+      <div class="fo-pause-score" aria-label="Geçerli maç bilgileri">
+        <span><b id="pause-blue-score">0</b><small>DERBARAN</small></span>
+        <span class="fo-pause-clock" id="pause-timer">10:00</span>
+        <span><b id="pause-red-score">0</b><small>N.I.U.</small></span>
+      </div>
+      <button type="button" id="btn-pause-resume" class="fo-pause-primary">OYUNA DEVAM ET <span>ESC</span></button>
+      <button type="button" id="btn-pause-class" class="fo-pause-secondary">Sınıf Değiştir <span>B</span></button>
+      <button type="button" id="btn-pause-score" class="fo-pause-secondary">Skor Tablosu <span>TAB</span></button>
+    </div>
+  </div>
+
   <!-- TAB Scoreboard Modal -->
   <div id="scoreboard-overlay" class="hidden fixed inset-0 z-30 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="hud-glass rounded-2xl w-full max-w-3xl p-5 border border-slate-600/50">
@@ -725,23 +826,28 @@
           <h2 class="text-lg font-black tracking-wide text-white">SKOR TABLOSU</h2>
           <p class="text-xs text-slate-400">MARIEN • 6v6 • HEDEF 50</p>
         </div>
-        <div class="mono text-sm font-bold text-amber-400" id="sb-timer">10:00</div>
+        <div class="flex items-center gap-3">
+          <span class="mono text-sm font-semibold text-slate-300" id="sb-timer">10:00</span>
+          <button type="button" id="btn-score-close" class="fo-score-close" aria-label="Skor tablosunu kapat">Kapat</button>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-slate-900/80 rounded-xl p-3 border border-sky-500/30">
+        <div class="fo-team-score fo-team-blue">
           <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-            <span class="text-xs font-black tracking-wider text-sky-400">DERBARAN (MAVİ)</span>
+            <span class="fo-team-title">DERBARAN</span>
             <span id="sb-blue-score" class="mono text-base font-black text-white">0</span>
           </div>
+          <div class="fo-score-column"><span>OYUNCU</span><span>Ö / ÖL</span></div>
           <div id="sb-blue-list" class="space-y-1.5 text-xs"></div>
         </div>
 
-        <div class="bg-slate-900/80 rounded-xl p-3 border border-rose-500/30">
+        <div class="fo-team-score fo-team-red">
           <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-            <span class="text-xs font-black tracking-wider text-rose-400">N.I.U. (KIRMIZI)</span>
+            <span class="fo-team-title">N.I.U.</span>
             <span id="sb-red-score" class="mono text-base font-black text-white">0</span>
           </div>
+          <div class="fo-score-column"><span>OYUNCU</span><span>Ö / ÖL</span></div>
           <div id="sb-red-list" class="space-y-1.5 text-xs"></div>
         </div>
       </div>
