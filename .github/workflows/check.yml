@@ -32,3 +32,5 @@ jobs:
         run: node tests/bot_ai_v38_regression.cjs
       - name: Run BOT AI V39 acoustic investigation regression
         run: node tests/bot_ai_v39_regression.cjs
+      - name: Run BOT AI V40 telemetry and 600-second accumulator stress
+        run: node tests/bot_ai_v40_regression.cjs
