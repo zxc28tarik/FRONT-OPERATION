@@ -7492,6 +7492,47 @@ function buildSquadLeadership() {
             age: botAiClockSec - e.timestamp
           }))
         });
+        // V40 acceptance only: drive the ACTUAL bot engine for up to 600s
+        // of SIMULATED time. Does not measure rendered FPS or real-time match.
+        window.__frontOperationAiQaAdvance = (seconds = 600) => {
+          if (!matchState.started) throw Error('Start a match before AI stress');
+          const step = 0.05;
+          const ticks = Math.max(0, Math.min(12000, Math.floor(seconds / step)));
+          const wasPaused = gamePaused;
+          const oldGunshot = sound.playGunshot;
+          const oldExplosion = sound.playExplosion;
+          const oldStep = sound.playStep;
+          let scoreRestarts = 0;
+          gamePaused = true;
+          // Synthetic-time shots do not need thousands of simultaneous
+          // WebAudio voices. The V39 noise emitters remain fully active.
+          sound.playGunshot = () => {};
+          sound.playExplosion = () => {};
+          sound.playStep = () => {};
+          try {
+            for (let i = 0; i < ticks; i++) {
+              if (matchState.ended) {
+                scoreRestarts++;
+                matchState.ended = false;
+                matchState.scoreBlue = 0;
+                matchState.scoreRed = 0;
+              }
+              droneSystem.update(step);
+              updateBots(step);
+              updateEntitiesAndFX(step);
+            }
+          } finally {
+            sound.playGunshot = oldGunshot;
+            sound.playExplosion = oldExplosion;
+            sound.playStep = oldStep;
+            gamePaused = wasPaused;
+          }
+          return {
+            simulatedSec: Math.round(ticks * step * 100) / 100,
+            scoreRestarts,
+            report: getBotMetricsSnapshot()
+          };
+        };
       }
 
       function getLaneFromX(x) {
