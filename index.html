@@ -7330,6 +7330,9 @@ function buildSquadLeadership() {
             unstuckSide: 1,
             investigateGoalNode: -1,
             supportGoalNode: -1,
+            supportAllyId: null,
+            fireLaneBlockTimer: 0,
+            fireLaneRecoveryGoal: null,
             lastCheckPos: new THREE.Vector3(-12 + i * 6, 0, 50),
             fireTimer: 0.4 + Math.random() * 0.5,
             burstCount: 0,
@@ -7407,6 +7410,9 @@ function buildSquadLeadership() {
             unstuckSide: 1,
             investigateGoalNode: -1,
             supportGoalNode: -1,
+            supportAllyId: null,
+            fireLaneBlockTimer: 0,
+            fireLaneRecoveryGoal: null,
             lastCheckPos: new THREE.Vector3(-14 + i * 5.6, 0, -50),
             fireTimer: 0.4 + Math.random() * 0.5,
             burstCount: 0,
@@ -7467,6 +7473,9 @@ function buildSquadLeadership() {
         bot.unstuckSide = 1;
         bot.investigateGoalNode = -1;
         bot.supportGoalNode = -1;
+        bot.supportAllyId = null;
+        bot.fireLaneBlockTimer = 0;
+        bot.fireLaneRecoveryGoal = null;
         bot.targetId = null;
         bot.visibleEnemy = null;
         bot.lastKnownEnemyPos = null;
@@ -9288,6 +9297,81 @@ function buildSquadLeadership() {
           ? pos : fallback.clone();
       }
 
+      // V33: Keep upper-body aim, sightline and friendly fire in agreement.
+      function isBotAimAligned(bot, targetEye, tolerance = 0.34) {
+        const yaw = Math.atan2(targetEye.x - bot.pos.x, targetEye.z - bot.pos.z);
+        return Math.abs(normalizeAngle(yaw - bot.upperYaw)) <= tolerance;
+      }
+
+      function isBotFireLaneClear(bot, targetEye, source = bot.pos) {
+        const sx = source.x, sy = source.y + 1.45, sz = source.z;
+        const dx = targetEye.x - sx, dy = targetEye.y - sy, dz = targetEye.z - sz;
+        const lenSq = dx * dx + dy * dy + dz * dz;
+        if (lenSq < 0.25) return false;
+        const len = Math.sqrt(lenSq);
+        const allyInLine = (pos) => {
+          const ox = pos.x - sx, oy = pos.y + 1.05 - sy, oz = pos.z - sz;
+          const t = (ox * dx + oy * dy + oz * dz) / lenSq;
+          const along = t * len;
+          if (along < 0.55 || along > len - 0.70) return false;
+          const xOnShot = sx + dx * t, zOnShot = sz + dz * t;
+          if ((pos.x - xOnShot) ** 2 + (pos.z - zOnShot) ** 2 > 0.78 ** 2) return false;
+          const shotY = sy + dy * t;
+          return shotY >= pos.y + 0.12 && shotY <= pos.y + 1.85;
+        };
+        if (player.alive && player.team === bot.team && allyInLine(player.pos)) return false;
+        for (let j = 0; j < bots.length; j++) {
+          const ally = bots[j];
+          if (ally.alive && ally.team === bot.team && ally.id !== bot.id && allyInLine(ally.pos)) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      function chooseBotFireLaneStep(bot, targetEye) {
+        const dx = targetEye.x - bot.pos.x, dz = targetEye.z - bot.pos.z;
+        const length = Math.max(0.1, Math.hypot(dx, dz));
+        const rightX = dz / length, rightZ = -dx / length;
+        const preferred = bot.strafeDir === -1 ? -1 : 1;
+        for (const side of [preferred, -preferred]) {
+          const lateralX = rightX * side * 2.45, lateralZ = rightZ * side * 2.45;
+          let safe = true;
+          for (const t of [0.25, 0.5, 0.75, 1]) {
+            if (!isPositionWalkable(bot.pos.x + lateralX * t, bot.pos.y, bot.pos.z + lateralZ * t)) {
+              safe = false;
+              break;
+            }
+          }
+          if (!safe) continue;
+          const candidate = new THREE.Vector3(bot.pos.x + lateralX, bot.pos.y, bot.pos.z + lateralZ);
+          if (isBotFireLaneClear(bot, targetEye, candidate)) {
+            bot.strafeDir = side;
+            return candidate;
+          }
+        }
+        return null;
+      }
+
+      // Patient affinity prevents rapid medic destination switches.
+      function selectBotMedicPatient(bot) {
+        let best = null, bestScore = Infinity;
+        const consider = (ally, id) => {
+          if (!ally.alive || ally.team !== bot.team || ally.hp >= 75 || id === bot.id) return;
+          const distance = bot.pos.distanceTo(ally.pos);
+          if (distance >= 20) return;
+          const score = distance - Math.min(65, 75 - ally.hp) * 0.09
+            - (id === bot.supportAllyId ? 4.5 : 0);
+          if (score < bestScore) {
+            bestScore = score;
+            best = { id, pos: ally.pos, dist: distance };
+          }
+        };
+        consider(player, 'player');
+        for (let i = 0; i < bots.length; i++) consider(bots[i], bots[i].id);
+        return best;
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -9360,6 +9444,10 @@ function buildSquadLeadership() {
           updateBotPerception(bot, dt, targetClaimCounts);
           const bestEnemy = bot.visibleEnemy;
           const isReactionReady = bestEnemy && bot.reactionTimer >= bot.reactionRequired;
+          if (!bestEnemy) {
+            bot.fireLaneBlockTimer = 0;
+            bot.fireLaneRecoveryGoal = null;
+          }
 
           const activeThreatPos = bestEnemy
             ? bestEnemy.pos
@@ -9520,7 +9608,8 @@ function buildSquadLeadership() {
               }
             }
 
-            if (isReactionReady && bot.abilityCooldown <= 0) {
+            if (isReactionReady && bot.abilityCooldown <= 0 &&
+                isBotAimAligned(bot, bestEnemy.eye) && isBotFireLaneClear(bot, bestEnemy.eye)) {
               const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
               const aimDir = new THREE.Vector3().subVectors(bestEnemy.eye, botEye).normalize();
               if (bot.classId === 'assault' && distToEnemy >= 10 && distToEnemy <= 26) {
@@ -9533,10 +9622,29 @@ function buildSquadLeadership() {
             }
 
             const canShootFromStance = !(bot.coverPhase === 'CROUCH_HOLD' && bot.coverIsPartial && bot.crouchAmt > 0.7);
-            if (isReactionReady && canShootFromStance) {
+            const fireLaneClear = isBotFireLaneClear(bot, bestEnemy.eye);
+            const aimAligned = isBotAimAligned(bot, bestEnemy.eye);
+            if (isReactionReady && !fireLaneClear) {
+              bot.fireLaneBlockTimer = Math.min(3, bot.fireLaneBlockTimer + dt);
+              if (bot.fireLaneBlockTimer > 0.38) {
+                if (!bot.fireLaneRecoveryGoal ||
+                    bot.pos.distanceTo(bot.fireLaneRecoveryGoal) < 0.5) {
+                  bot.fireLaneRecoveryGoal = chooseBotFireLaneStep(bot, bestEnemy.eye);
+                }
+                if (bot.fireLaneRecoveryGoal) {
+                  moveTargetPos = bot.fireLaneRecoveryGoal;
+                  moveSpeed = 3.4;
+                  targetCrouch = 0;
+                }
+              }
+            } else {
+              bot.fireLaneBlockTimer = 0;
+              bot.fireLaneRecoveryGoal = null;
+            }
+            if (isReactionReady && canShootFromStance && fireLaneClear && aimAligned) {
               bot.fireTimer -= dt;
             }
-            if (isReactionReady && canShootFromStance && bot.fireTimer <= 0) {
+            if (isReactionReady && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0) {
               const botWeaponId = bot.classId === 'assault' ? 'hk416'
                 : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
                 : (bot.classId === 'sniper' ? (distToEnemy < 11 ? 'glock18c' : 'mrad') : 'minimi');
@@ -9722,27 +9830,12 @@ function buildSquadLeadership() {
                 bot.coverNode = -1;
                 bot.coverPhase = 'NONE';
 
-                let injuredAlly = null;
-                if (bot.classId === 'medic') {
-                  let bestAllyDist = 20;
-                  if (player.alive && player.team === bot.team && player.hp < 75) {
-                    const dp = bot.pos.distanceTo(player.pos);
-                    if (dp < bestAllyDist) {
-                      bestAllyDist = dp;
-                      injuredAlly = { pos: player.pos, dist: dp };
-                    }
-                  }
-                  for (let a = 0; a < bots.length; a++) {
-                    const ally = bots[a];
-                    if (!ally.alive || ally.id === bot.id || ally.team !== bot.team || ally.hp >= 75) continue;
-                    const da = bot.pos.distanceTo(ally.pos);
-                    if (da < bestAllyDist) {
-                      bestAllyDist = da;
-                      injuredAlly = { pos: ally.pos, dist: da };
-                    }
-                  }
+                const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;
+                const nextPatientId = injuredAlly ? injuredAlly.id : null;
+                if (bot.supportAllyId !== nextPatientId) {
+                  bot.supportGoalNode = -1;
                 }
-
+                bot.supportAllyId = nextPatientId;
                 if (!injuredAlly) bot.supportGoalNode = -1;
                 if (injuredAlly) {
                   setBotState(bot, 'SUPPORT_ALLY', 0.9);
