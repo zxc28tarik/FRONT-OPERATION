@@ -7331,6 +7331,14 @@ function buildSquadLeadership() {
             investigateGoalNode: -1,
             supportGoalNode: -1,
             supportAllyId: null,
+            rallyGoalNode: -1,
+            passageStepTarget: null,
+            passageStepTimer: 0,
+            passageWaitTimer: 0,
+            passageRepathCooldown: 0,
+            coverThreatAnchor: null,
+            coverCommitTimer: 0,
+            coverRelocateCooldown: 0,
             fireLaneBlockTimer: 0,
             fireLaneRecoveryGoal: null,
             lastCheckPos: new THREE.Vector3(-12 + i * 6, 0, 50),
@@ -7411,6 +7419,14 @@ function buildSquadLeadership() {
             investigateGoalNode: -1,
             supportGoalNode: -1,
             supportAllyId: null,
+            rallyGoalNode: -1,
+            passageStepTarget: null,
+            passageStepTimer: 0,
+            passageWaitTimer: 0,
+            passageRepathCooldown: 0,
+            coverThreatAnchor: null,
+            coverCommitTimer: 0,
+            coverRelocateCooldown: 0,
             fireLaneBlockTimer: 0,
             fireLaneRecoveryGoal: null,
             lastCheckPos: new THREE.Vector3(-14 + i * 5.6, 0, -50),
@@ -7474,6 +7490,14 @@ function buildSquadLeadership() {
         bot.investigateGoalNode = -1;
         bot.supportGoalNode = -1;
         bot.supportAllyId = null;
+        bot.rallyGoalNode = -1;
+        bot.passageStepTarget = null;
+        bot.passageStepTimer = 0;
+        bot.passageWaitTimer = 0;
+        bot.passageRepathCooldown = 0;
+        bot.coverThreatAnchor = null;
+        bot.coverCommitTimer = 0;
+        bot.coverRelocateCooldown = 0;
         bot.fireLaneBlockTimer = 0;
         bot.fireLaneRecoveryGoal = null;
         bot.targetId = null;
@@ -9372,6 +9396,141 @@ function buildSquadLeadership() {
         return best;
       }
 
+      // V34: Make friendly corridor negotiation deterministic. An infantryman
+      // behind an ally yields; head-on encounters use stable ID precedence.
+      function inspectBotPassage(bot, destination, speed) {
+        if (!destination || speed <= 2.2) return null;
+        const vx = destination.x - bot.pos.x, vz = destination.z - bot.pos.z;
+        const total = Math.hypot(vx, vz);
+        if (total < 1.15) return null;
+        const fx = vx / total, fz = vz / total;
+        let blocker = null, blockerDistance = Infinity;
+        const assess = (ally) => {
+          if (!ally.alive || ally.team !== bot.team || ally.id === bot.id ||
+              Math.abs(ally.pos.y - bot.pos.y) > 1.35) return;
+          const ax = ally.pos.x - bot.pos.x, az = ally.pos.z - bot.pos.z;
+          const along = ax * fx + az * fz;
+          const lateral = Math.abs(ax * fz - az * fx);
+          if (along <= 0.35 || along >= 3.1 || lateral > 1.05) return;
+          // If both soldiers are facing each other, only one yields.
+          const nextNode = ally.path && NAV_NODES[ally.path[ally.pathIndex]];
+          if (nextNode) {
+            const odx = nextNode.x - ally.pos.x, odz = nextNode.z - ally.pos.z;
+            const olen = Math.hypot(odx, odz);
+            if (olen > 1.2 && (odx * fx + odz * fz) / olen < -0.42 &&
+                String(bot.id) < String(ally.id)) return;
+          }
+          if (along < blockerDistance) {
+            blocker = ally;
+            blockerDistance = along;
+          }
+        };
+        for (let i = 0; i < bots.length; i++) assess(bots[i]);
+        if (player.alive && player.team === bot.team) {
+          assess({ id: 'player', team: player.team, alive: true, pos: player.pos, path: null });
+        }
+        if (!blocker) return null;
+
+        const sideX = fz, sideZ = -fx;
+        const first = bot.strafeDir === -1 ? -1 : 1;
+        for (const side of [first, -first]) {
+          for (const shift of [1.5, 2.1]) {
+            const dx = sideX * side * shift + fx * 0.62;
+            const dz = sideZ * side * shift + fz * 0.62;
+            let clear = true;
+            for (const ratio of [0.25, 0.50, 0.75, 1]) {
+              if (!isPositionWalkable(bot.pos.x + dx * ratio, bot.pos.y, bot.pos.z + dz * ratio)) {
+                clear = false;
+                break;
+              }
+            }
+            if (!clear) continue;
+            const px = bot.pos.x + dx, pz = bot.pos.z + dz;
+            for (let i = 0; i < bots.length; i++) {
+              const ally = bots[i];
+              if (!ally.alive || ally.team !== bot.team || ally.id === bot.id ||
+                  Math.abs(ally.pos.y - bot.pos.y) > 1.35) continue;
+              if (Math.hypot(px - ally.pos.x, pz - ally.pos.z) < 1.35) {
+                clear = false;
+                break;
+              }
+            }
+            if (player.alive && player.team === bot.team &&
+                Math.abs(player.pos.y - bot.pos.y) < 1.35 &&
+                Math.hypot(px - player.pos.x, pz - player.pos.z) < 1.35) clear = false;
+            if (clear) return {
+              mode: 'sidestep', blockerId: blocker.id,
+              point: new THREE.Vector3(px, bot.pos.y, pz)
+            };
+          }
+        }
+        return { mode: 'yield', blockerId: blocker.id, point: null };
+      }
+
+      function selectBotRallyWaypoint(bot, formationPoint) {
+        const eye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.0, bot.pos.z);
+        const targetEye = new THREE.Vector3(
+          formationPoint.x, formationPoint.y + 1.0, formationPoint.z
+        );
+        if (hasLineOfSight(eye, targetEye)) {
+          bot.rallyGoalNode = -1;
+          return formationPoint;
+        }
+        const goal = findNearestNavNode(formationPoint);
+        if (bot.rallyGoalNode !== goal || !bot.path || bot.pathIndex >= bot.path.length) {
+          bot.path = findPathAStar(findNearestNavNode(bot.pos), goal, bot.blockedNode);
+          bot.pathIndex = 0;
+          bot.rallyGoalNode = goal;
+        }
+        while (bot.path && bot.path[bot.pathIndex] !== undefined) {
+          const waypoint = NAV_NODES[bot.path[bot.pathIndex]];
+          if (Math.hypot(waypoint.x - bot.pos.x, waypoint.z - bot.pos.z) >= 1.25 ||
+              Math.abs(waypoint.y - bot.pos.y) >= 1.4) {
+            return new THREE.Vector3(waypoint.x, waypoint.y, waypoint.z);
+          }
+          bot.pathIndex++;
+        }
+        return null;
+      }
+
+      function refreshBotCoverForMovingEnemy(bot, threatPos, dt) {
+        if (bot.coverNode < 0 || !threatPos) return false;
+        bot.coverCommitTimer = Math.max(0, bot.coverCommitTimer - dt);
+        bot.coverRelocateCooldown = Math.max(0, bot.coverRelocateCooldown - dt);
+        if (!bot.coverThreatAnchor) {
+          bot.coverThreatAnchor = threatPos.clone();
+          return false;
+        }
+        const travel = Math.hypot(
+          threatPos.x - bot.coverThreatAnchor.x,
+          threatPos.z - bot.coverThreatAnchor.z
+        );
+        if (travel < 8 || bot.coverCommitTimer > 0 || bot.coverRelocateCooldown > 0) return false;
+        const node = NAV_NODES[bot.coverNode];
+        if (!node) return false;
+        const threatEye = new THREE.Vector3(threatPos.x, threatPos.y + 1.45, threatPos.z);
+        const crouchEye = new THREE.Vector3(node.x, node.y + 0.92, node.z);
+        // Old cover still blocks the advancing enemy: keep the position.
+        if (!hasLineOfSight(threatEye, crouchEye)) {
+          bot.coverThreatAnchor = threatPos.clone();
+          return false;
+        }
+        bot.coverRelocateCooldown = 3.5;
+        const candidate = findBestCoverNode(bot.pos, threatPos, bot);
+        if (candidate < 0 || candidate === bot.coverNode) return false;
+        const route = findPathAStar(findNearestNavNode(bot.pos), candidate, bot.blockedNode);
+        if (!route.length || route[route.length - 1] !== candidate) return false;
+        bot.coverNode = candidate;
+        bot.coverIsPartial = !!(bot._coverEval && bot._coverEval.isPartialCover);
+        bot.coverPhase = 'MOVE_TO_COVER';
+        bot.coverPhaseTimer = 0;
+        bot.coverThreatAnchor = threatPos.clone();
+        bot.coverCommitTimer = 2.6;
+        bot.path = route;
+        bot.pathIndex = 0;
+        return true;
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -9415,6 +9574,7 @@ function buildSquadLeadership() {
           if (bot.abilityCooldown > 0) bot.abilityCooldown = Math.max(0, bot.abilityCooldown - dt);
           if (bot.stateLockTimer > 0) bot.stateLockTimer = Math.max(0, bot.stateLockTimer - dt);
           if (bot.coverSearchCooldown > 0) bot.coverSearchCooldown = Math.max(0, bot.coverSearchCooldown - dt);
+          if (bot.passageRepathCooldown > 0) bot.passageRepathCooldown = Math.max(0, bot.passageRepathCooldown - dt);
           if (bot.blockedNodeTimer > 0) {
             bot.blockedNodeTimer = Math.max(0, bot.blockedNodeTimer - dt);
             if (bot.blockedNodeTimer === 0) bot.blockedNode = -1;
@@ -9460,6 +9620,7 @@ function buildSquadLeadership() {
 
           if (bestEnemy) {
             bot.supportGoalNode = -1;
+            bot.rallyGoalNode = -1;
             const distToEnemy = Math.hypot(bestEnemy.pos.x - bot.pos.x, bestEnemy.pos.z - bot.pos.z);
             desiredUpperYaw = Math.atan2(bestEnemy.pos.x - bot.pos.x, bestEnemy.pos.z - bot.pos.z);
             const dyAim = (bestEnemy.eye.y - 0.12) - (bot.pos.y + 1.42);
@@ -9468,6 +9629,9 @@ function buildSquadLeadership() {
             const woundedThreshold = bot.classId === 'heavy' ? 52 : 42;
             const isWounded = bot.hp < woundedThreshold;
             const isSniperTooClose = bot.classId === 'sniper' && distToEnemy < 11.5;
+            if (!isWounded && !isSniperTooClose && distToEnemy > 8) {
+              refreshBotCoverForMovingEnemy(bot, activeThreatPos, dt);
+            }
 
             if (isWounded || isSniperTooClose) {
               const targetRetreatState = isSniperTooClose ? 'RETREAT' : 'TAKE_COVER';
@@ -9479,6 +9643,8 @@ function buildSquadLeadership() {
                 const foundCover = findBestCoverNode(bot.pos, activeThreatPos, bot);
                 if (foundCover !== -1) {
                   bot.coverNode = foundCover;
+                  bot.coverThreatAnchor = activeThreatPos.clone();
+                  bot.coverCommitTimer = 2.6;
                   bot.coverIsPartial = !!(bot._coverEval && bot._coverEval.isPartialCover);
                   bot.coverPhase = 'MOVE_TO_COVER';
                   bot.path = findPathAStar(findNearestNavNode(bot.pos), foundCover, bot.blockedNode);
@@ -9524,6 +9690,8 @@ function buildSquadLeadership() {
                 const foundCover = findBestCoverNode(bot.pos, activeThreatPos, bot);
                 if (foundCover !== -1) {
                   bot.coverNode = foundCover;
+                  bot.coverThreatAnchor = activeThreatPos.clone();
+                  bot.coverCommitTimer = 2.6;
                   bot.coverIsPartial = !!(bot._coverEval && bot._coverEval.isPartialCover);
                   bot.coverPhase = 'MOVE_TO_COVER';
                   bot.path = findPathAStar(findNearestNavNode(bot.pos), foundCover, bot.blockedNode);
@@ -9967,13 +10135,16 @@ function buildSquadLeadership() {
                       const roleOffsetZ = bot.classId === 'medic' ? -2.8 * fwdSign : -1.4 * fwdSign;
                       const formX = rallyPt.x + roleOffsetX;
                       const formZ = rallyPt.z + roleOffsetZ;
-                      moveTargetPos = isPositionWalkable(formX, rallyPt.y, formZ)
+                      const formationPoint = isPositionWalkable(formX, rallyPt.y, formZ)
                         ? new THREE.Vector3(formX, rallyPt.y, formZ)
                         : rallyPt.clone();
+                      moveTargetPos = selectBotRallyWaypoint(bot, formationPoint);
+                      if (!moveTargetPos) moveSpeed = 0;
                     }
                   }
 
-                  if (!moveTargetPos) {
+                  if (!moveTargetPos && moveSpeed > 0) {
+                    bot.rallyGoalNode = -1;
                     setBotState(bot, 'ADVANCE', 0.7);
                     if (!bot.path || bot.pathIndex >= bot.path.length) {
                       const arrivedNode = NAV_NODES[bot.goalNode];
@@ -10041,6 +10212,56 @@ function buildSquadLeadership() {
             }
           }
 
+          // Negotiation occurs after tactical routing and before physics.
+          // An intentional yield is not a navigation failure (no stuck timer).
+          let passageHolding = false;
+          if (bot.passageStepTarget && bot.passageStepTimer > 0) {
+            bot.passageStepTimer = Math.max(0, bot.passageStepTimer - dt);
+            if (Math.hypot(bot.passageStepTarget.x - bot.pos.x,
+                           bot.passageStepTarget.z - bot.pos.z) > 0.35 &&
+                bot.passageStepTimer > 0) {
+              moveTargetPos = bot.passageStepTarget;
+              moveSpeed = Math.max(moveSpeed, 3.0);
+            } else {
+              bot.passageStepTarget = null;
+              bot.passageStepTimer = 0;
+            }
+          }
+          if (!bot.passageStepTarget && moveTargetPos && moveSpeed > 2.2) {
+            const passage = inspectBotPassage(bot, moveTargetPos, moveSpeed);
+            if (passage && passage.mode === 'sidestep') {
+              bot.passageStepTarget = passage.point;
+              bot.passageStepTimer = 0.9;
+              bot.passageWaitTimer = 0;
+              moveTargetPos = passage.point;
+              moveSpeed = Math.max(moveSpeed, 3.0);
+            } else if (passage && passage.mode === 'yield') {
+              passageHolding = true;
+              bot.passageWaitTimer += dt;
+              moveTargetPos = null;
+              moveSpeed = 0;
+              if (bot.passageWaitTimer >= 1.6 && bot.passageRepathCooldown <= 0) {
+                const goal = bot.coverNode >= 0 ? bot.coverNode :
+                  (bot.supportGoalNode >= 0 ? bot.supportGoalNode :
+                  (bot.rallyGoalNode >= 0 ? bot.rallyGoalNode : bot.goalNode));
+                const occupied = bots.find((b) => b.id === passage.blockerId);
+                if (occupied && goal >= 0 && goal < NAV_NODES.length) {
+                  const avoidNode = findNearestNavNode(occupied.pos);
+                  if (avoidNode !== goal) {
+                    const alternative = findPathAStar(findNearestNavNode(bot.pos), goal, avoidNode);
+                    if (alternative.length > 1 && alternative[alternative.length - 1] === goal &&
+                        alternative.some((node, index) => node !== (bot.path || [])[index])) {
+                      bot.path = alternative;
+                      bot.pathIndex = 0;
+                    }
+                  }
+                }
+                bot.passageRepathCooldown = 2.3;
+              }
+            } else {
+              bot.passageWaitTimer = 0;
+            }
+          }
           const hasRouteIntent = moveTargetPos && moveSpeed > 2.2 &&
             Math.hypot(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z) > 1.55;
           let moveX = 0;
@@ -10056,17 +10277,17 @@ function buildSquadLeadership() {
           }
 
           for (let j = 0; j < bots.length; j++) {
-            if (i === j || !bots[j].alive) continue;
+            if (i === j || !bots[j].alive || Math.abs(bot.pos.y - bots[j].pos.y) > 1.45) continue;
             const sx = bot.pos.x - bots[j].pos.x;
             const sz = bot.pos.z - bots[j].pos.z;
             const sd = Math.hypot(sx, sz);
             if (sd > 0.001 && sd < 1.15) {
-              const push = ((1.15 - sd) / 1.15) * 3.8;
+              const push = ((1.15 - sd) / 1.15) * (passageHolding ? 1.15 : 3.8);
               moveX += (sx / sd) * push;
               moveZ += (sz / sd) * push;
             }
           }
-          if (player.alive) {
+          if (player.alive && Math.abs(bot.pos.y - player.pos.y) <= 1.45) {
             const px = bot.pos.x - player.pos.x;
             const pz = bot.pos.z - player.pos.z;
             const pd = Math.hypot(px, pz);
