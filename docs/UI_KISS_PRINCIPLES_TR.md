@@ -38,3 +38,11 @@ Geliştirmeler `visual/v29-kiss-pause-scoreboard` dalında tutulur. Ana dal kull
 - Tek geniş, sakin gri-yeşil **ÇATIŞMAYA KATIL** butonu.
 - Takım savaşı, sınıf ve silah kodlarını değiştirmeden mevcut HTML içindeki gerçek menüde uygulanır; ayrı demo ekranı yapılmaz.
 - V29 duraklatma/skor tablosu korunur. Karakter/silah/harita modelleri KISS sadeleştirmesi dışında tutulur.
+
+## V31 — Beş yatay sekme, tek ortak ayrıntı alanı
+- V30'daki **beş çerçeveli kart** tamamen kaldırılır; sınıflar yan yana beş **çerçevesiz yatay sekme** olarak gösterilir.
+- Sekmelerin üstünde tek renk çizim simgesi, altında kısa isim bulunur: Hücum, Sıhhiye, Drone, Sniper, Heavy.
+- Seçili sınıfın göstergesi yalnızca **ince, açık renkli alt çizgidir**; her kartta arka plan kutusu/kenarlık yoktur.
+- Alt bölümde yalnızca seçili sınıfın adı ve kısa rolü; ardından dört ekipman etiketi yer alır.
+- Tek geniş "ÇATIŞMAYA KATIL" düğmesi korunur. Beş sekme mobilde de yatay kalır; silah ve asker görsellerine dokunulmaz.
+- Sınıf seçimi mevcut `data-class` ve `CLASSES` sisteminden yürür; fare, Enter/Space, 1–5, Home/End ve yön tuşları desteklenir.
