@@ -141,8 +141,9 @@ test('V24/V25 core gameplay and drone rules remain', () => {
   assert.ok(game.includes('!player.grounded || player.sp < 25'));
   assert.ok(game.includes("code === 'KeyQ'") && game.includes("code === 'KeyE'"));
 });
-test('approved game name is displayed', () => {
+test('approved game title and V31 KISS menu branding retained', () => {
   assert.ok(game.includes('<title>FRONT OPERATION — MARIEN CQC</title>'));
-  assert.ok(game.includes('            FRONT OPERATION'));
+  assert.ok(game.includes('<h1 id="menu-title">SINIF SEÇİMİ</h1>'));
+  assert.ok(game.includes('<span class="fo-map-caption">MARIEN • 6V6</span>'));
 });
 console.log(`ALL ${passed}/${passed} source preservation checks PASS`);
