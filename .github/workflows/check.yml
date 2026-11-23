@@ -34,3 +34,5 @@ jobs:
         run: node tests/bot_ai_v39_regression.cjs
       - name: Run BOT AI V40 telemetry and 600-second accumulator stress
         run: node tests/bot_ai_v40_regression.cjs
+      - name: Run BOT AI V41 physical gate and nav-graph regression
+        run: node tests/bot_ai_v41_regression.cjs

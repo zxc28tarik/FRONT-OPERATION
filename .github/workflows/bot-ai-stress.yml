@@ -1,8 +1,8 @@
-name: V40 accelerated 600s bot engine stress
+name: V41 accelerated 600s bot engine stress
 on:
   push:
     branches:
-      - ai/v40-bot-telemetry-balance
+      - ai/v41-gate-navigation-fix
     paths:
       - .github/workflows/bot-ai-stress.yml
       - scripts/browser-bot-ai-stress.mjs
@@ -27,7 +27,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: front-operation-bot-v40-600s
+          name: front-operation-bot-v41-600s
           path: test-artifacts/front-operation-bot-stress/
           if-no-files-found: warn
           retention-days: 14
