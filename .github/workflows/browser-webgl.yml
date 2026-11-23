@@ -5,6 +5,7 @@ on:
       - restore/v25-approved-components-20261122
       - ai/v33-fire-lane-discipline
       - ai/v34-squad-passage-cover
+      - ai/v35-difficulty-mix-medium-aim
   workflow_dispatch:
 
 jobs:
