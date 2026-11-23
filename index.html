@@ -10119,8 +10119,13 @@ function buildSquadLeadership() {
         const goalNode = findNearestNavNode(goal);
         if (bot.hearingGoalNode !== goalNode || !bot.hearingRoute ||
             bot.hearingRouteIndex >= bot.hearingRoute.length) {
-          bot.hearingRoute = findPathAStar(findNearestNavNode(bot.pos),
-            goalNode, bot.blockedNode);
+          const fromNode = findNearestNavNode(bot.pos);
+          const route = findPathAStar(fromNode, goalNode, bot.blockedNode);
+          // A* can return a fallback [goal] when a route is blocked.
+          // That is NOT a valid navigation path.
+          if (!route.length || route[0] !== fromNode ||
+              route[route.length - 1] !== goalNode) return null;
+          bot.hearingRoute = route;
           bot.hearingRouteIndex = 0;
           bot.hearingGoalNode = goalNode;
         }
