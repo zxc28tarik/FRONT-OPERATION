@@ -30,3 +30,5 @@ jobs:
         run: node tests/bot_ai_v37_regression.cjs
       - name: Run BOT AI V38 squad coordination regression
         run: node tests/bot_ai_v38_regression.cjs
+      - name: Run BOT AI V39 acoustic investigation regression
+        run: node tests/bot_ai_v39_regression.cjs
