@@ -7329,6 +7329,7 @@ function buildSquadLeadership() {
             unstuckTimer: 0,
             unstuckSide: 1,
             investigateGoalNode: -1,
+            supportGoalNode: -1,
             lastCheckPos: new THREE.Vector3(-12 + i * 6, 0, 50),
             fireTimer: 0.4 + Math.random() * 0.5,
             burstCount: 0,
@@ -7405,6 +7406,7 @@ function buildSquadLeadership() {
             unstuckTimer: 0,
             unstuckSide: 1,
             investigateGoalNode: -1,
+            supportGoalNode: -1,
             lastCheckPos: new THREE.Vector3(-14 + i * 5.6, 0, -50),
             fireTimer: 0.4 + Math.random() * 0.5,
             burstCount: 0,
@@ -7464,6 +7466,7 @@ function buildSquadLeadership() {
         bot.unstuckTimer = 0;
         bot.unstuckSide = 1;
         bot.investigateGoalNode = -1;
+        bot.supportGoalNode = -1;
         bot.targetId = null;
         bot.visibleEnemy = null;
         bot.lastKnownEnemyPos = null;
@@ -9369,6 +9372,7 @@ function buildSquadLeadership() {
           let desiredUpperYaw = bot.legYaw;
 
           if (bestEnemy) {
+            bot.supportGoalNode = -1;
             const distToEnemy = Math.hypot(bestEnemy.pos.x - bot.pos.x, bestEnemy.pos.z - bot.pos.z);
             desiredUpperYaw = Math.atan2(bestEnemy.pos.x - bot.pos.x, bestEnemy.pos.z - bot.pos.z);
             const dyAim = (bestEnemy.eye.y - 0.12) - (bot.pos.y + 1.42);
@@ -9740,10 +9744,47 @@ function buildSquadLeadership() {
                   }
                 }
 
+                if (!injuredAlly) bot.supportGoalNode = -1;
                 if (injuredAlly) {
                   setBotState(bot, 'SUPPORT_ALLY', 0.9);
-                  moveTargetPos = injuredAlly.pos.clone();
-                  if (injuredAlly.dist < 3.2 && bot.abilityCooldown <= 0) {
+                  const allyEye = new THREE.Vector3(
+                    injuredAlly.pos.x, injuredAlly.pos.y + 1.0, injuredAlly.pos.z
+                  );
+                  const medicEye = new THREE.Vector3(
+                    bot.pos.x, bot.pos.y + 1.0, bot.pos.z
+                  );
+                  const canReachAllyDirectly = hasLineOfSight(medicEye, allyEye);
+                  if (canReachAllyDirectly) {
+                    bot.supportGoalNode = -1;
+                    moveTargetPos = injuredAlly.pos.clone();
+                  } else {
+                    // Medics flank walls by nav nodes instead of pressing
+                    // indefinitely into the nearest obstacle.
+                    const allyNode = findNearestNavNode(injuredAlly.pos);
+                    if (bot.supportGoalNode !== allyNode ||
+                        !bot.path || bot.pathIndex >= bot.path.length) {
+                      bot.path = findPathAStar(
+                        findNearestNavNode(bot.pos), allyNode, bot.blockedNode
+                      );
+                      bot.pathIndex = 0;
+                      bot.supportGoalNode = allyNode;
+                    }
+                    while (bot.path && bot.path[bot.pathIndex] !== undefined) {
+                      const wp = NAV_NODES[bot.path[bot.pathIndex]];
+                      if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) >= 1.35 ||
+                          Math.abs(wp.y - bot.pos.y) >= 1.5) break;
+                      bot.pathIndex++;
+                    }
+                    const nextWpIdx = bot.path && bot.path[bot.pathIndex];
+                    if (nextWpIdx !== undefined) {
+                      const wp = NAV_NODES[nextWpIdx];
+                      moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
+                    } else {
+                      moveSpeed = 0;
+                    }
+                  }
+                  if (injuredAlly.dist < 3.2 && Math.abs(injuredAlly.pos.y - bot.pos.y) < 1.35 &&
+                      canReachAllyDirectly && bot.abilityCooldown <= 0) {
                     bot.abilityCooldown = 14;
                     deployMedkit(bot.pos.clone(), bot.team);
                   }
@@ -9964,8 +10005,9 @@ function buildSquadLeadership() {
                 // Preserve the tactical objective: seek a different route
                 // before requesting a new random assignment.
                 const goal = bot.coverNode !== -1 ? bot.coverNode :
-                  (bot.state === 'INVESTIGATE' && bot.lastKnownEnemyPos
-                    ? findNearestNavNode(bot.lastKnownEnemyPos) : bot.goalNode);
+                  (bot.supportGoalNode !== -1 ? bot.supportGoalNode :
+                  (bot.lastKnownEnemyPos && bot.investigateTimer > 0 && !bot.visibleEnemy
+                    ? findNearestNavNode(bot.lastKnownEnemyPos) : bot.goalNode));
                 if (goal >= 0 && goal < NAV_NODES.length) {
                   bot.path = findPathAStar(findNearestNavNode(bot.pos), goal, bot.blockedNode);
                   bot.pathIndex = 0;
@@ -9975,11 +10017,14 @@ function buildSquadLeadership() {
                   bot.unstuckTarget = escape;
                   bot.unstuckTimer = 0.95;
                 }
-                if (bot.stuckFailures >= 4 && !escape) {
+                if (bot.stuckFailures >= 4) {
+                  // Escalate after repeated failed recoveries even if a
+                  // lateral step was previously reachable.
                   bot.stuckFailures = 0;
                   bot.coverNode = -1;
                   bot.coverPhase = 'NONE';
                   bot.investigateGoalNode = -1;
+                  bot.supportGoalNode = -1;
                   assignBotTacticalGoal(bot);
                 }
               } else {
