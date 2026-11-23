@@ -88,17 +88,24 @@ for (const team of ['blue', 'red']) {
     const baseline = baseFactory(team, role);
     const model = factory(team, role);
     for (const [part, difference] of [
-      ['root', 1],
-      ['upperBody', role === 'medic' ? 3 : 2],
-      ['leftHip', 1],
-      ['rightHip', 1]
+      // V26/V26B adds production-quality layers on top of V25+V11.
+      // Exact deltas protect against removing these approved details.
+      ['root', 2],
+      ['upperBody', role === 'medic' ? 15 : 14],
+      ['head', 9],
+      ['leftHip', 2],
+      ['rightHip', 2],
+      ['leftKnee', 2],
+      ['rightKnee', 2],
+      ['weaponPivot', role === 'sniper' ? 5 : 7]
     ]) {
       assert.equal(model[part].children.length - baseline[part].children.length, difference,
         `${team}/${role} V11 detail count ${part}`);
     }
     assert.ok(model.leftHip.children.at(-1).position.x < 0, 'left cargo pocket outside thigh');
     assert.ok(model.rightHip.children.at(-1).position.x > 0, 'right cargo pocket outside thigh');
-    assert.equal(model.head.children.length, baseline.head.children.length, 'V25 head untouched');
+    assert.ok(model.head.children.length > baseline.head.children.length,
+      'V26 helmet enhancements remain attached to original V25 head pivot');
     for (const field of required) assert.ok(model[field], `${team}/${role} missing ${field}`);
     assert.equal(model.head.parent, model.upperBody, 'headGroup attached to chest');
     assert.ok(model.head.children.length >= 7, 'helmet/goggles/NVG are attached to headGroup');
@@ -135,5 +142,5 @@ assert.equal(actualMuzzle.y, 1.26);
 assert.equal(fakeRoot.position.y, -0.16);
 assert.equal(fakeRoot.updated, true);
 assert.equal(getMuzzle(null, new Vector3(0, 1.45, 0)).y, 1.45);
-console.log('PASS: 10/10 V25 soldier rigs with V11 cargo/straps/pouches, head and muzzle hierarchy');
+console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B details, head and muzzle hierarchy');
 console.log('PASS: visible BOT muzzle world position and fallback');
