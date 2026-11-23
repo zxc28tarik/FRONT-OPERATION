@@ -7037,8 +7037,12 @@ function buildSquadLeadership() {
         blue: { sightings: {}, retreatAlerts: [] },
         red:  { sightings: {}, retreatAlerts: [] }
       };
+      // Simulated match time: pause and browser tab suspensions do not silently
+      // age team sightings or tactical decisions while gameplay is stopped.
+      let botAiClockSec = 0;
 
       function resetTeamIntel() {
+        botAiClockSec = 0;
         TEAM_INTEL.blue.sightings = {};
         TEAM_INTEL.blue.retreatAlerts = [];
         TEAM_INTEL.red.sightings = {};
@@ -7070,7 +7074,7 @@ function buildSquadLeadership() {
         if (![frozenPos.x, frozenPos.y, frozenPos.z].every(Number.isFinite)) return;
         const targetTeam = targetId === 'player' ? player.team : (bots.find((b) => b.id === targetId) || {}).team;
         if (targetTeam === team) return;
-        const nowSec = performance.now() / 1000;
+        const nowSec = botAiClockSec;
         TEAM_INTEL[team].sightings[targetId] = {
           targetId,
           pos: frozenPos.clone(),
@@ -7738,7 +7742,7 @@ function buildSquadLeadership() {
         }
 
         if (!bot.visibleEnemy && (!bot.lastKnownEnemyPos || bot.investigateTimer <= 0)) {
-          const shared = getSharedTeamSighting(bot, performance.now() / 1000);
+          const shared = getSharedTeamSighting(bot, botAiClockSec);
           if (shared) {
             bot.lastKnownEnemyPos = shared.pos;
             bot.memoryTargetId = shared.targetId;
@@ -9194,7 +9198,8 @@ function buildSquadLeadership() {
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
-        const nowSec = performance.now() / 1000;
+        botAiClockSec += dt;
+        const nowSec = botAiClockSec;
         pruneTeamIntel(nowSec);
 
         const targetClaimCounts = {};
@@ -9713,7 +9718,7 @@ function buildSquadLeadership() {
                         }
                         moveSpeed = 0;
                         targetCrouch = bot.classId === 'sniper' ? 1 : 0;
-                        desiredUpperYaw = (bot.team === 'blue' ? Math.PI : 0) + Math.sin(performance.now() * 0.0012 + bot.animPhase) * 0.65;
+                        desiredUpperYaw = (bot.team === 'blue' ? Math.PI : 0) + Math.sin(botAiClockSec * 1.2 + bot.animPhase) * 0.65;
                       } else {
                         assignBotTacticalGoal(bot);
                       }
