@@ -63,11 +63,22 @@ test('V20 three cover methods are retained', () => {
     assert.equal(normalized(func(game, n)), normalized(func(v20, n)), n);
   }
 });
-test('V22 seven team AI methods are retained', () => {
+test('V22 seven team AI methods retained (V32 match-clock correction allowed)', () => {
   for (const n of ['buildSquadLeadership','reportTeamVisualSighting','getSharedTeamSighting',
     'broadcastRetreatCoverRequest','findCoveringFireOpportunity',
     'getTeamLaneCounts','assignBotTacticalGoal']) {
-    assert.equal(normalized(func(game, n)), normalized(func(v22, n)), n);
+    const reference = normalized(func(v22, n));
+    const active = normalized(func(game, n));
+    if (n === 'reportTeamVisualSighting') {
+      // Approved V32 bugfix: intelligence TTL is game-clock based.
+      // Preserve every other byte of this method's normalized logic.
+      assert.ok(reference.includes('constnowSec=performance.now()/1000;'));
+      assert.equal(active, reference.replace(
+        'constnowSec=performance.now()/1000;', 'constnowSec=botAiClockSec;'
+      ), n);
+    } else {
+      assert.equal(active, reference, n);
+    }
   }
 });
 test('V25 advanced soldier identity exact and unified head group', () => {
