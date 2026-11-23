@@ -7807,6 +7807,10 @@ function buildSquadLeadership() {
 
       function endMatch(winnerTeam) {
         matchState.ended = true;
+        gamePaused = false;
+        scoreboardReturnToPause = false;
+        document.getElementById('pause-overlay').classList.add('hidden');
+        document.getElementById('scoreboard-overlay').classList.add('hidden');
         droneSystem.onOperatorInterrupted('player');
         if (document.pointerLockElement === canvas) {
           document.exitPointerLock();
@@ -10310,6 +10314,79 @@ function buildSquadLeadership() {
       // 17. INPUT HANDLERS (MOUSE, KEYBOARD & MOBILE TOUCH)
       // =========================================================================
       let selectedMenuClass = 'assault';
+      // V29: local single-player simulation pause; rendering continues at idle.
+      let gamePaused = false;
+      let scoreboardReturnToPause = false;
+      function resetPausedInputs() {
+        Object.keys(keys).forEach((key) => { keys[key] = false; });
+        mouseDownLeft = false;
+        mouseDownRight = false;
+        isDraggingLook = false;
+      }
+      function updatePauseSummary() {
+        document.getElementById('pause-blue-score').textContent = matchState.scoreBlue;
+        document.getElementById('pause-red-score').textContent = matchState.scoreRed;
+        document.getElementById('pause-timer').textContent =
+          document.getElementById('match-timer').textContent;
+      }
+      function showPauseMenu() {
+        if (!matchState.started || matchState.ended) return;
+        if (!document.getElementById('menu-overlay').classList.contains('hidden')) return;
+        gamePaused = true;
+        resetPausedInputs();
+        updatePauseSummary();
+        document.getElementById('scoreboard-overlay').classList.add('hidden');
+        scoreboardReturnToPause = false;
+        document.getElementById('pause-overlay').classList.remove('hidden');
+        if (document.pointerLockElement === canvas) document.exitPointerLock();
+      }
+      function resumeFromPause() {
+        document.getElementById('pause-overlay').classList.add('hidden');
+        document.getElementById('scoreboard-overlay').classList.add('hidden');
+        document.getElementById('menu-overlay').classList.add('hidden');
+        scoreboardReturnToPause = false;
+        gamePaused = false;
+        resetPausedInputs();
+        if (matchState.started && !matchState.ended && canvas.requestPointerLock) {
+          try { canvas.requestPointerLock(); } catch (err) {}
+        }
+      }
+      function openClassMenu() {
+        if (!matchState.started || matchState.ended) return;
+        gamePaused = true;
+        scoreboardReturnToPause = false;
+        resetPausedInputs();
+        // The original drone-to-infantry handoff is retained for class switching.
+        droneSystem.onOperatorInterrupted('player');
+        document.getElementById('pause-overlay').classList.add('hidden');
+        document.getElementById('scoreboard-overlay').classList.add('hidden');
+        const menuEl = document.getElementById('menu-overlay');
+        document.getElementById('menu-title').textContent = 'SINIF SEÇ';
+        document.getElementById('menu-subtitle').textContent = 'Sınıfını seç ve çatışmaya dön.';
+        document.getElementById('btn-deploy').textContent = 'SINIFI ONAYLA';
+        menuEl.classList.remove('hidden');
+        if (document.pointerLockElement === canvas) document.exitPointerLock();
+      }
+      function openPauseScoreboard() {
+        if (!gamePaused) return;
+        updateScoreboardUI();
+        scoreboardReturnToPause = true;
+        document.getElementById('pause-overlay').classList.add('hidden');
+        document.getElementById('scoreboard-overlay').classList.remove('hidden');
+      }
+      function closeScoreboard() {
+        document.getElementById('scoreboard-overlay').classList.add('hidden');
+        if (scoreboardReturnToPause && gamePaused && matchState.started && !matchState.ended) {
+          updatePauseSummary();
+          document.getElementById('pause-overlay').classList.remove('hidden');
+        }
+        scoreboardReturnToPause = false;
+      }
+      document.getElementById('btn-pause-resume').addEventListener('click', resumeFromPause);
+      document.getElementById('btn-pause-class').addEventListener('click', openClassMenu);
+      document.getElementById('btn-pause-score').addEventListener('click', openPauseScoreboard);
+      document.getElementById('btn-score-close').addEventListener('click', closeScoreboard);
+
 
       // V28 KISS: one shared class description, driven by the REAL game loadout.
       const CLASS_MENU_DESCRIPTIONS = Object.freeze({
@@ -10365,6 +10442,10 @@ function buildSquadLeadership() {
           e.currentTarget.blur();
         }
         sound.init();
+        gamePaused = false;
+        scoreboardReturnToPause = false;
+        document.getElementById('pause-overlay').classList.add('hidden');
+        document.getElementById('scoreboard-overlay').classList.add('hidden');
         const isNewMatch = matchState.ended;
         if (isNewMatch) {
           matchState.ended = false;
@@ -10516,7 +10597,8 @@ function buildSquadLeadership() {
       let prevDragY = 0;
 
       window.addEventListener('mousedown', (e) => {
-        if (!matchState.started || matchState.ended || !document.getElementById('menu-overlay').classList.contains('hidden')) return;
+        if (!matchState.started || matchState.ended || gamePaused ||
+            !document.getElementById('menu-overlay').classList.contains('hidden')) return;
         sound.init();
 
         if (e.button === 0) {
@@ -10750,7 +10832,7 @@ function buildSquadLeadership() {
         lastFrameTime = now;
         const dt = Number.isFinite(rawDt) ? Math.min(0.05, Math.max(0.001, rawDt)) : 0.016;
 
-        if (matchState.started && !matchState.ended) {
+        if (matchState.started && !matchState.ended && !gamePaused) {
           matchState.timeRemaining = Math.max(0, matchState.timeRemaining - dt);
           const mins = Math.floor(matchState.timeRemaining / 60);
           const secs = Math.floor(matchState.timeRemaining % 60);
