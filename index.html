@@ -945,7 +945,7 @@
           <div><span class="text-amber-400 font-bold">SOL TIK:</span> Ateş / Hızlı Mod</div>
           <div><span class="text-amber-400 font-bold">SAĞ TIK:</span> Nişan / Patlat</div>
           <div><span class="text-amber-400 font-bold">1-4 / R:</span> Slot / Şarjör</div>
-          <div><span class="text-amber-400 font-bold">B / TAB:</span> Sınıf / Skor</div>
+          <div><span class="text-amber-400 font-bold">ESC / P:</span> Duraklat</div>
           </div>
         </details>
 
@@ -10496,29 +10496,46 @@ function buildSquadLeadership() {
         const wasKeyDown = !!keys[e.code];
         keys[e.code] = true;
 
+        // Keep ESC's original drone-recall shortcut; P always pauses.
+        const pauseVisible = !document.getElementById('pause-overlay').classList.contains('hidden');
+        const scoreboardVisible = !document.getElementById('scoreboard-overlay').classList.contains('hidden');
+        if (e.code === 'Escape' && scoreboardVisible) {
+          e.preventDefault();
+          closeScoreboard();
+          keys[e.code] = false;
+          return;
+        }
         if (e.code === 'Tab') {
           e.preventDefault();
-          updateScoreboardUI();
-          document.getElementById('scoreboard-overlay').classList.remove('hidden');
+          if (matchState.started && !matchState.ended && menuHidden && !e.repeat) {
+            if (gamePaused) openPauseScoreboard();
+            else {
+              updateScoreboardUI();
+              document.getElementById('scoreboard-overlay').classList.remove('hidden');
+            }
+          }
+          keys[e.code] = false;
+          return;
+        }
+        if ((e.code === 'Escape' || e.code === 'KeyP') &&
+            matchState.started && !matchState.ended && !e.repeat) {
+          e.preventDefault();
+          if (pauseVisible) resumeFromPause();
+          else if (!menuHidden) resumeFromPause();
+          else if (e.code === 'Escape' && droneSystem.isPlayerControlling()) {
+            droneSystem.handlePlayerRecall();
+          } else showPauseMenu();
+          keys[e.code] = false;
           return;
         }
 
-        if (e.code === 'KeyB' && matchState.started && !matchState.ended) {
-          const menuEl = document.getElementById('menu-overlay');
-          if (menuEl.classList.contains('hidden')) {
-            droneSystem.onOperatorInterrupted('player');
-            if (document.pointerLockElement === canvas) document.exitPointerLock();
-            document.getElementById('menu-title').textContent = 'SINIF DEĞİŞTİR';
-            document.getElementById('menu-subtitle').textContent = 'Yeni piyade sınıfını seç ve çatışmaya dön.';
-            document.getElementById('btn-deploy').textContent = 'SINIFI ONAYLA';
-            menuEl.classList.remove('hidden');
-          } else {
-            menuEl.classList.add('hidden');
+        if (e.code === 'KeyB' && matchState.started && !matchState.ended && !e.repeat) {
+          if (menuHidden) openClassMenu();
+          else {
             initPlayerLoadout(selectedMenuClass);
-            if (canvas.requestPointerLock) {
-              try { canvas.requestPointerLock(); } catch (err) {}
-            }
+            resumeFromPause();
           }
+          keys[e.code] = false;
           return;
         }
 
@@ -10532,12 +10549,6 @@ function buildSquadLeadership() {
           if (classId && !e.repeat) {
             e.preventDefault();
             selectMenuClass(document.querySelector('.class-card[data-class="' + classId + '"]'));
-          } else if (e.code === 'Escape' && matchState.started && !matchState.ended) {
-            e.preventDefault();
-            document.getElementById('menu-overlay').classList.add('hidden');
-            if (canvas.requestPointerLock) {
-              try { canvas.requestPointerLock(); } catch (err) {}
-            }
           }
           keys[e.code] = false;
           return;
@@ -10572,9 +10583,7 @@ function buildSquadLeadership() {
 
       window.addEventListener('keyup', (e) => {
         keys[e.code] = false;
-        if (e.code === 'Tab') {
-          document.getElementById('scoreboard-overlay').classList.add('hidden');
-        }
+        if (e.code === 'Tab') closeScoreboard();
       });
 
       window.addEventListener('blur', () => {
