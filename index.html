@@ -6707,6 +6707,7 @@
       const BOT_METRICS = {
         version: 40, seconds: 0, carry: 0, samples: 0,
         difficulty: {}, classes: {}, teams: {}, actors: {},
+        stuckNodes: {},
         spread: {blue:{sum:0,observations:0,closePairs:0},
                  red:{sum:0,observations:0,closePairs:0}},
         recent: [],
@@ -6728,6 +6729,7 @@
         for (const team of ['blue','red'])
           BOT_METRICS.spread[team] = {sum:0,observations:0,closePairs:0};
         BOT_METRICS.recent.length = 0;
+        BOT_METRICS.stuckNodes = {};
         BOT_METRICS.frame = { count: 0, sumMs: 0, maxMs: 0, slowFrames: 0 };
       }
       function recordBotMetric(bot, field) {
@@ -6742,6 +6744,18 @@
           if (!bucket[id]) bucket[id]=newBotMetricBucket();
           bucket[id][field]++;
         }
+      }
+      // Locate the worst A* recovery hotspots without changing route choice.
+      function recordBotStuckHotspot(bot, nodeIdx) {
+        if (!bot) return;
+        const key = Number.isInteger(nodeIdx) && nodeIdx >= 0 && nodeIdx < 80
+          ? String(nodeIdx) : 'unknown';
+        const bucket = BOT_METRICS.stuckNodes;
+        if (!bucket[key]) bucket[key] = {total:0,classes:{},teams:{}};
+        const row=bucket[key];
+        row.total++;
+        row.classes[bot.classId]=(row.classes[bot.classId]||0)+1;
+        row.teams[bot.team]=(row.teams[bot.team]||0)+1;
       }
       function recordBotShot(bot, hit, drone = false) {
         recordBotMetric(bot,drone?'droneShots':'shots');
@@ -11223,6 +11237,7 @@ function buildSquadLeadership() {
                 const obstructedWp = bot.teamFlankGoalNode >= 0
                   ? bot.teamFlankRoute[bot.teamFlankPathIndex]
                   : (bot.path && bot.path[bot.pathIndex]);
+                recordBotStuckHotspot(bot, obstructedWp);
                 if (obstructedWp !== undefined) {
                   bot.blockedNode = obstructedWp;
                   bot.blockedNodeTimer = 4.5;
