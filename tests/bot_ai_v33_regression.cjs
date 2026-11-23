@@ -56,7 +56,6 @@ function runBotAiV33Regression(html) {
   mates[0].alive = true;
   mates[0].pos.x = 1.15; player.pos.x = 1.2;
   ok(ai.isBotFireLaneClear(bot, enemy), 'Nearby teammates outside line do not block fire');
-  mates[0].pos.set = undefined;
   mates[0].pos.x = 0; mates[0].pos.y = 5; player.alive = false;
   ok(ai.isBotFireLaneClear(bot, enemy), 'Ally on different floor does not block fire');
   mates[0].pos.y = 0; mates[0].pos.z = -3;
@@ -99,6 +98,12 @@ function runBotAiV33Regression(html) {
     'Normal firearm damage is gated on aim and friendly lane');
   ok(html.includes('bot.fireLaneRecoveryGoal = chooseBotFireLaneStep(bot, bestEnemy.eye)'),
     'Live combat loop invokes lane-recovery movement');
+  ok(html.includes('isBotFireLaneClear(bot, visibleEnemyDrone.pos)') &&
+    html.includes('isBotAimAligned(bot, visibleEnemyDrone.pos)'),
+    'Anti-drone fire also respects ally line and body direction');
+  ok(html.includes('isBotFireLaneClear(bot, coverOpp.targetEye)') &&
+    html.includes('isBotAimAligned(bot, coverOpp.targetEye)'),
+    'Covering fire also respects ally line and body direction');
   ok(html.includes("const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;"),
     'Live support loop uses stable medic selection');
   ok((html.match(/fireLaneRecoveryGoal: null/g) || []).length === 2 &&
