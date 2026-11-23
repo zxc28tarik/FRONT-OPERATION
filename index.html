@@ -7327,6 +7327,8 @@ function buildSquadLeadership() {
             classId: cls,
             difficulty: chooseBotDifficultyForSpawn(),
             aimSettleTimer: 0,
+            moveVelX: 0,
+            moveVelZ: 0,
             squadId: i % 3,
             assignedLane: i % 3,
             hp: 100,
@@ -7418,6 +7420,8 @@ function buildSquadLeadership() {
             classId: cls,
             difficulty: chooseBotDifficultyForSpawn(),
             aimSettleTimer: 0,
+            moveVelX: 0,
+            moveVelZ: 0,
             squadId: i % 3,
             assignedLane: i % 3,
             hp: 100,
@@ -7508,6 +7512,8 @@ function buildSquadLeadership() {
         // Each new life counts as one bot spawn, including respawns.
         bot.difficulty = chooseBotDifficultyForSpawn();
         bot.aimSettleTimer = 0;
+        bot.moveVelX = 0;
+        bot.moveVelZ = 0;
         bot.hp = bot.maxHp;
         bot.state = 'ADVANCE';
         bot.assignedLane = bot.squadId;
@@ -9573,6 +9579,48 @@ function buildSquadLeadership() {
         return true;
       }
 
+      // V36: Smooth steering. Path decisions remain in the tactical layer.
+      function computeBotSteeringVelocity(bot, target, speed, desiredX, desiredZ, dt, isIntermediate = false) {
+        if (!Number.isFinite(bot.moveVelX)) bot.moveVelX = 0;
+        if (!Number.isFinite(bot.moveVelZ)) bot.moveVelZ = 0;
+        const step = Math.max(0, Math.min(0.08, dt));
+        const distance = target ? Math.hypot(target.x - bot.pos.x, target.z - bot.pos.z) : Infinity;
+        const intentLength = Math.hypot(desiredX, desiredZ);
+        const hasIntention = !!target && speed > 0 && distance > 0.18;
+        let topSpeed = hasIntention ? speed : Math.min(1.6, intentLength);
+        if (hasIntention && !isIntermediate) {
+          // Decelerate near a FINAL waypoint; intermediates preserve flow.
+          const approachSpeed = Math.sqrt(22 * Math.max(0, distance - 0.32));
+          topSpeed = Math.min(topSpeed, Math.max(0.9, approachSpeed));
+        }
+        // Avoidance impulses stay within movement class speed.
+        topSpeed = Math.max(topSpeed, Math.min(1.5, intentLength));
+        const scale = Math.min(1, topSpeed / Math.max(0.0001, intentLength));
+        const wantX = desiredX * scale, wantZ = desiredZ * scale;
+        const currentSpeed = Math.hypot(bot.moveVelX, bot.moveVelZ);
+        const desiredSpeed = Math.hypot(wantX, wantZ);
+        const dot = currentSpeed > 0.001 && desiredSpeed > 0.001
+          ? (bot.moveVelX * wantX + bot.moveVelZ * wantZ) / (currentSpeed * desiredSpeed) : 1;
+        const braking = desiredSpeed < 0.12 || dot < -0.45;
+        const accel = braking ? 22 : (currentSpeed > desiredSpeed + 0.1 ? 18 : 12.5);
+        const deltaX = wantX - bot.moveVelX, deltaZ = wantZ - bot.moveVelZ;
+        const delta = Math.hypot(deltaX, deltaZ);
+        const fraction = delta > 0.0001 ? Math.min(1, accel * step / delta) : 1;
+        bot.moveVelX += deltaX * fraction;
+        bot.moveVelZ += deltaZ * fraction;
+        const magnitude = Math.hypot(bot.moveVelX, bot.moveVelZ);
+        const maxAllowed = Math.max(topSpeed, Math.min(currentSpeed, speed + 0.3));
+        if (magnitude > maxAllowed && magnitude > 0) {
+          bot.moveVelX *= maxAllowed / magnitude;
+          bot.moveVelZ *= maxAllowed / magnitude;
+        }
+        if (Math.hypot(bot.moveVelX, bot.moveVelZ) < 0.03 && desiredSpeed < 0.03) {
+          bot.moveVelX = 0;
+          bot.moveVelZ = 0;
+        }
+        return { x: bot.moveVelX, z: bot.moveVelZ };
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -9631,6 +9679,8 @@ function buildSquadLeadership() {
 
           const activeBotDrone = bot.classId === 'engineer' ? droneSystem.getOperatorDrone(bot.id) : null;
           if (activeBotDrone) {
+            bot.moveVelX = 0;
+            bot.moveVelZ = 0;
             bot.crouchAmt += (1.0 - bot.crouchAmt) * Math.min(1, dt * 10);
             bot.mesh.root.position.set(bot.pos.x, bot.pos.y - bot.crouchAmt * 0.32, bot.pos.z);
             bot.mesh.root.rotation.set(0, bot.legYaw, 0);
@@ -10357,9 +10407,24 @@ function buildSquadLeadership() {
 
           const beforeMoveX = bot.pos.x;
           const beforeMoveZ = bot.pos.z;
-          bot.pos.x += moveX * dt;
-          bot.pos.z += moveZ * dt;
+          const navIdx = bot.path && bot.path[bot.pathIndex];
+          const navNode = navIdx === undefined ? null : NAV_NODES[navIdx];
+          const isIntermediateWaypoint = !!(navNode && moveTargetPos &&
+            bot.pathIndex < bot.path.length - 1 &&
+            Math.hypot(navNode.x - moveTargetPos.x, navNode.z - moveTargetPos.z) < 0.2);
+          const steer = computeBotSteeringVelocity(
+            bot, moveTargetPos, moveSpeed, moveX, moveZ, dt, isIntermediateWaypoint
+          );
+          bot.pos.x += steer.x * dt;
+          bot.pos.z += steer.z * dt;
           resolveHorizontalCollision(bot.pos, 0.42, 1.7);
+          // Avoid carrying fictitious momentum through solid walls.
+          if (dt > 0.001) {
+            const vx = (bot.pos.x - beforeMoveX) / dt;
+            const vz = (bot.pos.z - beforeMoveZ) / dt;
+            if (Math.abs(vx - steer.x) > 0.4) bot.moveVelX = vx;
+            if (Math.abs(vz - steer.z) > 0.4) bot.moveVelZ = vz;
+          }
 
           const targetFloorY = getFloorHeightAt(bot.pos.x, bot.pos.z, bot.pos.y + 0.45);
           if (bot.pos.y < targetFloorY) {
@@ -10424,7 +10489,7 @@ function buildSquadLeadership() {
             bot.pos.x - beforeMoveX, bot.pos.z - beforeMoveZ
           ) / Math.max(0.001, dt);
           if (actualSpeed > 0.35) {
-            const targetLegYaw = Math.atan2(moveX, moveZ);
+            const targetLegYaw = Math.atan2(bot.moveVelX, bot.moveVelZ);
             bot.legYaw = lerpAngle(bot.legYaw, targetLegYaw, dt * 10);
           } else {
             bot.legYaw = lerpAngle(bot.legYaw, desiredUpperYaw, dt * 5);
@@ -10443,6 +10508,7 @@ function buildSquadLeadership() {
           bot.mesh.head.rotation.x = -bot.aimPitch * 0.65;
 
           if (actualSpeed > 0.4) {
+            bot.mesh.upperBody.position.y = 0.93;
             bot.animPhase += dt * actualSpeed * 2.35;
             const swing = Math.sin(bot.animPhase) * 0.62;
             bot.mesh.leftHip.rotation.x = swing;
