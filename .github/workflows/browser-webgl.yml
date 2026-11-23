@@ -7,6 +7,7 @@ on:
       - ai/v34-squad-passage-cover
       - ai/v35-difficulty-mix-medium-aim
       - ai/v36-natural-movement-steering
+      - ai/v37-observed-target-tracking
   workflow_dispatch:
 
 jobs:
