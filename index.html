@@ -7327,6 +7327,12 @@ function buildSquadLeadership() {
             classId: cls,
             difficulty: chooseBotDifficultyForSpawn(),
             aimSettleTimer: 0,
+            aimTrackTargetId: null,
+            aimTrackPoint: null,
+            aimTrackSeenEye: null,
+            aimTrackVelocity: null,
+            aimTrackSampleTimer: 0,
+            aimTrackElapsed: 0,
             moveVelX: 0,
             moveVelZ: 0,
             combatStrafeGoal: null,
@@ -7422,6 +7428,12 @@ function buildSquadLeadership() {
             classId: cls,
             difficulty: chooseBotDifficultyForSpawn(),
             aimSettleTimer: 0,
+            aimTrackTargetId: null,
+            aimTrackPoint: null,
+            aimTrackSeenEye: null,
+            aimTrackVelocity: null,
+            aimTrackSampleTimer: 0,
+            aimTrackElapsed: 0,
             moveVelX: 0,
             moveVelZ: 0,
             combatStrafeGoal: null,
@@ -7516,6 +7528,7 @@ function buildSquadLeadership() {
         // Each new life counts as one bot spawn, including respawns.
         bot.difficulty = chooseBotDifficultyForSpawn();
         bot.aimSettleTimer = 0;
+        resetBotAimTracking(bot);
         bot.moveVelX = 0;
         bot.moveVelZ = 0;
         bot.combatStrafeGoal = null;
@@ -7865,6 +7878,7 @@ function buildSquadLeadership() {
                 ? 0.11 * getBotSkillProfile(bot).reactionScale
                 : computeReactionDelay(bot, bestPerc);
               bot.aimSettleTimer = 0;
+              resetBotAimTracking(bot);
             }
             // Snapshot observed positions; never retain mutable references
             // to enemy world coordinates after losing visual contact.
@@ -7890,6 +7904,7 @@ function buildSquadLeadership() {
             bot.targetId = null;
             bot.reactionTimer = 0;
             bot.aimSettleTimer = 0;
+            resetBotAimTracking(bot);
             bot.targetLockTimer = 0;
           }
         } else if (bot.visibleEnemy) {
@@ -7905,6 +7920,7 @@ function buildSquadLeadership() {
             bot.targetId = null;
             bot.reactionTimer = 0;
             bot.aimSettleTimer = 0;
+            resetBotAimTracking(bot);
             bot.targetLockTimer = 0;
           } else {
             bot.visibleEnemy = {
@@ -9372,6 +9388,79 @@ function buildSquadLeadership() {
           ? pos : fallback.clone();
       }
 
+      // V37: Track only visible, verified target snapshots. No real-time
+      // coordinates are read from an enemy after line of sight is lost.
+      function resetBotAimTracking(bot) {
+        bot.aimTrackTargetId = null;
+        bot.aimTrackPoint = null;
+        bot.aimTrackSeenEye = null;
+        bot.aimTrackVelocity = null;
+        bot.aimTrackSampleTimer = 0;
+        bot.aimTrackElapsed = 0;
+      }
+
+      function updateBotAimTracking(bot, observedEnemy, dt) {
+        if (!observedEnemy || !observedEnemy.eye) {
+          resetBotAimTracking(bot);
+          return null;
+        }
+        const eye = observedEnemy.eye;
+        const frame = Math.max(0, Math.min(0.08, dt));
+        if (bot.aimTrackTargetId !== observedEnemy.id ||
+            !bot.aimTrackPoint || !bot.aimTrackSeenEye) {
+          bot.aimTrackTargetId = observedEnemy.id;
+          bot.aimTrackPoint = eye.clone();
+          bot.aimTrackSeenEye = eye.clone();
+          bot.aimTrackVelocity = new THREE.Vector3();
+          bot.aimTrackSampleTimer = 0.12;
+          bot.aimTrackElapsed = 0;
+          return bot.aimTrackPoint;
+        }
+        bot.aimTrackElapsed += frame;
+        bot.aimTrackSampleTimer -= frame;
+        if (bot.aimTrackSampleTimer <= 0) {
+          const elapsed = Math.max(0.08, bot.aimTrackElapsed);
+          const movement = new THREE.Vector3().subVectors(eye, bot.aimTrackSeenEye);
+          // Fast rolls/teleports must not make the AI predict impossible
+          // velocities or fire through walls at where an enemy could be.
+          const speed = movement.length() / elapsed;
+          if (speed > 0.01) movement.multiplyScalar(Math.min(1, 7 / speed) / elapsed);
+          else movement.set(0, 0, 0);
+          bot.aimTrackVelocity.lerp(movement, 0.56);
+          bot.aimTrackSeenEye.copy(eye);
+          bot.aimTrackSampleTimer = 0.12;
+          bot.aimTrackElapsed = 0;
+        }
+        // A short, bounded lead makes a strafe readable without wallhacks.
+        // Both hard and expert have the SAME tracking rate and medium settle.
+        const extrapolateSec = Math.min(0.12, bot.aimTrackElapsed + 0.055);
+        const desired = bot.aimTrackSeenEye.clone()
+          .addScaledVector(bot.aimTrackVelocity, extrapolateSec);
+        bot.aimTrackPoint.lerp(desired, Math.min(1, frame * 8));
+        return bot.aimTrackPoint;
+      }
+
+      function getBotAimTrackingFactor(bot, targetEye) {
+        if (!bot.aimTrackPoint || !targetEye) return 1;
+        const trackingError = bot.aimTrackPoint.distanceTo(targetEye);
+        return Math.max(0.48, Math.min(1, 1 - trackingError * 0.24));
+      }
+
+      function getBotVisibleMissPoint(botEye, targetEye, trackedEye, range) {
+        const dx = targetEye.x - botEye.x, dz = targetEye.z - botEye.z;
+        const horizontal = Math.max(0.1, Math.hypot(dx, dz));
+        const rightX = dz / horizontal, rightZ = -dx / horizontal;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const offset = 1.30 + Math.random() * 0.75 + Math.min(0.65, range * 0.015);
+        const trackingDeviationX = trackedEye ? (trackedEye.x - targetEye.x) * 0.22 : 0;
+        const trackingDeviationZ = trackedEye ? (trackedEye.z - targetEye.z) * 0.22 : 0;
+        return new THREE.Vector3(
+          targetEye.x + rightX * side * offset + trackingDeviationX,
+          targetEye.y + (Math.random() - 0.5) * 0.55,
+          targetEye.z + rightZ * side * offset + trackingDeviationZ
+        );
+      }
+
       // V33: Keep upper-body aim, sightline and friendly fire in agreement.
       function isBotAimAligned(bot, targetEye, tolerance = 0.34) {
         const yaw = Math.atan2(targetEye.x - bot.pos.x, targetEye.z - bot.pos.z);
@@ -9739,6 +9828,7 @@ function buildSquadLeadership() {
 
           updateBotPerception(bot, dt, targetClaimCounts);
           const bestEnemy = bot.visibleEnemy;
+          const trackedEnemyEye = updateBotAimTracking(bot, bestEnemy, dt);
           const isReactionReady = bestEnemy && bot.reactionTimer >= bot.reactionRequired;
           const skill = getBotSkillProfile(bot);
           // All three difficulties use MEDIUM aim-settle speed (0.34 s).
@@ -9773,8 +9863,8 @@ function buildSquadLeadership() {
             bot.supportGoalNode = -1;
             bot.rallyGoalNode = -1;
             const distToEnemy = Math.hypot(bestEnemy.pos.x - bot.pos.x, bestEnemy.pos.z - bot.pos.z);
-            desiredUpperYaw = Math.atan2(bestEnemy.pos.x - bot.pos.x, bestEnemy.pos.z - bot.pos.z);
-            const dyAim = (bestEnemy.eye.y - 0.12) - (bot.pos.y + 1.42);
+            desiredUpperYaw = Math.atan2(trackedEnemyEye.x - bot.pos.x, trackedEnemyEye.z - bot.pos.z);
+            const dyAim = (trackedEnemyEye.y - 0.12) - (bot.pos.y + 1.42);
             bot.aimPitch = Math.max(-0.65, Math.min(0.65, Math.atan2(dyAim, Math.max(0.5, distToEnemy))));
 
             const woundedThreshold = bot.classId === 'heavy' ? 52 : 42;
@@ -9989,18 +10079,17 @@ function buildSquadLeadership() {
               const distFactor = Math.max(0.14, 1 - distToEnemy / 62);
               const classAcc = botWeaponId === 'mrad' ? 0.62 : botWeaponId === 'hk416' ? 0.38 : 0.30;
               const targetEvasion = bestEnemy.rolling ? 0.32 : (bestEnemy.crouching ? 0.82 : 1.0);
+              const trackingFactor = getBotAimTrackingFactor(bot, bestEnemy.eye);
               const hitChance = Math.min(0.75, classAcc * distFactor * targetEvasion *
-                skill.accuracyScale);
+                skill.accuracyScale * trackingFactor);
 
               const aimDir = new THREE.Vector3().subVectors(bestEnemy.eye, botEye).normalize();
-              const spreadDir = aimDir.clone().add(new THREE.Vector3(
-                (Math.random() - 0.5) * 0.08,
-                (Math.random() - 0.5) * 0.06,
-                (Math.random() - 0.5) * 0.08
-              )).normalize();
-
               const hitSuccess = Math.random() < hitChance;
-              const endTracer = hitSuccess ? bestEnemy.eye.clone() : botEye.clone().addScaledVector(spreadDir, Math.min(distToEnemy + 4, 45));
+              // A miss visibly clears the target silhouette rather than
+              // using a near-center tracer that secretly does no damage.
+              const endTracer = hitSuccess
+                ? bestEnemy.eye.clone()
+                : getBotVisibleMissPoint(botEye, bestEnemy.eye, trackedEnemyEye, distToEnemy);
               spawnTracer(getBotVisibleMuzzlePosition(bot, botEye.clone().addScaledVector(aimDir, 0.55)), endTracer, bw.category);
 
               if (hitSuccess) {
