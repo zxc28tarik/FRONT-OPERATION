@@ -10,6 +10,7 @@ on:
       - ai/v37-observed-target-tracking
       - ai/v38-squad-tactics
       - ai/v39-acoustic-investigation
+      - ai/v40-bot-telemetry-balance
   workflow_dispatch:
 
 jobs:
