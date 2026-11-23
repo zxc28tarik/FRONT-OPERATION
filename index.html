@@ -7087,6 +7087,12 @@ function buildSquadLeadership() {
         blue: { sightings: {}, retreatAlerts: [] },
         red:  { sightings: {}, retreatAlerts: [] }
       };
+      // V38: Team tactics use verified and time-limited radio sightings,
+      // never the live position of an enemy behind walls.
+      const TEAM_TACTICS = {
+        blue: { focusId: null, focusPos: null, nextReview: 0, lockedUntil: 0 },
+        red: { focusId: null, focusPos: null, nextReview: 0, lockedUntil: 0 }
+      };
       // Simulated match time: pause and browser tab suspensions do not silently
       // age team sightings or tactical decisions while gameplay is stopped.
       let botAiClockSec = 0;
@@ -7097,6 +7103,12 @@ function buildSquadLeadership() {
         TEAM_INTEL.blue.retreatAlerts = [];
         TEAM_INTEL.red.sightings = {};
         TEAM_INTEL.red.retreatAlerts = [];
+        for (const team of ['blue', 'red']) {
+          TEAM_TACTICS[team].focusId = null;
+          TEAM_TACTICS[team].focusPos = null;
+          TEAM_TACTICS[team].nextReview = 0;
+          TEAM_TACTICS[team].lockedUntil = 0;
+        }
       }
 
       function pruneTeamIntel(nowSec) {
@@ -7220,6 +7232,139 @@ function buildSquadLeadership() {
         return bestOpp;
       }
 
+      // V38: Stable, class-aware team jobs. A single assault soldier
+      // can flank, so the remainder does not blindly follow the same lane.
+      function refreshTeamBattlePlans(nowSec) {
+        for (const team of ['blue', 'red']) {
+          const order = TEAM_TACTICS[team];
+          if (nowSec < order.nextReview) continue;
+          order.nextReview = nowSec + 0.75;
+          const roster = bots.filter(b => b.alive && b.team === team);
+          roster.forEach(b => {
+            b.teamRole = b.classId === 'medic' ? 'SUPPORT'
+              : b.classId === 'engineer' ? 'RECON'
+              : b.classId === 'sniper' ? 'OVERWATCH'
+              : b.classId === 'heavy' ? 'PIN' : 'POINT';
+          });
+          const flank = roster.find(b => b.classId === 'assault' && b.hp >= 48);
+          if (flank) flank.teamRole = 'FLANK';
+          const sightings = TEAM_INTEL[team].sightings;
+          const fresh = Object.values(sightings)
+            .filter(s => s && isEntityStillAlive(s.targetId) &&
+              nowSec >= s.timestamp && nowSec - s.timestamp < Math.min(s.ttl, 2.6))
+            .sort((a, b) => b.timestamp - a.timestamp ||
+              String(a.targetId).localeCompare(String(b.targetId)));
+          if (!fresh.length) {
+            order.focusId = null;
+            order.focusPos = null;
+            continue;
+          }
+          const keep = sightings[order.focusId];
+          const stillRelevant = keep && isEntityStillAlive(keep.targetId) &&
+            nowSec - keep.timestamp < 2.6;
+          const chosen = stillRelevant && nowSec < order.lockedUntil
+            ? keep : fresh[0];
+          if (chosen.targetId !== order.focusId) order.lockedUntil = nowSec + 1.5;
+          order.focusId = chosen.targetId;
+          order.focusPos = chosen.pos.clone();
+        }
+      }
+
+      function findTeamFlankRoute(bot, observedPoint) {
+        const teamMembers = bots.filter(b => b.alive && b.team === bot.team);
+        if (!teamMembers.length) return null;
+        const centerX = teamMembers.reduce((sum, b) => sum + b.pos.x, 0) / teamMembers.length;
+        const centerZ = teamMembers.reduce((sum, b) => sum + b.pos.z, 0) / teamMembers.length;
+        const vx = observedPoint.x - centerX, vz = observedPoint.z - centerZ;
+        const len = Math.max(0.1, Math.hypot(vx, vz));
+        const ux = vx / len, uz = vz / len;
+        const options = [];
+        for (let i = 0; i < NAV_NODES.length; i++) {
+          const n = NAV_NODES[i];
+          if (Math.abs(n.y - bot.pos.y) > 1.35) continue;
+          const fromBot = Math.hypot(n.x - bot.pos.x, n.z - bot.pos.z);
+          const fromThreat = Math.hypot(n.x - observedPoint.x, n.z - observedPoint.z);
+          const offset = Math.abs((n.x - centerX) * uz - (n.z - centerZ) * ux);
+          if (fromBot < 3.5 || fromBot > 30 || fromThreat < 9 ||
+              fromThreat > 28 || offset < 7.5 ||
+              !isPositionWalkable(n.x, n.y, n.z)) continue;
+          const sameNode = teamMembers.some(ally => ally.id !== bot.id &&
+            Math.abs(ally.pos.y - n.y) < 1.4 &&
+            Math.hypot(ally.pos.x - n.x, ally.pos.z - n.z) < 2.0);
+          if (sameNode) continue;
+          const score = fromBot * 0.85 + Math.abs(fromThreat - 16) * 0.35 -
+            Math.min(17, offset) * 0.65;
+          options.push({ node: i, score });
+        }
+        options.sort((a, b) => a.score - b.score || a.node - b.node);
+        const start = findNearestNavNode(bot.pos);
+        for (const option of options.slice(0, 9)) {
+          const route = findPathAStar(start, option.node, bot.blockedNode);
+          if (route.length > 1 && route[0] === start &&
+              route[route.length - 1] === option.node) {
+            return { node: option.node, route, observedPoint: observedPoint.clone() };
+          }
+        }
+        return null;
+      }
+
+      function getTeamFlankWaypoint(bot, nowSec) {
+        const order = TEAM_TACTICS[bot.team];
+        if (bot.teamRole !== 'FLANK' || !bot.visibleEnemy ||
+            !order || !order.focusPos ||
+            order.focusId !== bot.visibleEnemy.id ||
+            bot.hp < 55 || bot.pos.distanceTo(order.focusPos) < 12) return null;
+        const newFocus = bot.teamFlankTargetId !== order.focusId;
+        const shifted = bot.teamFlankThreatAnchor &&
+          bot.teamFlankThreatAnchor.distanceTo(order.focusPos) > 9;
+        if (newFocus || (shifted && nowSec >= bot.teamFlankCommitUntil)) {
+          bot.teamFlankGoalNode = -1;
+          bot.teamFlankRoute = [];
+          bot.teamFlankPathIndex = 0;
+        }
+        if (bot.teamFlankGoalNode === -1) {
+          if (nowSec < bot.teamFlankRestUntil) return null;
+          const choice = findTeamFlankRoute(bot, order.focusPos);
+          bot.teamFlankRestUntil = nowSec + (choice ? 0.7 : 2.1);
+          if (!choice) return null;
+          bot.teamFlankTargetId = order.focusId;
+          bot.teamFlankGoalNode = choice.node;
+          bot.teamFlankThreatAnchor = choice.observedPoint;
+          bot.teamFlankRoute = choice.route;
+          bot.teamFlankPathIndex = 0;
+          bot.teamFlankCommitUntil = nowSec + 3.0;
+        }
+        const route = bot.teamFlankRoute;
+        while (route && bot.teamFlankPathIndex < route.length) {
+          const wp = NAV_NODES[route[bot.teamFlankPathIndex]];
+          if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) >= 1.2 ||
+              Math.abs(wp.y - bot.pos.y) >= 1.4)
+            return new THREE.Vector3(wp.x, wp.y, wp.z);
+          bot.teamFlankPathIndex++;
+        }
+        bot.teamFlankGoalNode = -1;
+        bot.teamFlankRoute = [];
+        bot.teamFlankRestUntil = nowSec + 2.4;
+        return null;
+      }
+
+      function getTeamPinningOpportunity(bot, eye, nowSec) {
+        if (bot.teamRole !== 'PIN' || bot.hp < 50) return null;
+        const order = TEAM_TACTICS[bot.team];
+        if (!order || !order.focusId || !order.focusPos) return null;
+        const intel = TEAM_INTEL[bot.team].sightings[order.focusId];
+        if (!intel || nowSec - intel.timestamp > 1.6 ||
+            !isEntityStillAlive(intel.targetId) || intel.reporterId === bot.id) return null;
+        const dist = Math.hypot(intel.pos.x - bot.pos.x, intel.pos.z - bot.pos.z);
+        if (dist < 10 || dist > 34) return null;
+        const targetEye = new THREE.Vector3(intel.pos.x, intel.pos.y + 1.35, intel.pos.z);
+        if (!hasLineOfSight(eye, targetEye)) return null;
+        return {
+          threatPos: intel.pos.clone(), targetEye,
+          threatId: intel.targetId, allyId: intel.reporterId
+        };
+      }
+
       function getLaneFromX(x) {
         if (x < -17.5) return 0;
         if (x > 17.5) return 2;
@@ -7327,6 +7472,14 @@ function buildSquadLeadership() {
             classId: cls,
             difficulty: chooseBotDifficultyForSpawn(),
             aimSettleTimer: 0,
+            teamRole: 'POINT',
+            teamFlankTargetId: null,
+            teamFlankThreatAnchor: null,
+            teamFlankGoalNode: -1,
+            teamFlankRoute: [],
+            teamFlankPathIndex: 0,
+            teamFlankCommitUntil: 0,
+            teamFlankRestUntil: 0,
             aimTrackTargetId: null,
             aimTrackPoint: null,
             aimTrackSeenEye: null,
@@ -7428,6 +7581,14 @@ function buildSquadLeadership() {
             classId: cls,
             difficulty: chooseBotDifficultyForSpawn(),
             aimSettleTimer: 0,
+            teamRole: 'POINT',
+            teamFlankTargetId: null,
+            teamFlankThreatAnchor: null,
+            teamFlankGoalNode: -1,
+            teamFlankRoute: [],
+            teamFlankPathIndex: 0,
+            teamFlankCommitUntil: 0,
+            teamFlankRestUntil: 0,
             aimTrackTargetId: null,
             aimTrackPoint: null,
             aimTrackSeenEye: null,
@@ -7529,6 +7690,14 @@ function buildSquadLeadership() {
         bot.difficulty = chooseBotDifficultyForSpawn();
         bot.aimSettleTimer = 0;
         resetBotAimTracking(bot);
+        bot.teamRole = 'POINT';
+        bot.teamFlankTargetId = null;
+        bot.teamFlankThreatAnchor = null;
+        bot.teamFlankGoalNode = -1;
+        bot.teamFlankRoute = [];
+        bot.teamFlankPathIndex = 0;
+        bot.teamFlankCommitUntil = 0;
+        bot.teamFlankRestUntil = 0;
         bot.moveVelX = 0;
         bot.moveVelZ = 0;
         bot.combatStrafeGoal = null;
@@ -9772,6 +9941,7 @@ function buildSquadLeadership() {
         botAiClockSec += dt;
         const nowSec = botAiClockSec;
         pruneTeamIntel(nowSec);
+        refreshTeamBattlePlans(nowSec);
 
         const targetClaimCounts = {};
         const { squadRallyPos, squadLeaderId } = buildSquadLeadership();
@@ -9854,6 +10024,9 @@ function buildSquadLeadership() {
           }
           const isAimSettled = bot.aimSettleTimer >= skill.aimSettleSec;
           if (!bestEnemy) {
+            bot.teamFlankGoalNode = -1;
+            bot.teamFlankRoute = [];
+            bot.teamFlankPathIndex = 0;
             bot.combatStrafeGoal = null;
             bot.combatStrafeTargetId = null;
             bot.fireLaneBlockTimer = 0;
@@ -9889,6 +10062,8 @@ function buildSquadLeadership() {
             }
 
             if (isWounded || isSniperTooClose) {
+              bot.teamFlankGoalNode = -1;
+              bot.teamFlankRoute = [];
               bot.combatStrafeGoal = null;
               const targetRetreatState = isSniperTooClose ? 'RETREAT' : 'TAKE_COVER';
               setBotState(bot, targetRetreatState, 1.25, distToEnemy < 7.5 || bot.hp < 28);
@@ -10032,6 +10207,19 @@ function buildSquadLeadership() {
                 if (bot.combatStrafeGoal) moveTargetPos = bot.combatStrafeGoal;
                 moveSpeed = bot.classId === 'sniper' ? 1.8 : 3.4;
                 targetCrouch = (bot.classId === 'sniper' || distToEnemy > 24) ? 0.65 : 0;
+              }
+            }
+
+            // A single squad flanker can approach the same observed enemy
+            // from another navigable lane, without overruling emergency retreat.
+            if (!isWounded && !isSniperTooClose) {
+              const flankWp = getTeamFlankWaypoint(bot, nowSec);
+              if (flankWp) {
+                bot.coverNode = -1;
+                bot.coverPhase = 'NONE';
+                moveTargetPos = flankWp;
+                moveSpeed = 4.1;
+                targetCrouch = 0.1;
               }
             }
 
@@ -10185,7 +10373,10 @@ function buildSquadLeadership() {
                 }
               }
             } else {
-              const coverOpp = !isWounded ? findCoveringFireOpportunity(bot, botEyeNoTarget, nowSec) : null;
+              const coverOpp = !isWounded
+                ? (findCoveringFireOpportunity(bot, botEyeNoTarget, nowSec) ||
+                   getTeamPinningOpportunity(bot, botEyeNoTarget, nowSec))
+                : null;
               if (coverOpp) {
                 setBotState(bot, 'SUPPORT_ALLY', 0.85);
                 bot.suppressTargetPos = coverOpp.threatPos;
@@ -10607,13 +10798,20 @@ function buildSquadLeadership() {
 
                 // Preserve the tactical objective: seek a different route
                 // before requesting a new random assignment.
-                const goal = bot.coverNode !== -1 ? bot.coverNode :
+                const goal = bot.teamFlankGoalNode >= 0 ? bot.teamFlankGoalNode :
+                  (bot.coverNode !== -1 ? bot.coverNode :
                   (bot.supportGoalNode !== -1 ? bot.supportGoalNode :
                   (bot.lastKnownEnemyPos && bot.investigateTimer > 0 && !bot.visibleEnemy
-                    ? findNearestNavNode(bot.lastKnownEnemyPos) : bot.goalNode));
+                    ? findNearestNavNode(bot.lastKnownEnemyPos) : bot.goalNode)));
                 if (goal >= 0 && goal < NAV_NODES.length) {
-                  bot.path = findPathAStar(findNearestNavNode(bot.pos), goal, bot.blockedNode);
-                  bot.pathIndex = 0;
+                  const recovered = findPathAStar(findNearestNavNode(bot.pos), goal, bot.blockedNode);
+                  if (bot.teamFlankGoalNode >= 0) {
+                    bot.teamFlankRoute = recovered;
+                    bot.teamFlankPathIndex = 0;
+                  } else {
+                    bot.path = recovered;
+                    bot.pathIndex = 0;
+                  }
                 }
                 const escape = findBotEscapePoint(bot, moveTargetPos);
                 if (escape) {
@@ -10628,6 +10826,9 @@ function buildSquadLeadership() {
                   bot.coverPhase = 'NONE';
                   bot.investigateGoalNode = -1;
                   bot.supportGoalNode = -1;
+                  bot.teamFlankGoalNode = -1;
+                  bot.teamFlankRoute = [];
+                  bot.teamFlankRestUntil = nowSec + 3;
                   assignBotTacticalGoal(bot);
                 }
               } else {
