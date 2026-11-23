@@ -9421,8 +9421,18 @@ function buildSquadLeadership() {
         if (bot.aimTrackSampleTimer <= 0) {
           const elapsed = Math.max(0.08, bot.aimTrackElapsed);
           const movement = new THREE.Vector3().subVectors(eye, bot.aimTrackSeenEye);
-          // Fast rolls/teleports must not make the AI predict impossible
-          // velocities or fire through walls at where an enemy could be.
+          // An observed discontinuity is not a valid velocity sample.
+          // Reacquire after teleports/respawns, never extrapolate the jump.
+          if (movement.length() > Math.max(2.4, elapsed * 10)) {
+            bot.aimTrackPoint.copy(eye);
+            bot.aimTrackSeenEye.copy(eye);
+            bot.aimTrackVelocity.set(0, 0, 0);
+            bot.aimSettleTimer = 0;
+            bot.aimTrackSampleTimer = 0.12;
+            bot.aimTrackElapsed = 0;
+            return bot.aimTrackPoint;
+          }
+          // Only plausible observed motion may contribute to lead.
           const speed = movement.length() / elapsed;
           if (speed > 0.01) movement.multiplyScalar(Math.min(1, 7 / speed) / elapsed);
           else movement.set(0, 0, 0);
