@@ -7365,6 +7365,19 @@ function buildSquadLeadership() {
         };
       }
 
+      // Test-only, read-only diagnostics: available solely on the local
+      // Chromium QA server, never on a normal hosted game or file:// load.
+      if (typeof location !== 'undefined' && location.hostname === '127.0.0.1') {
+        window.__frontOperationAiQaSnapshot = () => ({
+          members: bots.map(b => ({
+            id: b.id, team: b.team, classId: b.classId,
+            role: b.teamRole, difficulty: b.difficulty
+          })),
+          started: matchState.started,
+          tacticTeams: Object.keys(TEAM_TACTICS)
+        });
+      }
+
       function getLaneFromX(x) {
         if (x < -17.5) return 0;
         if (x > 17.5) return 2;
