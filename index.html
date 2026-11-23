@@ -2692,6 +2692,51 @@
         scene.add(ground);
         mapEnvironmentMeshes.push(ground);
 
+        // V26D environmental finishing: thin paint, drainage and floor wear are visual only.
+        // No solid boxes, navigation nodes, cover or collision geometry are added here.
+        const matLaneMark = new THREE.MeshStandardMaterial({
+          color: 0xa5a69a, roughness: 0.98, metalness: 0.0, transparent: true, opacity: 0.46,
+          polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+        });
+        const matFadedYellow = new THREE.MeshStandardMaterial({
+          color: 0x9e8b48, roughness: 0.94, transparent: true, opacity: 0.55,
+          polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+        });
+        const matDrainIron = new THREE.MeshStandardMaterial({
+          color: 0x343c45, roughness: 0.77, metalness: 0.54
+        });
+        const matWallWatermark = new THREE.MeshStandardMaterial({
+          color: 0x39424a, roughness: 1, transparent: true, opacity: 0.28, depthWrite: false
+        });
+        const paintDash = new THREE.PlaneGeometry(0.13, 2.0);
+        const warehouseGuide = new THREE.PlaneGeometry(0.11, 6);
+        const drainPlate = new THREE.PlaneGeometry(0.63, 1.52);
+        const drainSlit = new THREE.PlaneGeometry(0.042, 1.12);
+        function addGroundPaint(geo, mat, x, z) {
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.rotation.x = -Math.PI / 2;
+          mesh.position.set(x, 0.014, z);
+          mesh.receiveShadow = true;
+          scene.add(mesh);
+          mapEnvironmentMeshes.push(mesh);
+        }
+        // Discontinuous center markings avoid making the whole floor too bright.
+        for (let z = -36; z <= 36; z += 7.5) {
+          addGroundPaint(paintDash, matLaneMark, 8.7, z);
+        }
+        // Faded safety borders inside the existing west-side warehouse.
+        for (let z = -35; z <= 35; z += 9) {
+          addGroundPaint(warehouseGuide, matFadedYellow, -21.0, z);
+          addGroundPaint(warehouseGuide, matFadedYellow, -36.5, z);
+        }
+        // Flush drainage insets, kept off main center combat routes.
+        for (const z of [-32, -12, 12, 32]) {
+          addGroundPaint(drainPlate, matDrainIron, 35.6, z);
+          for (const dx of [-0.18, -0.06, 0.06, 0.18]) {
+            addGroundPaint(drainSlit, matAsphalt, 35.6 + dx, z);
+          }
+        }
+
         // Perimeter Walls + Concrete Coping & Pilasters
         addSolidBox(0, 4.5, 62, 84, 9, 2, matWeathered);
         addSolidBox(0, 4.5, -62, 84, 9, 2, matWeathered);
@@ -2709,6 +2754,18 @@
         for (let z = -54; z <= 54; z += 12) {
           addDecoMesh(pilasterGeo, matConcrete, -39.9, 4.5, z);
           addDecoMesh(pilasterGeo, matConcrete, 39.9, 4.5, z);
+        }
+
+        // Subtle vertical water traces on existing concrete perimeter walls.
+        const rainStripGeo = new THREE.PlaneGeometry(0.16, 3.6);
+        for (let z = -48; z <= 48; z += 16) {
+          for (const wallX of [-39.982, 39.982]) {
+            const stain = new THREE.Mesh(rainStripGeo, matWallWatermark);
+            stain.rotation.y = wallX < 0 ? Math.PI / 2 : -Math.PI / 2;
+            stain.position.set(wallX, 4.25, z + 0.28);
+            scene.add(stain);
+            mapEnvironmentMeshes.push(stain);
+          }
         }
 
         const lockCornerGeo = new THREE.BoxGeometry(0.24, 0.24, 0.24);
