@@ -49,6 +49,16 @@ try {
       stuckRecoveries:s.stuckRecoveries||0,
       acousticInvestigations:s.heard||0}];
   }));
+  const hotNodes=Object.entries(stats.stuckNodes||{})
+    .map(([nodeId, row])=>({nodeId,count:row.total,
+      classes:row.classes,teams:row.teams}))
+    .sort((a,b)=>b.count-a.count).slice(0,8);
+  const allHotspots=Object.values(stats.stuckNodes||{})
+    .reduce((sum,row)=>sum+row.total,0);
+  const allRecoveries=Object.values(stats.classes)
+    .reduce((sum,row)=>sum+row.stuckRecoveries,0);
+  if(allHotspots!==allRecoveries)
+    throw Error('Route hotspot totals do not match stuck recovery count');
   const totalShots=difficulties.reduce((n,k)=>n+byDifficulty[k].shots,0);
   const totalHits=difficulties.reduce((n,k)=>n+byDifficulty[k].hits,0);
   if(totalHits>totalShots||stats.recent.length>20||
@@ -78,6 +88,11 @@ try {
     blueSpread:stats.spread.blue.meanRadius,
     redSpread:stats.spread.red.meanRadius,
     recentSampleCount:stats.recent.length,
+    hotspots:hotNodes,
+    totalStuckRecoveries:allRecoveries,
+    byBot:Object.fromEntries(Object.entries(stats.actors).map(([id,row])=>
+      [id,{shots:row.shots,hits:row.hits,kills:row.kills,
+        deaths:row.deaths,stuckRecoveries:row.stuckRecoveries}])),
     pageErrors:errors
   };
   console.log('PASS V40 accelerated 600s real bot logic stress: '+
