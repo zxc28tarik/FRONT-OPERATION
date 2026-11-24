@@ -9434,7 +9434,20 @@
 
         if (cand.hp < 35) score -= 5.0;
 
-        score += (targetClaimCounts[cand.id] || 0) * 8.5;
+        // V64: the frame's claim count includes this bot's own existing
+        // target. Only other teammates should contribute to the spread penalty.
+        const otherClaims = Math.max(0, (targetClaimCounts[cand.id] || 0) -
+          (cand.id === bot.targetId ? 1 : 0));
+        score += otherClaims * 8.5;
+
+        // A briefly occluded, now visibly reacquired contact is preferred
+        // modestly over an otherwise equivalent new one. No hidden target
+        // or aim progress is restored; perception and reaction gates still apply.
+        const recent = bot.contactOpportunity;
+        if (!bot.targetId && recent && cand.id === recent.id) {
+          const age = botAiClockSec - recent.lastSeen;
+          if (age >= 0 && age <= 0.65) score -= 4.0 * (1 - age / 0.65);
+        }
 
         if (cand.id === bot.targetId && bot.targetLockTimer > 0) {
           score -= 11.0;

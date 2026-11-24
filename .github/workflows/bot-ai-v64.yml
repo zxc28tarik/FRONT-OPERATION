@@ -1,0 +1,71 @@
+name: V64 paired long-match validation
+on:
+  push:
+    branches:
+      - ai/v64-target-stability
+    paths:
+      - .github/workflows/bot-ai-v64.yml
+      - scripts/browser-bomb-full-round.mjs
+      - scripts/browser-bot-ai-stress.mjs
+      - scripts/compare-v63-integrated.mjs
+      - index.html
+  workflow_dispatch:
+jobs:
+  paired:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [471001, 471002, 471003]
+        mode: [marien, bomb]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run both versions with the same starting seed
+        shell: bash
+        env:
+          FRONT_OPERATION_SEED: ${{ matrix.seed }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          git show 72ff598634a31e73a2358c6fb4eaafa01839571a:index.html > /tmp/front-operation-v63.html
+          if [ "$MODE" = "marien" ]; then script=scripts/browser-bot-ai-stress.mjs; else script=scripts/browser-bomb-full-round.mjs; fi
+          FRONT_OPERATION_VARIANT=baseline FRONT_OPERATION_GAME_FILE=/tmp/front-operation-v63.html node "$script"
+          FRONT_OPERATION_VARIANT=candidate FRONT_OPERATION_GAME_FILE=index.html node "$script"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v63-${{ matrix.mode }}-${{ matrix.seed }}
+          path: test-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+  comparison:
+    runs-on: ubuntu-24.04
+    needs: paired
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: v63-*
+          path: test-artifacts
+          merge-multiple: true
+      - run: node scripts/compare-v63-integrated.mjs
+        env:
+          FRONT_OPERATION_BASELINE_LABEL: V63
+          FRONT_OPERATION_CANDIDATE_LABEL: V64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v63-comparison
+          path: test-artifacts/v63-comparison/
+          retention-days: 14

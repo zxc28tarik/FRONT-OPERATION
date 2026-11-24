@@ -104,3 +104,6 @@ jobs:
 
       - name: Run V63 contact engagement regression
         run: node tests/bot_ai_v63_contact_regression.cjs
+
+      - name: Run V64 target stability regression
+        run: node tests/bot_ai_v64_target_regression.cjs
