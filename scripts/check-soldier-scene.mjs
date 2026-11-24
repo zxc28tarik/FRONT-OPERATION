@@ -83,6 +83,7 @@ assert.equal((source.match(/createEnhancedBotSoldierMesh\(/g) || []).length, 4,
 const required = ['root', 'upperBody', 'head', 'leftHip', 'rightHip',
   'leftKnee', 'rightKnee', 'weaponPivot', 'muzzleFlash'];
 let count = 0;
+let sharedRefined=null,sharedFabric=null;
 for (const team of ['blue', 'red']) {
   for (const role of ['assault', 'medic', 'engineer', 'sniper', 'heavy']) {
     const baseline = baseFactory(team, role);
@@ -111,6 +112,18 @@ for (const team of ['blue', 'red']) {
       assert.ok(group&&group.children.length>=3,team+'/'+role+' V99 detail '+part);
       assert.ok(group.children.every(p=>p.parent===group&&!p.castShadow),'V99 details remain visual only');
     }
+    const flatten=(n)=>[n,...n.children.flatMap(flatten)];
+    const refined=flatten(model.root).filter(n=>n.name==='v100_anatomy');
+    assert.equal(refined.length,11,team+'/'+role+' shaped body surfaces');
+    assert.ok(refined.every(n=>n.geometry&&n.geometry!==n.args[0]),'enhanced shapes replace base primitives');
+    assert.ok(!flatten(baseline.root).some(n=>n.name==='v100_anatomy'),'base V25 remains unchanged');
+    const thigh=refined.find(n=>n.parent===model.leftHip);
+    assert.ok(thigh&&thigh.material,'textile applied on shaped thigh');
+    if(sharedRefined)assert.equal(thigh.geometry,sharedRefined,'shape shared across all 10 models');
+    sharedRefined=thigh.geometry;
+    if(!sharedFabric)sharedFabric=thigh.material.args[0].map;
+    assert.equal(thigh.material.args[0].map,sharedFabric,'same texture shared across teams and classes');
+    assert.ok(!flatten(model.weaponPivot).some(n=>n.name==='v100_anatomy'||n.name==='v101_textile'),'weapon excluded from art pass');
     for (const field of required) assert.ok(model[field], `${team}/${role} missing ${field}`);
     assert.equal(model.head.parent, model.upperBody, 'headGroup attached to chest');
     assert.ok(model.head.children.length >= 7, 'helmet/goggles/NVG are attached to headGroup');
@@ -147,5 +160,5 @@ assert.equal(actualMuzzle.y, 1.26);
 assert.equal(fakeRoot.position.y, -0.16);
 assert.equal(fakeRoot.updated, true);
 assert.equal(getMuzzle(null, new Vector3(0, 1.45, 0)).y, 1.45);
-console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99 details, head and muzzle hierarchy');
+console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99/V101 details, head and muzzle hierarchy');
 console.log('PASS: visible BOT muzzle world position and fallback');

@@ -5818,6 +5818,60 @@
           for(const z of [-.037,.02,.078,.136])block(boot,D.rubber,0,-.448,z,.112,.009,.026);
           for(const z of [.045,.078,.111])block(boot,D.strap,0,-.365,z,.065,.008,.012,-.16);
         }
+        // V100/V101: shaped body surfaces and shared textile maps on enhanced rig only.
+        if(!G.v101){
+          const {geos}=getSoldierSharedAssets();
+          const profile=(rows,sx=1,sz=1)=>{
+            const geometry=new THREE.LatheGeometry(rows.map(([radius,y])=>new THREE.Vector2(radius,y)),16);
+            if(typeof geometry.scale==='function')geometry.scale(sx,1,sz);
+            return geometry;
+          };
+          const anatomy=new Map([
+            [geos.thigh,profile([[0,-.18],[.048,-.18],[.063,-.145],[.071,-.09],[.078,.02],[.080,.105],[.068,.16],[.042,.18],[0,.18]],1,.93)],
+            [geos.shin,profile([[0,-.175],[.039,-.175],[.052,-.15],[.054,-.085],[.061,.015],[.065,.080],[.056,.135],[.043,.175],[0,.175]],.94,1.03)],
+            [geos.upperArm,profile([[0,-.12],[.042,-.12],[.053,-.09],[.061,-.035],[.064,.035],[.060,.09],[.038,.12],[0,.12]],1,.96)],
+            [geos.forearm,profile([[0,-.115],[.037,-.115],[.043,-.085],[.052,-.018],[.056,.035],[.051,.083],[.034,.115],[0,.115]],1,.94)],
+            [geos.abdomen,profile([[0,-.09],[.128,-.09],[.151,-.06],[.145,.02],[.149,.065],[.124,.09],[0,.09]],1,.73)],
+            [geos.chest,profile([[0,-.18],[.138,-.18],[.164,-.14],[.181,-.05],[.187,.065],[.174,.12],[.122,.18],[0,.18]],1,.63)],
+            [geos.neck,profile([[0,-.05],[.061,-.05],[.065,-.024],[.056,.026],[.049,.05],[0,.05]])]
+          ]);
+          const textileTexture=(coarse)=>{
+            const size=128,bytes=new Uint8Array(size*size*4);
+            let seed=0x519acc4;
+            for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+              seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+              const grain=((seed>>>24)/255-.5)*12;
+              const weave=coarse?((x%4<2)===((y>>1)%2===0)?8:-6):((x+y)%2===0?3:-3);
+              const value=Math.max(0,Math.min(255,241+weave+grain));
+              const i=(y*size+x)*4;
+              bytes[i]=bytes[i+1]=bytes[i+2]=value;bytes[i+3]=255;
+            }
+            const texture=new THREE.DataTexture(bytes,size,size,THREE.RGBAFormat);
+            texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
+            texture.magFilter=THREE.LinearFilter;texture.minFilter=THREE.LinearMipmapLinearFilter;
+            texture.generateMipmaps=true;texture.needsUpdate=true;
+            return texture;
+          };
+          const clothMap=textileTexture(false),rigMap=textileTexture(true);
+          const materials=new Map();
+          const fabric=(old,color,roughness,texture,bumpScale)=>{
+            const m=new THREE.MeshStandardMaterial({color,roughness,metalness:0,map:texture,bumpMap:texture,bumpScale});
+            m.name='V101 textile';materials.set(old,m);
+          };
+          for(const [old,color] of [[mats.blueUniform,0x35465a],[mats.bluePants,0x2d3c4e],[mats.redUniform,0x5b3c3e],[mats.redPants,0x453235],[D.clothBlue,0x425366],[D.clothRed,0x634547],[D.seamBlue,0x293746],[D.seamRed,0x432f33],[D.mask,0x303438],[D.maskEdge,0x43474a]])fabric(old,color,.96,clothMap,.0018);
+          for(const [old,color] of [[mats.vestRig,0x3d444a],[mats.pouchCoyote,0x60584b],[D.strap,0x494b43],[mats.ghillieOlive,0x3d4935],[D.olive,0x4b5141],[mats.medPack,0xb4413c],[mats.engPack,0x80613e]])fabric(old,color,.94,rigMap,.0023);
+          G.v101={anatomy,materials,clothMap,rigMap};
+        }
+        const V101=G.v101;
+        const upgradeSurface=node=>{
+          if(node===model.weaponPivot)return;
+          const geometry=node.geometry||node.args?.[0],material=node.material||node.args?.[1];
+          const refined=V101.anatomy.get(geometry),textile=V101.materials.get(material);
+          if(refined){node.geometry=refined;node.name='v100_anatomy';}
+          if(textile){node.material=textile;if(!node.name)node.name='v101_textile';}
+          for(const child of node.children||[])upgradeSurface(child);
+        };
+        upgradeSurface(model.root);
         return model;
       }
       function createEnhancedBotSoldierMesh(team, classId) {
