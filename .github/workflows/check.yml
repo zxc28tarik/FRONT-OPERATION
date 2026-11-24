@@ -74,3 +74,6 @@ jobs:
 
       - name: Run BOT AI V55 look controller regression
         run: node tests/bot_ai_v55_regression.cjs
+
+      - name: Run BOT AI V56 locomotion regression
+        run: node tests/bot_ai_v56_regression.cjs
