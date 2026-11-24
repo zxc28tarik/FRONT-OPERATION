@@ -9,7 +9,7 @@ V48 A* üzerinde kalan gerçek siper mesafesini `routeLastProgressAt` ile kaydet
 ## V49 uygulaması
 
 - Yeni bir **gerçekten görünür** hedef edinildiğinde, mevcut düğümün yeni düşmana karşı çömelmiş askeri fiziksel olarak gizlemesi, hedefin en az 9 m uzakta bulunması ve mevcut coverPhase'in geçerli olması hâlâ şarttır.
-- Bir önceki direkt-mesafe saatinin ilerlemediği veya 6,2 saniyelik limitin dolduğu durumlarda V48'in **A* ilerleme saati** okunur. Son 2,25 saniyede gerçek rota ilerlemesi varsa en fazla 8,4 s yaş sınırına kadar mevcut siper korunabilir.
+- Bir önceki direkt-mesafe saatinin ilerlemediği veya 6,2 saniyelik limitin dolduğu durumlarda V48'in **A* ilerleme saati** okunur. Son 1,6 saniyede gerçekten bu siper düğümüne bağlı bir A* rotasında ilerleme varsa 6,2 saniyelik normal süre içinde ve yalnız sipere A* yolunda 9 metreden az mesafe kalmışsa 7,2 saniyelik sert üst sınıra kadar mevcut siper korunabilir.
 - `routeLastProgressAt` geçersiz, geçmişe göre durağan veya oyun saatine göre gelecek bir değer ise uzatma uygulanmaz. Yeni düşmana göre siper açıkta kalmışsa veya düşman 9 m içindeyse kesinlikle uzatma yoktur. Sınır dolunca önceki V47 yeniden değerlendirmesi devam eder.
 - `coverRouteRetentions`: V47 kuralına göre iptal edilecek ama V49 rota ve fiziksel siper güvenliği sayesinde korunan hedef değişimleri.
 - `coverTargetReevaluations`: Yeni görünür hedef karşısında mevcut siperin yenilenmesini gerektiren kararlar. Sadece RAM/localhost QA; yeni HUD yoktur.
@@ -17,9 +17,11 @@ V48 A* üzerinde kalan gerçek siper mesafesini `routeLastProgressAt` ile kaydet
 
 ## Doğrulama
 
-`tests/bot_ai_v49_regression.cjs` testine fiziksel görünürlük, yakın düşman, 8,4 s sert sınır, gerçek rota saati, geçersiz/gelecek zaman, eski test uyumu ve V20/V35 koruma denetimleri eklendi. `.github/workflows/check.yml` içindeki V32–V48 zincirinin sonunda çalışır. Chromium/WebGL smoke testi ayrıca koşulur.
+`tests/bot_ai_v49_regression.cjs` testine fiziksel görünürlük, yakın düşman, 7,2 s sert sınır, gerçek rota saati, geçersiz/gelecek zaman, eski test uyumu ve V20/V35 koruma denetimleri eklendi. `.github/workflows/check.yml` içindeki V32–V48 zincirinin sonunda çalışır. Chromium/WebGL smoke testi ayrıca koşulur.
 
 **Eşleşme yöntemi:** GitHub Actions `bot-ai-stress.yml` aynı 471001, 471002, 471003 tohumlarında V48'den sabitlenen HTML'yi ve V49 adayını ayrı maçlarda 600'er **hızlandırılmış bot motoru saniyesi** koşturur. `scripts/compare-bot-cover-stress.mjs` sıkışma, siper atamaları, gerçek siper varışları, terk etme, siper süresi, atış/isabet, yeni rota koruma ve yeniden değerlendirme sayaçlarını karşılaştırır.
+
+**İlk V49 denemesi (reddedildi):** V48'e göre yeniden atamalar 1039→860, isabetler 965→1026; ancak gerçek varışlar 1980→1845 ve uzun süre ilerleyememe 29→50 oldu. Bu nedenle 8,4 s cömert uzatma reddedildi. İkinci aday yalnız geçerli siper yolu üzerindeki son 1,6 s ilerlemeyi tanır; normal 6,2 s süreyi aşması için sipere A* yolunda 9 m'den yakın olma şartı getirir ve en geç 7,2 s'de bitirir. **İkinci adayın sonucu henüz birinci denemeden çıkarılamaz.**
 
 **V48 başlangıç referansı (önceki V47–V48 karşılaştırması, 3×600s):** yeniden atamalar 1039; siper varışları 1980; uzun ilerleyememe 29; sıkışma kurtarması 116; isabet 965; atış 6779. Yeni koşu tamamlanmadan bu sayılarla V49 için iyileşme iddia edilmez; farklı koşuların birebir aynı veriyi vermesi garanti değildir.
 
