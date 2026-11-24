@@ -5983,7 +5983,7 @@
         if(dist<(objective?1.2:1.4)){
           // Guards scan the approach, not the floor waypoint; designated
           // operators stop long enough to plant/defuse.
-          const approachYaw=bot.team==='red'&&!planted?0:Math.PI;
+          const approachYaw=bot.team==='red'?0:Math.PI;
           return {target:null,speed:0,goal,role:assigned.role,
             yaw:approachYaw+Math.sin(botAiClockSec*.65+idx*1.3)*.55,
             crouch:objective?.55:(assigned.role==='GUARD'||assigned.role==='HOLD'?.35:0)};
