@@ -141,7 +141,7 @@ try {
       coverCounts('coverOrphanSeconds')>coverCounts('coverApproachSeconds')||
       (stats.coverEvents||[]).length>90||coverReasonTotal!==abandons)
     throw Error('V47 cover lifecycle accounting invalid: '+
-      JSON.stringify({selections,arrivals,abandons,coverReasonTotal}));
+      JSON.stringify({selections,arrivals,abandons,coverReasonTotal,reassignments:coverCounts('coverReassignments'),orphanSeconds:coverCounts('coverOrphanSeconds'),approachSeconds:coverCounts('coverApproachSeconds'),events:(stats.coverEvents||[]).length}));
   if(errors.length)throw Error('Uncaught browser game errors: '+errors.slice(0,5).join(' | '));
   result={
     status:'PASS',
