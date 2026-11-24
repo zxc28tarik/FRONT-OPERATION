@@ -7043,6 +7043,19 @@
           }
         }
         NAV_VALIDATION.activeEdges = NAV_EDGES.length - NAV_VALIDATION.blockedEdges.length;
+        // Detect accidental graph partitions after removing blocked shortcuts.
+        const seen = new Set([0]);
+        const pending = [0];
+        while (pending.length) {
+          const node = pending.pop();
+          for (const edge of NAV_ADJ[node]) {
+            if (!seen.has(edge.to)) {
+              seen.add(edge.to);
+              pending.push(edge.to);
+            }
+          }
+        }
+        NAV_VALIDATION.reachableNodes = seen.size;
         return NAV_VALIDATION;
       }
 
@@ -7538,6 +7551,7 @@ function buildSquadLeadership() {
           navValidation: {
             checked: NAV_VALIDATION.checked,
             activeEdges: NAV_VALIDATION.activeEdges,
+            reachableNodes: NAV_VALIDATION.reachableNodes,
             blockedEdges: NAV_VALIDATION.blockedEdges.slice()
           },
           soundEvents: BOT_NOISE_EVENTS.map(e => ({
