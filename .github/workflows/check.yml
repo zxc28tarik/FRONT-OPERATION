@@ -53,3 +53,6 @@ jobs:
 
       - name: Run BOT AI V47 cover lifecycle regression
         run: node tests/bot_ai_v47_regression.cjs
+
+      - name: Run BOT AI V47 cover commitment and danger escape regression
+        run: node tests/bot_ai_v47_cover_commit_regression.cjs
