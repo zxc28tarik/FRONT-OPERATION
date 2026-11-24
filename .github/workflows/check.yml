@@ -194,3 +194,6 @@ jobs:
 
       - name: Run V90 rescue mode regression
         run: node tests/rescue_v90_regression.cjs
+
+      - name: Run V91 branching rescue regression
+        run: node tests/rescue_v91_branching_regression.cjs
