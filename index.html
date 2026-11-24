@@ -4076,12 +4076,17 @@
       const FO_RESCUE_EXIT={x:0,z:50,radius:6};
       const FO_RESCUE_SNIPER={x:22.5,z:-36};
       const FO_PRISON_UPPER=5.16;
-      function foPrisonRouteClear(a,b,solids,ramps){
+      function foPrisonRouteClear(a,b,solids,ramps,liveFootprint=false){
         const n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z,b.y-a.y)/.18));
         for(let k=0;k<=n;k++){
           const t=k/n,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t,z=a.z+(b.z-a.z)*t;
           if(Math.abs(x)>38.5||Math.abs(z)>59.5)return false;
-          if(solids.some(c=>y+1.7>c.minY+.05&&y<c.maxY-.28&&x+.42>c.minX&&x-.42<c.maxX&&z+.42>c.minZ&&z-.42<c.maxZ))return false;
+          if(solids.some(c=>{
+            if(y+1.7<=c.minY+.05||y>=c.maxY-.28)return false;
+            if(!liveFootprint)return x+.42>c.minX&&x-.42<c.maxX&&z+.42>c.minZ&&z-.42<c.maxZ;
+            const dx=x-Math.max(c.minX,Math.min(x,c.maxX)),dz=z-Math.max(c.minZ,Math.min(z,c.maxZ));
+            return dx*dx+dz*dz<.42*.42-1e-8;
+          }))return false;
           let supported=Math.abs(y)<.36;
           for(const c of solids)if(Math.abs(c.maxY-y)<.36&&x>=c.minX-.18&&x<=c.maxX+.18&&z>=c.minZ-.18&&z<=c.maxZ+.18)supported=true;
           for(const r of ramps){
@@ -6442,7 +6447,7 @@
       }
       function foBotSegmentClear(pos,n){
         if(!n)return false;
-        if(typeof foActiveMap!=='undefined'&&foActiveMap==='rescue')return foPrisonRouteClear(pos,n,mapColliders,mapRamps);
+        if(typeof foActiveMap!=='undefined'&&foActiveMap==='rescue')return foPrisonRouteClear(pos,n,mapColliders,mapRamps)||foPrisonRouteClear(pos,n,mapColliders,mapRamps,true);
         const dx=n.x-pos.x,dz=n.z-pos.z,count=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.18));
         for(let k=1;k<=count;k++)if(!foBotRoutePointClear(pos.x+dx*k/count,pos.y,pos.z+dz*k/count))return false;
         return true;
@@ -6453,7 +6458,7 @@
         // Prefer the existing graph origin when reachable; otherwise try
         // nearby origins using the actual body footprint, not a wall shortcut.
         const from=findNearestNavNode(bot.pos,true);
-        const origins=[from,...NAV_NODES.map((n,i)=>({i,d:Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)}))
+        const origins=[from,...NAV_NODES.map((n,i)=>({i,d:Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z,2*(n.y-bot.pos.y))}))
           .sort((a,b)=>a.d-b.d).map(n=>n.i)];
         for(const idx of new Set(origins)){
           if(!NAV_NODES[idx]||!foBotSegmentClear(bot.pos,NAV_NODES[idx]))continue;
@@ -6498,12 +6503,72 @@
         if(typeof recordBotMetric==='function')recordBotMetric(bot,'objectiveRetryStarts');
         return true;
       }
+      // V97: a defender owns a local sector, with bounded holds and short graph patrols.
+      // No hidden enemy positions are used. Calling twice in a frame does not advance time.
+      function foGuardPatrol(bot,key,goals,now,nodes=NAV_NODES){
+        const unique=[...new Set(goals)].filter(i=>nodes[i]);
+        if(!unique.length)return -1;
+        let s=bot.foGuardPatrol;
+        if(!s||s.key!==key||now<s.last||!unique.includes(s.goal)){
+          s=bot.foGuardPatrol={key,goal:unique[0],arrival:null,last:now,failedSince:null};
+        }
+        s.last=now;
+        const n=nodes[s.goal];
+        const arrived=Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)<1.3&&Math.abs(n.y-bot.pos.y)<.55;
+        if(!arrived)s.arrival=null;
+        else if(s.arrival===null)s.arrival=now;
+        const hold=bot.classId==='sniper'?9:bot.classId==='heavy'?5.5:3.4;
+        if(arrived&&now-s.arrival>=hold&&unique.length>1){
+          s.goal=unique[(unique.indexOf(s.goal)+1)%unique.length];s.arrival=null;s.failedSince=null;
+        }
+        return s.goal;
+      }
+      function foGuardScan(bot,now){
+        const phase=now*.85+(Number(bot.id.split('_')[1])||0)*1.6;
+        return (bot.team==='red'?0:Math.PI)+Math.sin(phase)*.95;
+      }
+      function foRescueGuardPoints(bot,unsecured){
+        const idx=Math.max(0,Number(bot.id.split('_')[1])||0);
+        const side=idx%2===0?-1:1,x=side*18,Y=FO_PRISON_UPPER;
+        if(!unsecured)return [{x:side*21,z:24},{x:side*24,z:12},{x:side*18,z:20}];
+        if(bot.classId==='sniper')return [FO_RESCUE_SNIPER,{x:18,y:Y,z:-30},{x:18,y:Y,z:-36}];
+        if(bot.classId==='heavy')return [{x,z:-29},{x:side*24,z:-34},{x,z:-36}];
+        if(idx===1||idx===4)return [{x,y:Y,z:-36},{x:side*12,y:Y,z:-36},{x,y:Y,z:-30}];
+        if(bot.classId==='medic')return [{x,z:-36},{x:side*12,z:-36},{x,z:-42}];
+        return [{x:side*24,z:-30},{x,z:-36},{x:side*30,z:-36}];
+      }
+      function foMissionRecovery(bot,goal,role,now){
+        const d=NAV_NODES[goal];
+        if(d&&foBotSegmentClear(bot.pos,d))return {goal,role,target:new THREE.Vector3(d.x,d.y,d.z),speed:2.5};
+        let recovery=bot.foRouteRecovery;
+        if(!recovery||Math.hypot(bot.pos.x-recovery.x,bot.pos.z-recovery.z)<.3||!foBotSegmentClear(bot.pos,recovery)){
+          recovery=bot.foRouteRecovery=foFindRouteRecovery(bot);
+        }
+        bot.foObjectiveRepath=0;
+        if(recovery)return {goal,role,target:new THREE.Vector3(recovery.x,recovery.y,recovery.z),speed:2.1};
+        const s=bot.foGuardPatrol;
+        if(s){
+          if(s.failedSince===null)s.failedSince=now;
+          if(now-s.failedSince>2){s.arrival=now-12;s.failedSince=null;}
+        }
+        return {goal,role,target:null,speed:0,yaw:foGuardScan(bot,now)};
+      }
       function getFoBombBotOrder(bot,dt,allowContact=false){
         if(!isFoBombMode()||foBomb.phase==='ended'||!bot.alive||(bot.visibleEnemy&&!allowContact)||bot.activeDroneId)return null;
         const assigned=foBotPlan.orders.get(bot.id);
         if(!assigned)return null;
         const planted=foBomb.phase==='planted',idx=Math.max(0,Number(bot.id.split('_')[1])||0);
         let goal=assigned.goal;
+        const now=typeof botAiClockSec==='number'?botAiClockSec:0;
+        if(assigned.role==='GUARD'||assigned.role==='HOLD'){
+          // Retain team reservations. Local extra nodes cannot steal another assigned slot.
+          const taken=new Set([...foBotPlan.orders.entries()].filter(([id,o])=>id!==bot.id&&o.role===assigned.role).map(([,o])=>o.goal));
+          const anchor=NAV_NODES[goal];
+          const local=anchor?NAV_NODES.map((n,i)=>({i,d:Math.hypot(n.x-anchor.x,n.z-anchor.z),dy:Math.abs(n.y-anchor.y)}))
+            .filter(q=>q.d>=3&&q.d<=15&&q.dy<.5&&!taken.has(q.i)&&q.i!==assigned.site.node)
+            .sort((a,b)=>a.d-b.d).slice(0,2).map(q=>q.i):[];
+          goal=foGuardPatrol(bot,'bomb:'+assigned.role+':'+assigned.site.id+':'+assigned.goal,[assigned.goal,...local],now);
+        }
         if(!planted&&bot.team==='blue'){
           if(bot.pos.z<foWorldZ(19))bot.foGatePassed=true;
           if(bot.pos.z>foWorldZ(32)){bot.foGatePassed=false;bot.foGateEntryReached=false;}
@@ -6527,7 +6592,7 @@
           // operators stop long enough to plant/defuse.
           const approachYaw=bot.team==='red'?0:Math.PI;
           return {target:null,speed:0,goal,role:assigned.role,
-            yaw:approachYaw+Math.sin(botAiClockSec*.65+idx*1.3)*.55,
+            yaw:objective?approachYaw:foGuardScan(bot,now),
             crouch:objective?.55:(assigned.role==='GUARD'||assigned.role==='HOLD'?.35:0)};
         }
         bot.foObjectiveRepath=Math.max(0,(bot.foObjectiveRepath||0)-dt);
@@ -6648,16 +6713,19 @@
             const stages=[entry,branch,branch.approach,...(branch.id==='A_WEST'?[{x:-32,z:-36},{x:-26,z:-36}]:[]),branch.search,other];
             bot.foRescueSearchStage=bot.foRescueSearchStage||0;
             let target=stages[bot.foRescueSearchStage%stages.length];
-            if(Math.hypot(bot.pos.x-target.x,bot.pos.z-target.z)<1.8){
+            const stageNode=NAV_NODES[findNearestNavNode({x:target.x,y:0,z:target.z})];
+            if(Math.abs(bot.pos.y)<.55&&(Math.hypot(bot.pos.x-target.x,bot.pos.z-target.z)<1.8||stageNode&&Math.hypot(bot.pos.x-stageNode.x,bot.pos.z-stageNode.z)<1.25)){
               bot.foRescueSearchStage++;target=stages[bot.foRescueSearchStage%stages.length];
             }
             point=target;role='SEARCH';
           }else{point=FO_RESCUE_EXIT;role='ESCORT';}
         }else{
-          const target=live.filter(p=>!p.carrier)[idx%Math.max(1,live.filter(p=>!p.carrier).length)];
-          point=bot.classId==='sniper'&&live.some(p=>!p.carrier)?FO_RESCUE_SNIPER:target?{x:target.x+(idx%3-1)*3,z:target.z+6}: {x:(idx%3-1)*8,z:24};
-          if((idx===1||idx===4)&&live.some(p=>!p.carrier))point={x:idx===1?-18:18,y:FO_PRISON_UPPER,z:-36};
-          role='GUARD';
+          const unsecured=live.some(p=>!p.carrier);
+          const patrol=foRescueGuardPoints(bot,unsecured);
+          const goals=patrol.map(p=>findNearestNavNode({x:p.x,y:p.y??0,z:p.z}));
+          const now=typeof botAiClockSec==='number'?botAiClockSec:0;
+          const chosen=foGuardPatrol(bot,'rescue:'+unsecured+':'+bot.classId,goals,now);
+          point=NAV_NODES[chosen]||patrol[0];role='GUARD';
         }
         const targetY=point.y??0;
         const goal=findNearestNavNode({x:point.x,y:targetY,z:point.z});
@@ -6665,7 +6733,7 @@
         const d=Math.hypot(bot.pos.x-point.x,bot.pos.z-point.z);
         if((d<1.25&&Math.abs(bot.pos.y-targetY)<.55)||(role==='GUARD'&&Math.hypot(bot.pos.x-dest.x,bot.pos.z-dest.z)<1.25&&Math.abs(bot.pos.y-dest.y)<.55)){
           bot.foObjectivePath=[];bot.foObjectiveIndex=0;bot.foObjectiveGoal=goal;
-          return {goal,role,target:null,speed:0,crouch:0,yaw:bot.team==='red'?0:Math.PI};
+          return {goal,role,target:null,speed:0,crouch:role==='GUARD'?.22:0,yaw:foGuardScan(bot,typeof botAiClockSec==='number'?botAiClockSec:0)};
         }
         bot.foObjectiveRepath=Math.max(0,(bot.foObjectiveRepath||0)-dt);
         const wp=NAV_NODES[bot.foObjectivePath?.[bot.foObjectiveIndex]];
@@ -6675,12 +6743,16 @@
         while(bot.foObjectivePath?.[bot.foObjectiveIndex]!==undefined){
           const n=NAV_NODES[bot.foObjectivePath[bot.foObjectiveIndex]];
           if(Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)<=.65&&Math.abs(n.y-bot.pos.y)<.45){bot.foObjectiveIndex++;continue;}
-          if(foBotSegmentClear(bot.pos,n))return {goal,role,target:new THREE.Vector3(n.x,n.y,n.z),speed:3.5};
-          break;
+          if(foBotSegmentClear(bot.pos,n)){
+            if(bot.foGuardPatrol)bot.foGuardPatrol.failedSince=null;
+            bot.foRouteRecovery=null;
+            return {goal,role,target:new THREE.Vector3(n.x,n.y,n.z),speed:3.5};
+          }
+          bot.foObjectivePath=[];bot.foObjectiveIndex=0;bot.foObjectiveRepath=0;break;
         }
         const exact={x:point.x,y:targetY,z:point.z};
         if(role!=='GUARD'&&foBotSegmentClear(bot.pos,exact))return {goal,role,target:new THREE.Vector3(exact.x,exact.y,exact.z),speed:2.5};
-        return {goal,role,target:null,speed:0,crouch:0};
+        return foMissionRecovery(bot,goal,role,typeof botAiClockSec==='number'?botAiClockSec:0);
       }
       function refreshFoModeUi(){
         const mode=matchState.mode;
@@ -9396,6 +9468,15 @@
 
       function assignBotTacticalGoal(bot) {
         const isBlue = bot.team === 'blue';
+        // Legacy numeric Marien waypoints do not identify the same places on other maps.
+        if(typeof foActiveMap!=='undefined'&&foActiveMap!=='deathmatch'){
+          const idx=Math.max(0,Number(bot.id.split('_')[1])||0);
+          let p;
+          if(foActiveMap==='rescue')p=isBlue?FO_RESCUE_BRANCHES[idx%FO_RESCUE_BRANCHES.length]:foRescueGuardPoints(bot,true)[0];
+          else{const s=FO_BOMB_SITES[idx%FO_BOMB_SITES.length];p=NAV_NODES[isBlue?FO_TERSANE_ROUTES[idx%FO_TERSANE_ROUTES.length].entry:s.guards[idx%s.guards.length]];}
+          const goal=findNearestNavNode({x:p.x,y:p.y??0,z:p.z});
+          bot.goalNode=goal;bot.path=foFindObjectiveRoute(bot,goal);bot.pathIndex=0;return;
+        }
         let lane = bot.squadId !== undefined ? bot.squadId : 1;
 
         const laneCounts = getTeamLaneCounts(bot.team, bot.id);
