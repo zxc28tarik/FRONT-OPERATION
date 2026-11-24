@@ -34,6 +34,9 @@ Kullanıcı dört güzergâhlı yerleşimi beğendi. Bu nedenle V2 planı, geçi
 - 41/41 bomba/harita regresyonu doğrudan çalıştırıldı ve geçti.
 - V2 dört geçitli sürümün WebGL kabulü başarılı (45387478141); V3 WebGL kabulü ayrı koşuda (45388085605). FPS ölçülmedi.
 
+## V5 — Tersane genişletme
+Kullanıcı daha uzun, geniş ve ayrık bir bomba haritası istedi. Onaylı dört güzergâh, kapalı alanlar, A/B kimliği ve V4 izleyici/nişan düzeltmesi korunarak yatay eksen 1.4, boyuna eksen 1.5 ölçeklendi. Zemin 86×126 → 120.4×189 (2.1 kat alan), üsler arası 100 →150, A/B arası 32 →44.8. Oyuncu/silah boyutu, bina yüksekliği, bomba yarıçapı ve süreler korunur. Dokuz yeni ayırıcı collider ve üç azaltılmış yatay kısayol; 79 collider, 50/50 bağlı düğüm, 69/85 geçerli kenar, dört fiziksel açıklık. Oyuncu/bot doğuşları, hareket/ekipman/izleyici sınırları, radar, ışık frustumu ve sis yalnız Tersane için uyarlanmıştır. Marien orijinal sınırları geri yüklenir. 56/56 izole regresyon geçti; güncel WebGL koşusu ayrıca kontrol edilir. 
+
 ## QA
 Önceki Depo 17 sürümünün Chromium/WebGL kabulü başarılıydı. Tersane yeniden tasarımının yeni tarayıcı koşusu ayrı doğrulanacaktır.
 
