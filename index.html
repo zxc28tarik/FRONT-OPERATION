@@ -3692,7 +3692,11 @@
         for(const site of FO_BOMB_SITES){
           const accent=site.id==='A'?0xd4aa63:0x77aab0;
           const ring=new THREE.MeshBasicMaterial({color:accent,transparent:true,opacity:.75,side:THREE.DoubleSide});
-          addDecoMesh(new THREE.RingGeometry(3.5,3.68,48),ring,site.x,.025,site.z,-Math.PI/2);
+          site.ring=addDecoMesh(new THREE.RingGeometry(3.5,3.68,48),ring,site.x,.025,site.z,-Math.PI/2);
+          // Abstract in-game objective indicator; not a weapon model.
+          const beaconMat=new THREE.MeshBasicMaterial({color:0xf0c078,transparent:true,opacity:.88});
+          site.beacon=addDecoMesh(new THREE.OctahedronGeometry(.42),beaconMat,site.x,1.0,site.z);
+          site.beacon.visible=false;
           for(const dx of [-5.5,5.5])addSolidBox(site.x+dx,0.72,site.z-3,2.7,1.44,1.5,site.id==='A'?orange:blue);
           const signBefore=new Set(scene.children);
           createCorridorSign('BÖLGE '+site.id,'#192329',site.id==='A'?'#d4aa63':'#77aab0',site.x,2.8,site.z-6,0);
@@ -5498,7 +5502,8 @@
       const foBomb={phase:'unplanted',site:null,actor:null,progress:0,seconds:0,reason:''};
       function isFoBombMode(){return matchState.mode==='bomb';}
       function resetFoBomb(){
-        Object.assign(foBomb,{phase:'unplanted',site:null,actor:null,progress:0,seconds:0,reason:''});
+        Object.assign(foBomb,{phase:'unplanted',site:null,actor:null,actionSite:null,progress:0,seconds:0,reason:''});
+        for(const site of FO_BOMB_SITES)if(site.beacon)site.beacon.visible=false;
       }
       function foBombInside(actor,site){
         return !!(actor&&actor.alive&&site&&actor.pos&&Math.abs(actor.pos.y)<1.5&&
@@ -5553,9 +5558,13 @@
         const result=stepFoBomb(foBomb,dt,matchState.timeRemaining,blue,red,chosen);
         const status=document.getElementById('fo-bomb-status');
         const active=foBomb.phase==='planted';
+        for(const site of FO_BOMB_SITES)if(site.beacon){
+          site.beacon.visible=active&&site===foBomb.site;
+          if(site.beacon.visible){site.beacon.rotation.y+=dt*2.4;site.beacon.position.y=1.0+Math.sin(foBomb.seconds*3)*.16;}
+        }
         status.textContent=blue+' / '+red+' CANLI • '+(active
           ?'BOMBA '+foBomb.site.id+' '+Math.ceil(foBomb.seconds)+' sn'
-          :foBomb.actor?'KURULUYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%':'A / B • KUR');
+          :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%':'A / B • BÖLGEDE DUR');
         if(active&&foBomb.actor)status.textContent+=' • ÇÖZÜLÜYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.defuseSeconds*100))+'%';
         if(result){foBomb.phase='ended';foBomb.reason=result.reason;endMatch(result.winner);}
       }
