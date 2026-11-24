@@ -8,7 +8,7 @@ const start=html.indexOf('      const FO_BOMB_RULES=');
 const end=html.indexOf('      function foBombActors()',start);
 const api=new Function(html.slice(start,end)+'\nreturn {rules:FO_BOMB_RULES,step:stepFoBomb,inside:foBombInside};')();
 const fresh=()=>({phase:'unplanted',site:null,actor:null,progress:0,seconds:0});
-const a={id:'A',x:-16,z:-28,node:36},b={id:'B',x:16,z:-28,node:38};
+const a={id:'A',x:-16*1.4,z:-28*1.5,node:36},b={id:'B',x:16*1.4,z:-28*1.5,node:38};
 const plant={id:'blue_1',site:a},defuse={id:'red_1',site:a};
 let x=fresh();
 ok(api.step(x,1,100,0,6,null).winner==='red','Attackers eliminated before plant');
@@ -26,11 +26,11 @@ ok(api.step(x,1,0,0,6,null).winner==='blue','Detonation awards attackers');
 x=fresh();api.step(x,3,100,6,6,plant);
 ok(api.step(x,3,100,0,6,defuse)===null,'Defuse requires full hold');
 ok(api.step(x,1,100,0,6,defuse).winner==='red','Defuse awards defenders');
-ok(api.inside({alive:true,pos:{x:-16,y:0,z:-28}},a),'Grounded live actor may interact');
-ok(!api.inside({alive:false,pos:{x:-16,y:0,z:-28}},a),'Dead actor cannot interact');
-ok(!api.inside({alive:true,pos:{x:-16,y:5,z:-28}},a),'Above-site actor cannot interact');
+ok(api.inside({alive:true,pos:{x:a.x,y:0,z:a.z}},a),'Grounded live actor may interact');
+ok(!api.inside({alive:false,pos:{x:a.x,y:0,z:a.z}},a),'Dead actor cannot interact');
+ok(!api.inside({alive:true,pos:{x:a.x,y:5,z:a.z}},a),'Above-site actor cannot interact');
 ok(!api.inside({alive:true,pos:{x:0,y:0,z:0}},a),'Far actor cannot interact');
-const gstart=html.indexOf('      function depotGraph()');
+const gstart=html.indexOf('      const FO_TERSANE_X=');
 const gend=html.indexOf('      function buildDepot17Map()',gstart);
 const g=new Function(html.slice(gstart,gend)+'\nreturn depotGraph();')();
 ok(g.nodes.length===50&&g.edges.length===85,'Independent 50-node graph');
@@ -45,7 +45,7 @@ ok(html.includes('updateFoBomb(dt);')&&html.includes('getFoBombBotOrder(bot,dt);
 const solids=[];let liveGraph;
 const fakeMesh=()=>({position:{},rotation:{},visible:true});
 const fakeThree=new Proxy({}, {get:()=>function(){return {}}});
-const mapStart=html.indexOf('      const FO_BOMB_SITES');
+const mapStart=html.indexOf('      const FO_TERSANE_X=');
 const mapEnd=html.indexOf('      function selectFoMap(mode)',mapStart);
 const routes=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh',
  'scene','mapEnvironmentMeshes','createCorridorSign','installFoGraph','dustParticles',
@@ -64,11 +64,11 @@ for(const [a,b] of liveGraph.edges){
 const reach=(start)=>{const seen=new Set([start]),todo=[start];
  while(todo.length)for(const j of links[todo.pop()])if(!seen.has(j)){seen.add(j);todo.push(j)}
  return seen;};
-ok(solids.length>=70,'Tersane solid geometry built');
+ok(solids.length===79,'Tersane enlarged physical geometry built');
 ok(liveGraph.nodes.every(n=>walk(n.x,n.z)),'Every Tersane nav node walkable');
 ok(reach(0).size===50,'All Tersane nodes connected after collision filtering');
 let intervals=0,previous=false;
-for(let i=0;i<=770;i++){const clear=walk(-38.5+i*.1,21);if(clear&&!previous)intervals++;previous=clear;}
+for(let i=0;i<=1078;i++){const clear=walk(-53.9+i*.1,31.5);if(clear&&!previous)intervals++;previous=clear;}
 ok(intervals===4,'Exactly four physical dividing-wall openings');
 ok(routes.length===4&&new Set(routes.map(q=>q.x)).size===4,'Four distinct route assignments');
 for(const route of routes){
@@ -78,7 +78,7 @@ for(const route of routes){
 const underRoof=(x,z)=>solids.some(c=>c.y-c.h/2>3&&c.w>=8&&c.d>=12&&
  x>c.x-c.w/2&&x<c.x+c.w/2&&z>c.z-c.d/2&&z<c.z+c.d/2);
 for(const [name,x,z] of [['A hangar',-16,-28],['service',0,6],['west storage',-32,20],['east equipment',32,-5]])
- ok(underRoof(x,z)&&walk(x,z),'Enclosed and enterable '+name);
+ ok(underRoof(x*1.4,z*1.5)&&walk(x*1.4,z*1.5),'Enclosed and enterable '+name);
 ok(html.includes('goal=bot.foGateEntryReached?route.exit:route.entry;'),'Bot enters assigned gate before advancing');
 const aimStart=html.indexOf('      function isBotAimAligned(');
 const aimEnd=html.indexOf('      function isBotFireLaneClear(',aimStart);
@@ -92,4 +92,14 @@ ok(html.includes("const twist=normalizeAngle(bot.upperYaw-bot.legYaw);"),'Combat
 ok(html.includes("function isFoSpectating()")&&html.includes("!player.alive;"),'Spectator requires death');
 ok(html.includes("b.alive&&b.team===player.team"),'Follow target is live teammate');
 ok(html.includes("updateFoSpectator(dt);")&&html.includes("stopFoSpectator();"),'Spectator frame and reset integrated');
+ok(Math.abs(g.nodes[0].x-g.nodes[4].x-(-89.6))<.001,'East-west navigation spread increased 40 percent');
+ok(g.nodes[0].z-g.nodes[45].z===150,'North-south spawn separation increased 50 percent');
+ok(links.reduce((sum,l)=>sum+l.length,0)/2===69,'Three lateral shortcuts removed; 69 walkable edges remain');
+const bounds=new Function('mode',html.slice(gstart,html.indexOf('      const FO_BOMB_SITES',gstart))+
+ '\nconst foActiveMap=mode;return [foWorldX(38.5),foWorldZ(59.5)];');
+ok(bounds('bomb')[0]>53&&bounds('bomb')[1]>89,'Bomb arena world bounds expanded');
+ok(bounds('deathmatch')[0]===38.5&&bounds('deathmatch')[1]===59.5,'Marien world bounds unchanged');
+ok(html.includes('foActiveMap=mode; // Set bounds before validating the selected graph.'),'Select correct bounds before nav validation');
+ok(html.includes('foWorldZ(50));'),'Player deploys at expanded spawn');
+ok(html.includes('b.pos.x=foWorldX(b.pos.x);b.pos.z=foWorldZ(b.pos.z);'),'Bot deployment uses enlarged arena');
 console.log('BOMB MODE PASS ('+n+' checks)');
