@@ -34,7 +34,7 @@ bot.routeProgress=null;api.progress(bot,nodes[1],.1,false);api.progress(bot,node
 ok(bot.routeProgress.x===5&&bot.routeProgress.elapsed===.1,'New waypoint resets observation');
 api.progress(bot,null,.1,false);ok(bot.routeProgress===null,'Hold clears progress window');
 ok(html.includes('getBotPassageDestination(ally)'),'Passage uses active direction');
-ok(html.includes('const ahead=chooseBotRouteLookahead(bot,routeLeg);'),'Live route follower uses checked lookahead');
+ok(html.includes('const ahead=chooseBotRouteLookahead(bot,routeLeg,mapMomentum);'),'Live route follower uses checked lookahead');
 ok(html.includes('forwardProgress!==null || bot.stuckTimer >= 2.2'),'Recovery uses progress window');
 ok(html.includes("else if(selectedPlan.kind==='FLANK'){bot.teamFlankRoute=alternative;"),'Replan retains flank owner');
 ok(html.includes('bot.investigateRetryAt=nowSec+.8;'),'Investigation replan rate limited');

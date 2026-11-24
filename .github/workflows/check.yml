@@ -137,3 +137,6 @@ jobs:
 
       - name: Run V71D cover context regression
         run: node tests/bot_ai_v71d_cover_regression.cjs
+
+      - name: Run V71E map navigation regression
+        run: node tests/bot_ai_v71e_map_navigation_regression.cjs
