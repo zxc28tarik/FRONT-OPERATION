@@ -58,9 +58,21 @@ test('V17 manual recoil is identical', () => {
   assert.equal(normalized(func(game, 'applyManualRecoilCompensation')),
     normalized(func(v17, 'applyManualRecoilCompensation')));
 });
-test('V20 three cover methods are retained', () => {
+test('V20 cover methods retained with only V71D contextual preference changes', () => {
   for (const n of ['findBestCoverNode','getCoverOccupancyCount','setBotState']) {
-    assert.equal(normalized(func(game, n)), normalized(func(v20, n)), n);
+    let expected=normalized(func(v20,n));
+    if(n==='findBestCoverNode'){
+      const edits=[
+        ["const idealRange = classId === 'sniper' ? [22, 52] : classId === 'heavy' ? [13, 34] : classId === 'medic' ? [12, 30] : classId === 'engineer' ? [8, 24] : [10, 28];","const preference=botCoverPreference(bot,threatPos,isWounded); const idealRange=preference.range;"],
+        ["if (classId === 'sniper' && (n.tag === 'sniper_south'","if (classId === 'sniper' && !preference.sidearm && (n.tag === 'sniper_south'"],
+        ["const occupancy = getCoverOccupancyCount(i, team, bot ? bot.id : null);","score+=botCoverDutyPenalty(n,preference.anchor); const occupancy = getCoverOccupancyCount(i, team, bot ? bot.id : null);"]
+      ];
+      for(const [before,after] of edits){
+        assert.equal(expected.split(normalized(before)).length,2,'V71D reference edit must be unique');
+        expected=expected.replace(normalized(before),normalized(after));
+      }
+    }
+    assert.equal(normalized(func(game,n)),expected,n);
   }
 });
 test('V22 seven team AI methods retained (V32 match-clock correction allowed)', () => {
