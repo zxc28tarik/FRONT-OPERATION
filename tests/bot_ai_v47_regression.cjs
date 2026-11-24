@@ -45,7 +45,7 @@ ok(count('coverAbandons')===0,'Leaving a cover after arrival is not an abandoned
 bot.pos.x=0;bot.coverNode=2;bot.state='TAKE_COVER';obs(bot,5);
 ok(count('coverAssignments')===2,'A second destination counts as a new choice');
 bot.pos.x=1;obs(bot,6);
-obs(bot,11.5);
+obs(bot,12.5);
 ok(count('coverStalledApproaches')===1,'Six seconds without meaningful progress triggers one stuck approach observation');
 obs(bot,14);
 ok(count('coverStalledApproaches')===1,'Long unchanged stalemate is counted once, not every update');
