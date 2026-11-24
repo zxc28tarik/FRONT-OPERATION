@@ -179,3 +179,6 @@ jobs:
 
       - name: Run V83 fire readiness regression
         run: node tests/bot_ai_v83_fire_readiness_regression.cjs
+
+      - name: Run V84 combat commitment regression
+        run: node tests/bot_ai_v84_combat_commitment_regression.cjs
