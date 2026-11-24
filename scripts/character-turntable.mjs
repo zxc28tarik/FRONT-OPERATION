@@ -49,8 +49,8 @@ const pageHtml = '<!doctype html><html><head><meta charset="UTF-8">' +
   '#hint{position:absolute;top:65px;left:30px;font-size:14px;color:#dce5f4}' +
   '.caption{position:absolute;bottom:35px;font-size:24px;font-weight:900;background:#111827e6;padding:12px 20px;border-radius:12px;border:2px solid #9aa9bf}' +
   '#left{left:12%}#right{right:12%;border-color:#38bdf8}</style></head><body>' +
-  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V105 DETAILS</div>' +
-  '<div id="left" class="caption">ORIGINAL V25</div><div id="right" class="caption">V25 + V105 DETAILS</div>' +
+  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V109 DETAILS</div>' +
+  '<div id="left" class="caption">ORIGINAL V25</div><div id="right" class="caption">V25 + V109 DETAILS</div>' +
   '</body></html>';
 const server = createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -159,7 +159,7 @@ try {
         );
         if(stats.detailInput<70||stats.detailOutput>=stats.detailInput*.45||stats.invalidBatches!==0)throw Error('Invalid V104 batches '+JSON.stringify(stats));
         if(!stats.roleHelmet||stats.roleVests!==2)throw Error('Missing V105 role geometry');
-        if(stats.enhanced<=stats.original||stats.enhanced>stats.original+85)throw Error('Unexpected '+role+' model size');
+        if(stats.enhanced<=stats.original||stats.enhanced>stats.original+105)throw Error('Unexpected '+role+' model size');
         if (Math.abs(stats.headY - 1.54) > 0.001) throw Error('Head geometry regression');
         const image = 'character-' + team + '-' + role + '-' + angle + '.png';
         await page.screenshot({ path: path.join(output, image), animations: 'disabled' });

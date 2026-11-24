@@ -126,6 +126,9 @@ for (const team of ['blue', 'red']) {
     assert.ok(!flatten(model.weaponPivot).some(n=>n.name==='v100_anatomy'||n.name==='v101_textile'),'weapon excluded from art pass');
     assert.ok(model.head.children.some(n=>n.name==='v105_role_helmet'),'role helmet geometry');
     assert.equal(model.upperBody.children.filter(n=>n.name==='v105_role_vest').length,2,'role vest fit');
+    assert.ok(model.head.children.some(n=>n.name==='v106_face'),'fitted face');
+    assert.equal(model.upperBody.children.filter(n=>/^v107_(support|trigger)_hand$/.test(n.name)).length,2,'two fitted gloves');
+    assert.ok(model.upperBody.children.some(n=>n.name==='v107_fitted_equipment'),'rounded equipment');
     for (const field of required) assert.ok(model[field], `${team}/${role} missing ${field}`);
     assert.equal(model.head.parent, model.upperBody, 'headGroup attached to chest');
     assert.ok(model.head.children.length >= 7, 'helmet/goggles/NVG are attached to headGroup');
@@ -162,5 +165,5 @@ assert.equal(actualMuzzle.y, 1.26);
 assert.equal(fakeRoot.position.y, -0.16);
 assert.equal(fakeRoot.updated, true);
 assert.equal(getMuzzle(null, new Vector3(0, 1.45, 0)).y, 1.45);
-console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99/V101/V104/V105 details, head and muzzle hierarchy');
+console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99/V101/V104/V105/V109 details, head and muzzle hierarchy');
 console.log('PASS: visible BOT muzzle world position and fallback');

@@ -5545,7 +5545,7 @@
 
       // Preserve V25's complete articulated soldier; layer selected V11 silhouette details.
       let SOLDIER_V11_DETAIL_GEOMETRIES = null;
-      function enhanceV25SoldierWithV11Details(model, team, classId) {
+      function enhanceV25SoldierWithV11Details(model, team, classId, variant=0) {
         if (!SOLDIER_V11_DETAIL_GEOMETRIES) {
           SOLDIER_V11_DETAIL_GEOMETRIES = {
             cargoPocket: new THREE.BoxGeometry(0.030, 0.142, 0.105),
@@ -5750,20 +5750,50 @@
         const block=(g,m,x,y,z,w,h,d,rx=0,ry=0,rz=0)=>part(g,D.box,m,x,y,z,w,h,d,rx,ry,rz);
         const tube=(g,m,x,y,z,w,h,d,rx=0,ry=0,rz=0)=>part(g,D.cylinder,m,x,y,z,w,h,d,rx,ry,rz);
         const face=detail(model.head,'head');
-        // Rounded balaclava front, nose bridge and cheek volume replace the blocky silhouette visually.
+        // V106: fitted facial contours and eyewear, shared geometries.
+        if(!G.v106){
+          const fitted=(kind)=>{
+            const geo=new THREE.SphereGeometry(1,24,16);
+            if(typeof geo.getAttribute!=='function')return geo;
+            const p=geo.getAttribute('position');
+            for(let i=0;i<p.count;i++){
+              const x=p.getX(i),y=p.getY(i),z=p.getZ(i),front=Math.max(0,z);
+              const nose=Math.exp(-(x*x*18+(y-.32)**2*9))*front;
+              const cheek=Math.exp(-((Math.abs(x)-.52)**2*16+(y-.02)**2*8))*front;
+              if(kind==='skull')p.setXYZ(i,x*(.096+.009*Math.max(0,y)),y*.107,z*.095+nose*.018+cheek*.007);
+              else p.setXYZ(i,x*(.078-.014*Math.max(0,-y)),y*.068,z*.043+nose*.019+cheek*.006);
+            }
+            p.needsUpdate=true;geo.computeVertexNormals();geo.computeBoundingSphere();return geo;
+          };
+          const skin=[0xc89a78,0xa98164,0x92745f].map(color=>new THREE.MeshStandardMaterial({color,roughness:.78,metalness:0}));
+          G.v106={skull:fitted('skull'),mask:fitted('mask'),skin};
+        }
+        const F=G.v106,variantId=((Math.floor(variant)||0)%3+3)%3;
+        const approved=getSoldierSharedAssets().geos;
+        const geomOf=n=>n.geometry||n.args?.[0];
+        const oldSkull=model.head.children.find(n=>geomOf(n)===approved.headSkull);
+        const oldJaw=model.head.children.find(n=>geomOf(n)===approved.jaw);
+        if(oldSkull){oldSkull.geometry=F.skull;oldSkull.material=F.skin[variantId];oldSkull.name='v106_face';}
+        if(oldJaw)oldJaw.visible=false;
+        for(const n of model.head.children){
+          if([approved.goggles,G.goggleLensLeft,G.goggleBridge,G.visorSideGuard,G.visorUpperSeal].includes(geomOf(n)))n.visible=false;
+        }
+        // Rounded fitted balaclava with integrated cheek and nose volume.
         const mask=classId==='sniper'?D.olive:D.mask;
-        ell(face,mask,0,-.045,.075,.077,.060,.047);
-        ell(face,D.maskEdge,0,-.018,.112,.024,.028,.021,-.12);
+        part(face,F.mask,mask,0,-.045,.079,1,1,1);
+        ell(face,D.maskEdge,0,-.076,.102,.037,.014,.015);
         for(const s of [-1,1]){
-          ell(face,mask,s*.053,-.028,.085,.033,.043,.029,0,s*.25);
-          block(face,D.rubber,s*.047,-.003,.133,.078,.042,.012,0,-s*.13);
-          ell(face,D.lens,s*.047,.010,.142,.038,.019,.009,0,-s*.12);
-          block(face,D.lensEdge,s*.047,.024,.148,.054,.004,.004,0,-s*.12);
+          const eyewear=classId==='heavy'?[.048,.027]:classId==='sniper'?[.037,.017]:[.043,.022];
+          ell(face,D.rubber,s*.046,.012,.116,eyewear[0],eyewear[1],.023,0,-s*.18);
+          ell(face,D.lens,s*.046,.013,.132,eyewear[0]*.85,eyewear[1]*.77,.013,0,-s*.18);
+          ell(face,D.lensEdge,s*.046,.024,.141,eyewear[0]*.55,.0025,.003,0,-s*.18);
+          ell(face,mask,s*.052,-.022,.086,.027,.034,.022,0,s*.23);
           block(face,D.strap,s*.103,-.037,.061,.012,.072,.018,0,0,-s*.26);
           ell(face,D.hard,s*.132,.002,-.011,.013,.033,.035);
           block(face,D.hard,s*.120,.053,-.024,.018,.013,.078);
         }
-        block(face,D.rubber,0,-.067,.117,.045,.006,.005);
+        ell(face,D.rubber,0,.011,.126,.019,.011,.018);
+        block(face,D.strap,0,-.079,.113,.041,.004,.004);
         // Helmet cover seams, front bracket, rear retention panel.
         ell(face,D.hard,0,.100,-.011,.101,.037,.102);
         block(face,D.strap,0,.122,-.018,.021,.009,.131);
@@ -5950,10 +5980,85 @@
             n.scale.set(...vestProfile);n.name='v105_role_vest';
           }
         }
+        // V107: rounded equipment and fitted gloves instead of sharp boxes.
+        if(!G.v107){
+          const rounded=(w,h,d,r)=>{
+            const g=new THREE.BoxGeometry(w,h,d,5,5,5);
+            if(typeof g.getAttribute!=='function')return g;
+            const p=g.getAttribute('position'),n=g.getAttribute('normal');
+            const hx=w/2-r,hy=h/2-r,hz=d/2-r;
+            for(let i=0;i<p.count;i++){
+              const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+              const cx=Math.max(-hx,Math.min(hx,x)),cy=Math.max(-hy,Math.min(hy,y)),cz=Math.max(-hz,Math.min(hz,z));
+              const dx=x-cx,dy=y-cy,dz=z-cz,l=Math.hypot(dx,dy,dz)||1;
+              p.setXYZ(i,cx+r*dx/l,cy+r*dy/l,cz+r*dz/l);n.setXYZ(i,dx/l,dy/l,dz/l);
+            }
+            p.needsUpdate=n.needsUpdate=true;g.computeBoundingBox();g.computeBoundingSphere();return g;
+          };
+          const shapes=new Map();
+          for(const [base,w,h,d,r] of [
+            [approved.vestFront,.32,.34,.065,.024],[approved.vestBack,.31,.35,.065,.024],
+            [approved.magPouch,.068,.125,.045,.013],[approved.adminPouch,.15,.075,.04,.011],
+            [approved.medBag,.26,.32,.13,.034],[approved.engPack,.26,.30,.13,.031],
+            [approved.heavyPack,.30,.35,.16,.038],[approved.heavyShoulder,.145,.15,.19,.026],
+            [approved.kneePad,.088,.095,.055,.017],[approved.bootAnkle,.104,.095,.145,.018],
+            [approved.bootSole,.114,.045,.235,.017],[approved.handGlove,.065,.058,.078,.020]
+          ])if(base)shapes.set(base,rounded(w,h,d,r));
+          const glove=new THREE.MeshStandardMaterial({color:0x303438,roughness:.89,metalness:0});
+          const palm=new THREE.MeshStandardMaterial({color:0x24282b,roughness:.96,metalness:0});
+          const knuckle=new THREE.MeshStandardMaterial({color:0x41474a,roughness:.82,metalness:0});
+          G.v107={shapes,glove,palm,knuckle};
+        }
+        const H=G.v107;
+        const fitEquipment=n=>{
+          if(n===model.weaponPivot)return;
+          const shape=H.shapes.get(geomOf(n));
+          if(shape){n.geometry=shape;if(!n.name||n.name==='v101_textile')n.name='v107_fitted_equipment';}
+          for(const c of n.children||[])fitEquipment(c);
+        };
+        fitEquipment(model.root);
+        const arms=[];
+        for(const left of [true,false]){
+          const upper=model.upperBody;
+          const hand=upper.children.find(n=>geomOf(n)===H.shapes.get(approved.handGlove)&&Math.abs(n.position.x-(left?.01:.13))<.015);
+          const fore=upper.children.find(n=>n.name==='v100_anatomy'&&Math.abs(n.position.x-(left?-.07:.16))<.015&&Math.abs(n.position.z-(left?.31:.24))<.015);
+          const elbow=upper.children.find(n=>geomOf(n)===approved.elbowJoint&&Math.abs(n.position.x-(left?-.15:.19))<.015);
+          if(!hand||!fore||!elbow)continue;
+          hand.name=left?'v107_support_hand':'v107_trigger_hand';hand.material=H.glove;
+          const glove=detail(hand,'glove');
+          for(let j=0;j<4;j++){
+            const x=(j-1.5)*.014;
+            ell(glove,H.knuckle,x,.023,.018,.008,.009,.013);
+            ell(glove,H.palm,x,-.013,.036,.0075,.020,.011,-.42);
+          }
+          ell(glove,H.palm,left?.028:-.028,-.007,.008,.011,.025,.012,0,0,left?-.45:.45);
+          const rest={x:left?-.031:.028,y:left?-.018:-.034,z:left?(classId==='sniper'?.26:classId==='heavy'?.20:classId==='medic'||classId==='engineer'?.115:.17):.048};
+          arms.push({left,hand,fore,elbow,rest,glove});
+        }
+        // V108: visual arm fit follows the weapon pitch without changing aim or muzzle.
+        if(arms.length===2&&typeof arms[0].fore.quaternion?.setFromUnitVectors==='function'){
+          const axis=new THREE.Vector3(0,1,0),direction=new THREE.Vector3();
+          model.updateVisualGrip=(pitch)=>{
+            const c=Math.cos(pitch),s=Math.sin(pitch),w=model.weaponPivot.position;
+            for(const arm of arms){
+              const p=arm.rest;
+              arm.hand.position.set(w.x+p.x,w.y+c*p.y-s*p.z,w.z+s*p.y+c*p.z);
+              arm.hand.rotation.set(pitch+(arm.left?-.10:-.28),arm.left?.11:-.09,arm.left?.16:-.12);
+              const e=arm.elbow.position,h=arm.hand.position;
+              direction.set(e.x-h.x,e.y-h.y,e.z-h.z);
+              const length=direction.length();
+              arm.fore.position.set((h.x+e.x)/2,(h.y+e.y)/2,(h.z+e.z)/2);
+              arm.fore.scale.y=Math.max(.60,Math.min(1.65,length/.23));
+              if(length>.0001)arm.fore.quaternion.setFromUnitVectors(axis,direction.normalize());
+            }
+          };
+          model.updateVisualGrip(0);
+        }
+        if(!G.v109)G.v109=new Map();
         // V104: combine static detail meshes by material within each existing animated pivot.
         // Geometry is cached per role/team/pivot. No skeleton, visible muzzle or hitbox changes.
         if(!G.v104)G.v104=new Map();
-        const groups=[face,rig,...[model.leftHip,model.rightHip,model.leftKnee,model.rightKnee].map(p=>p.children.find(c=>String(c.name).startsWith('v99_')))];
+        const groups=[face,rig,...[model.leftHip,model.rightHip,model.leftKnee,model.rightKnee].map(p=>p.children.find(c=>String(c.name).startsWith('v99_'))),...arms.map(a=>a.glove)];
         const buildBatches=group=>{
           const buckets=new Map();
           for(const m of group.children){
@@ -6007,10 +6112,26 @@
             const m=createLimbMesh(b.geometry,b.material,false);m.name='v104_batch';group.add(m);
           }
         }
+        // V109: bounded individual color variants; team identifiers remain unchanged.
+        if(variantId!==0){
+          const fabricColors=new Set(V101.materials.values());
+          const vary=n=>{
+            if(n===model.weaponPivot)return;
+            if(fabricColors.has(n.material)&&typeof n.material.clone==='function'){
+              const key=n.material.uuid+':'+variantId;
+              let m=G.v109.get(key);
+              if(!m){m=n.material.clone();m.color.multiplyScalar(variantId===1?.92:1.08);G.v109.set(key,m);}
+              n.material=m;
+            }
+            for(const child of n.children||[])vary(child);
+          };
+          vary(model.root);
+        }
+        model.root.userData=model.root.userData||{};model.root.userData.visualVariant=variantId;
         return model;
       }
-      function createEnhancedBotSoldierMesh(team, classId) {
-        return enhanceV25SoldierWithV11Details(createBotSoldierMesh(team, classId), team, classId);
+      function createEnhancedBotSoldierMesh(team, classId, variant=0) {
+        return enhanceV25SoldierWithV11Details(createBotSoldierMesh(team, classId), team, classId,variant);
       }
 
       function createBotSoldierMesh(team, classId) {
@@ -9917,7 +10038,7 @@
 
         for (let i = 0; i < 5; i++) {
           const cls = CLASS_ORDER[i % CLASS_ORDER.length];
-          const mesh = createEnhancedBotSoldierMesh('blue', cls);
+          const mesh = createEnhancedBotSoldierMesh('blue', cls, i%3);
           scene.add(mesh.root);
           const bId = 'blue_' + i;
           droneSystem.grantLifeCharge(bId);
@@ -10038,7 +10159,7 @@
 
         for (let i = 0; i < 6; i++) {
           const cls = CLASS_ORDER[i % CLASS_ORDER.length];
-          const mesh = createEnhancedBotSoldierMesh('red', cls);
+          const mesh = createEnhancedBotSoldierMesh('red', cls, (i+1)%3);
           scene.add(mesh.root);
           const bId = 'red_' + i;
           droneSystem.grantLifeCharge(bId);
@@ -14698,6 +14819,7 @@
           bot.mesh.upperBody.rotation.x = bot.crouchAmt * 0.22 + bot.hitFlinchPitch;
           bot.mesh.upperBody.rotation.z = bot.hitFlinchRoll;
           bot.mesh.weaponPivot.rotation.x = -bot.aimPitch * 0.75;
+          if(bot.mesh.updateVisualGrip)bot.mesh.updateVisualGrip(bot.mesh.weaponPivot.rotation.x);
           bot.mesh.head.rotation.x = -bot.aimPitch * 0.65;
 
           // Ground movement produces approximate audible footsteps only
