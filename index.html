@@ -8573,7 +8573,14 @@ function buildSquadLeadership() {
           // A small wall detour may override V47's direct-distance clock,
           // but not its 6.2s budget. Only a bot almost at cover gets a
           // final one-second extension; 7.2s is a hard upper limit.
-          const routeMoving = Number.isFinite(audit.routeLastProgressAt) &&
+          // Collision recovery takes precedence over target stickiness.
+          // V48 may already be escaping a wall or rejecting a route node.
+          const obstacleRecovery = (bot.stuckFailures||0) > 0 ||
+            (bot.unstuckTimer||0) > 0 ||
+            (Number.isInteger(bot.blockedNode) && bot.blockedNode >= 0 &&
+             (bot.blockedNodeTimer||0) > 0);
+          const routeMoving = !obstacleRecovery &&
+            Number.isFinite(audit.routeLastProgressAt) &&
             routeAgo >= 0 && routeAgo < 1.6 && routeAttached &&
             age >= 0 && (age < 6.2 || (age < 7.2 && nearlyArrived));
           if (directExpired && !routeMoving) return false;
