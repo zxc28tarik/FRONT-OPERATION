@@ -44,3 +44,6 @@ Algı ve gözlem hafızası → takım/görev kararı → davranış seçici →
 - Yol takibi: https://github.com/rehlds/ReGameDLL_CS/blob/master/regamedll/dlls/bot/cs_bot_pathfind.cpp
 - Oyun içi saldırı davranışları: https://github.com/rehlds/ReGameDLL_CS/blob/master/regamedll/dlls/bot/states/cs_bot_attack.cpp
 - Quake III kaynakları: https://github.com/id-Software/Quake-III-Arena
+
+## 24 Kasım 2026 — Yatay sınıf/silah/maç evresi gereksinimi
+Kullanıcının yeni kararı uyarınca sonraki her ilgili pakette sınıf, aktif silah ve maç evresine uygun davranış uygulanır; geçmiş paketlere ait boşluklar ileri paketlerden sonra toplu denetlenir. Ayrıntılı ve güncel devam planı: [BOT_AI_CLASS_PHASE_POLICY_TR.md](BOT_AI_CLASS_PHASE_POLICY_TR.md). Bu ek, V54–V63 tarihsel planı silmez.
