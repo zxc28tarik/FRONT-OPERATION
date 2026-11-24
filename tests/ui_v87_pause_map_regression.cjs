@@ -12,7 +12,7 @@ const api=new Function('document','matchState','foModeSelect','player','showPaus
 api.open();assert(api.pending());assert.equal(el('fo-game-mode').value,'bomb');assert.equal(el('fo-mode-picker').style.display,'flex');assert(!el('btn-map-cancel').classList.contains('hidden'));
 el('fo-game-mode').value='deathmatch';api.cancel();assert(!api.pending());assert.equal(state.mode,'bomb');assert.equal(state.scoreBlue,4);assert.equal(state.scoreRed,2);assert.equal(pauses,1);assert(el('menu-overlay').classList.contains('hidden'));
 assert(html.includes("const isNewMatch = mapSwitchPending || matchState.ended"));
-assert(html.includes("if(!mapSwitchPending&&matchState.started&&!matchState.ended&&matchState.mode==='bomb')"));
+assert(html.includes("if(!mapSwitchPending&&matchState.started&&!matchState.ended&&foSingleLife())"));
 assert(html.includes('selectFoMap(selectedMode);'));
 assert(html.includes('clearAllMatchEntities();'));
 assert(html.includes('droneSystem.resetAll();'));
