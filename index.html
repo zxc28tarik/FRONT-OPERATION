@@ -3633,7 +3633,8 @@
         }
         validateGroundNavEdges();
       }
-      const FO_TERSANE_X=2.28,FO_TERSANE_Z=.9;
+      // V88: shrink V87 width by 40% and length by 15%; keep vertical scale.
+      const FO_TERSANE_X=1.368,FO_TERSANE_Z=.765;
       function foWorldX(v){return foActiveMap==='bomb'?v*FO_TERSANE_X:v;}
       function foWorldZ(v){return foActiveMap==='bomb'?v*FO_TERSANE_Z:v;}
       const FO_BOMB_SITES = [
@@ -3709,7 +3710,7 @@
         return {nodes:kept,edges:links.filter(([a,b])=>seen.has(a)&&seen.has(b)).map(([a,b])=>[remap.get(a),remap.get(b)])};
       }
       function buildDepot17Map() {
-        // V10 Tersane: compact 60% linear scale of V9 design, same soldier height.
+        // V88 Tersane: compact horizontal footprint, same building/soldier height.
         const navSolids=[];
         const solid=(x,y,z,w,h,d,m,...flags)=>{
           const X=x*FO_TERSANE_X,Z=z*FO_TERSANE_Z,W=w*FO_TERSANE_X,D=d*FO_TERSANE_Z;
