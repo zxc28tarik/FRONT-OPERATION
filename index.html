@@ -9491,12 +9491,16 @@
         return null;
       }
 
+      // V86: distant visible contacts are valid for every infantry class.
+      function botVisualRange(classId,crouching){
+        const range=classId==='sniper'?100:classId==='assault'||classId==='heavy'?82:72;
+        return range*(crouching?.84:1);
+      }
       function evaluateCandidatePerception(bot, botEye, cand) {
         const dx = cand.pos.x - bot.pos.x;
         const dz = cand.pos.z - bot.pos.z;
         const horizDist = Math.hypot(dx, dz);
-        const crouchMult = cand.crouching ? 0.84 : 1.0;
-        const maxRange = (bot.classId === 'sniper' ? 68 : 54) * crouchMult;
+        const maxRange = botVisualRange(bot.classId,cand.crouching);
 
         if (horizDist > maxRange) return null;
 
@@ -9541,7 +9545,7 @@
       function computeReactionDelay(bot, percInfo) {
         const baseDelay = bot.classId === 'sniper' ? 0.19 : bot.classId === 'heavy' ? 0.27 : 0.23;
         const angleFactor = Math.min(0.18, (percInfo.angleRad / Math.PI) * 0.24);
-        const distFactor = Math.min(0.14, (percInfo.dist / 60) * 0.14);
+        const distFactor = Math.min(0.08, (percInfo.dist / 60) * 0.08);
         const alertMult = bot.alertTimer > 0 ? 0.50 : 1.0;
         return (baseDelay + angleFactor + distFactor) * alertMult *
           getBotSkillProfile(bot).reactionScale;
@@ -12507,6 +12511,16 @@
       // reason to abandon an exposed opponent. Urgent retreat remains superior.
       // V85: direct contact takes precedence until the visible target is gone
       // or the shot is physically obstructed. Reloading is still combat.
+      // V86: standing can restore a shot lost only to automatic crouching.
+      // This is an intent test; the real muzzle/LOS gate still controls fire.
+      function botCanStandForContact(bot,enemy,currentLane,laneClear){
+        return !!(enemy&&!currentLane&&(bot.crouchAmt||0)>.08&&
+          laneClear({...bot,crouchAmt:0},enemy.eye));
+      }
+      function botContactCrouch(bot,enemy,standToFire,laneClear){
+        if(bot.classId!=='sniper'||standToFire||!enemy)return 0;
+        return laneClear({...bot,crouchAmt:.65},enemy.eye)?.65:0;
+      }
       function botMustContinueContact(enemy,clearLane,hasAmmo){
         return !!(enemy&&clearLane&&hasAmmo);
       }
@@ -12792,7 +12806,8 @@
             const botWeaponId=botAmmoWeapon(bot,botPreferredInfantryWeapon(bot,distToEnemy));
             const initialFireLane=isBotFireLaneClear(bot,bestEnemy.eye);
             const activeAmmo=botAmmoSlot(bot,botWeaponId);
-            const directCombat=botMustContinueContact(bestEnemy,initialFireLane,
+            const standToFire=botCanStandForContact(bot,bestEnemy,initialFireLane,isBotFireLaneClear);
+            const directCombat=botMustContinueContact(bestEnemy,initialFireLane||standToFire,
               !!activeAmmo&&(activeAmmo.mag>0||activeAmmo.reserve>0));
             const isWounded = !directCombat && bot.hp < woundedThreshold;
             const isSniperTooClose = !directCombat && bot.classId === 'sniper' && distToEnemy < 11.5;
@@ -12933,7 +12948,7 @@
                 const strafeRemaining = bot.combatStrafeGoal ? Math.hypot(bot.combatStrafeGoal.x-bot.pos.x,bot.combatStrafeGoal.z-bot.pos.z) : 0;
                 if (strafeRemaining > 0.48) moveTargetPos = bot.combatStrafeGoal;
                 moveSpeed = moveTargetPos ? (bot.classId === 'sniper' ? 1.8 : 2.7) : 0;
-                targetCrouch = (bot.classId === 'sniper' || distToEnemy > 24) ? 0.65 : 0;
+                targetCrouch = botContactCrouch(bot,bestEnemy,standToFire,isBotFireLaneClear);
               }
             }
 
@@ -12996,7 +13011,7 @@
             const canAdjustFireLane = !objectiveRetry && !isWounded && !isSniperTooClose && bot.coverNode < 0 && bot.teamFlankGoalNode < 0;
             const fireLaneClear = isBotFireLaneClear(bot, bestEnemy.eye);
             const aimAligned = isBotAimAligned(bot, bestEnemy.eye);
-            if (isReactionReady && !fireLaneClear && canAdjustFireLane) {
+            if (isReactionReady && !fireLaneClear && canAdjustFireLane && !standToFire) {
               bot.fireLaneBlockTimer = Math.min(3, bot.fireLaneBlockTimer + dt);
               if (bot.fireLaneBlockTimer > 0.38) {
                 if (!bot.fireLaneRecoveryGoal ||
