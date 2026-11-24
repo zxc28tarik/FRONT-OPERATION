@@ -39,7 +39,8 @@ window.__foFullRoundQA=(seed)=>{
       if(tick%100===0)samples.push({t:Math.round(elapsed*10)/10,phase:foBomb.phase,
         blue:bots.filter(b=>b.team==='blue'&&b.alive).length,
         red:bots.filter(b=>b.team==='red'&&b.alive).length,
-        player:player.alive,actor:foBomb.actor,progress:foBomb.progress});
+        player:player.alive,actor:foBomb.actor,progress:foBomb.progress,
+        operators:[...foBotPlan.operators.entries()].map(([site,id])=>{const b=bots.find(v=>v.id===id),o=foBotPlan.orders.get(id),target=FO_BOMB_SITES.find(s=>s.id===site);return {site,id,role:o?.role,alive:b?.alive,hp:b?.hp,x:b?.pos.x,z:b?.pos.z,distance:b&&target?Math.hypot(b.pos.x-target.x,b.pos.z-target.z):null,goal:b?.foObjectiveGoal,pathIndex:b?.foObjectiveIndex,pathLength:b?.foObjectivePath?.length,gatePassed:!!b?.foGatePassed,contact:!!b?.visibleEnemy,state:b?.state,coverPhase:b?.coverPhase};})});
     }
     if(matchState.ended)endedAt=elapsed;
     const stats=getBotMetricsSnapshot(), actors=Object.values(stats.actors);
@@ -68,6 +69,6 @@ try{
  if(!data.endedAt||data.phase!=='ended'||!data.reason||data.nav!==251||data.invalid||data.respawns||data.missingOrders>11||data.hits>data.shots||errors.length)
    throw Error('Full-round invariant failure: '+JSON.stringify({end:data.endedAt,phase:data.phase,reason:data.reason,nav:data.nav,invalid:data.invalid,respawns:data.respawns,missingOrders:data.missingOrders,errors}));
  report.status='PASS';
- console.log('V63 BOMB FULL ROUND '+JSON.stringify({seed,variant,elapsed:data.elapsed,reason:data.reason,plantedAt:data.plantedAt,shots:data.shots,hits:data.hits,stuck:data.stuck,actorSeconds:data.actorSeconds}));
+ console.log('V63 BOMB FULL ROUND '+JSON.stringify({seed,variant,elapsed:data.elapsed,reason:data.reason,plantedAt:data.plantedAt,shots:data.shots,hits:data.hits,stuck:data.stuck,actorSeconds:data.actorSeconds,operators:data.samples.map(s=>({t:s.t,operators:s.operators}))}));
 }catch(e){report.error=String(e);console.error(report.error);process.exitCode=1;}
 finally{fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));await browser?.close();await new Promise(r=>server.close(r));}
