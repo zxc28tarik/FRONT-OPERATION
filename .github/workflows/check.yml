@@ -161,3 +161,6 @@ jobs:
 
       - name: Run V77 movement isolation regression
         run: node tests/bot_ai_v77_isolation_regression.cjs
+
+      - name: Run V78 game reservation regression
+        run: node tests/bot_ai_v78_reservations_regression.cjs
