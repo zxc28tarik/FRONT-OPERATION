@@ -173,3 +173,6 @@ jobs:
 
       - name: Run V81 recovery ownership regression
         run: node tests/bot_ai_v81_recovery_regression.cjs
+
+      - name: Run V82 Heavy Gustav discipline regression
+        run: node tests/bot_ai_v82_gustav_regression.cjs
