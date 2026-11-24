@@ -176,3 +176,6 @@ jobs:
 
       - name: Run V82 Heavy Gustav discipline regression
         run: node tests/bot_ai_v82_gustav_regression.cjs
+
+      - name: Run V83 fire readiness regression
+        run: node tests/bot_ai_v83_fire_readiness_regression.cjs
