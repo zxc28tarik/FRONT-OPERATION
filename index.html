@@ -12503,6 +12503,27 @@
           bot.coverNode<0&&now>=c.started&&now-c.started<2.5&&
           (!pressure||bot.teamFlankGoalNode<0));
       }
+      // V84: an actual shot starts a short follow-through window, not a
+      // reason to abandon an exposed opponent. Urgent retreat remains superior.
+      function botFollowThroughPriority(bot,enemy,now,clearLane,wounded,tooClose){
+        const c=bot.contactOpportunity;
+        return !!(enemy&&c&&c.id===enemy.id&&c.fired&&Number.isFinite(c.firstShotAt)&&
+          !wounded&&!tooClose&&clearLane&&bot.coverNode<0&&
+          now>=c.firstShotAt&&now-c.firstShotAt<2.4&&now-c.started<5);
+      }
+      function recordBotContactShot(bot,now){
+        const c=bot.contactOpportunity;
+        if(!c)return;
+        if(!c.fired)c.firstShotAt=now;
+        c.fired=true;
+      }
+      function botMayPauseCoverApproach(bot,clearLane,pressure,wounded,tooClose){
+        return clearLane&&!pressure&&!wounded&&!tooClose&&bot.coverNode>=0&&bot.coverPhase==='MOVE_TO_COVER';
+      }
+      // Keep range falloff but avoid an almost harmless distant opponent.
+      function botInfantryDistanceFactor(distance){
+        return Math.max(.14,1-Math.max(0,distance)/75);
+      }
       function botShouldSeekTacticalCover(bot,enemy,dist,clearLane,now){
         if(!enemy)return false;
         const threshold=bot.personalityTuning?.coverDistance??11.5;
@@ -12768,11 +12789,16 @@
             const isSniperTooClose = bot.classId === 'sniper' && distToEnemy < 11.5;
             const initialFireLane=isBotFireLaneClear(bot,bestEnemy.eye);
             const pressure=botObservedPressure(bot,bestEnemy,distToEnemy);
+            if(botMayPauseCoverApproach(bot,initialFireLane,pressure,isWounded,isSniperTooClose)){
+              bot.coverNode=-1;bot.coverPhase='NONE';bot.coverThreatAnchor=null;
+              resetBotCoverCycle(bot);bot.coverSearchCooldown=Math.max(bot.coverSearchCooldown,1.2);
+            }
             const openingPriority=botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
+            const followThrough=botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
             if(openingPriority&&bot.teamFlankGoalNode>=0&&!pressure){
               bot.teamFlankGoalNode=-1;bot.teamFlankRoute=[];bot.teamFlankPathIndex=0;
             }
-            const holdContact=openingPriority||botShouldHoldContact(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
+            const holdContact=openingPriority||followThrough||botShouldHoldContact(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
             if (!isWounded && !isSniperTooClose && distToEnemy > 8) {
               refreshBotCoverForMovingEnemy(bot, activeThreatPos, dt);
             }
@@ -12982,13 +13008,13 @@
             if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0 &&
                 botTrySpendRound(bot,botWeaponId)) {
               const bw = WEAPONS[botWeaponId];
-              bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && botWeaponId === 'mrad' ? 1.35 : 2.1);
-              if(bot.contactOpportunity)bot.contactOpportunity.fired=true;
+              bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && botWeaponId === 'mrad' ? 1.35 : 1.75);
+              recordBotContactShot(bot,nowSec);
               recordBotHeavyGustavRound(bot,bestEnemy);
               bot.burstCount++;
               if (bot.burstCount > (bot.classId === 'heavy' ? 9 : 5)) {
                 bot.burstCount = 0;
-                bot.fireTimer += 0.42 + Math.random() * 0.35;
+                bot.fireTimer += 0.30 + Math.random() * 0.25;
               }
 
               bot.muzzleTimer = 0.055;
@@ -13000,7 +13026,7 @@
               emitBotNoise(bot.team, bot.pos, bw.category === 'sniper' ? 'sniper' :
                 (bw.category === 'pistol' ? 'pistol' : 'gun'), bot.id);
 
-              const distFactor = Math.max(0.14, 1 - distToEnemy / 62);
+              const distFactor = botInfantryDistanceFactor(distToEnemy);
               const classAcc = botWeaponId === 'mrad' ? 0.62 : botWeaponId === 'hk416' ? 0.38 : 0.30;
               const targetEvasion = bestEnemy.rolling ? 0.32 : (bestEnemy.crouching ? 0.82 : 1.0);
               const trackingFactor = getBotAimTrackingFactor(bot, bestEnemy.eye);
