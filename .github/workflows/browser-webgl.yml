@@ -19,6 +19,7 @@ on:
       - ai/v46-target-cover-consistency
       - ai/v47-cover-lifecycle-reliability
       - ai/v48-cover-route-recovery
+      - ai/v49-cover-route-hysteresis
   workflow_dispatch:
 
 jobs:

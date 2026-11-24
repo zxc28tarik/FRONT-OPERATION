@@ -1,8 +1,8 @@
-name: V48 accelerated 600s bot engine stress
+name: V49 accelerated 600s bot engine stress
 on:
   push:
     branches:
-      - ai/v48-cover-route-recovery
+      - ai/v49-cover-route-hysteresis
     paths:
       - .github/workflows/bot-ai-stress.yml
       - scripts/browser-bot-ai-stress.mjs
@@ -24,13 +24,13 @@ jobs:
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
-      - name: Compare identical-seed bot matches with and without V47 cover policy
+      - name: Compare identical-seed V48 baseline and V49 route-retention policy
         shell: bash
         run: |
           set -euo pipefail
-          git show 5356db87317340a02e88ef65db7ee6c73e7581a8:index.html > /tmp/front-operation-v47-control.html
+          git show 625b79c00cad85be1716af1b3d834b72836ef9df:index.html > /tmp/front-operation-v48-control.html
           for seed in 471001 471002 471003; do
-            FRONT_OPERATION_GAME_FILE=/tmp/front-operation-v47-control.html FRONT_OPERATION_SEED=$seed FRONT_OPERATION_VARIANT=baseline node scripts/browser-bot-ai-stress.mjs
+            FRONT_OPERATION_GAME_FILE=/tmp/front-operation-v48-control.html FRONT_OPERATION_SEED=$seed FRONT_OPERATION_VARIANT=baseline node scripts/browser-bot-ai-stress.mjs
             FRONT_OPERATION_GAME_FILE=index.html FRONT_OPERATION_SEED=$seed FRONT_OPERATION_VARIANT=candidate node scripts/browser-bot-ai-stress.mjs
           done
           node scripts/compare-bot-cover-stress.mjs 471001 471002 471003
@@ -38,7 +38,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: front-operation-bot-v48-600s
+          name: front-operation-bot-v49-600s
           path: test-artifacts/front-operation-bot-stress/
           if-no-files-found: warn
           retention-days: 14

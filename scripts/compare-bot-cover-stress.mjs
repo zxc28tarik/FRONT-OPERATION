@@ -9,6 +9,7 @@ if(seeds.length<2||seeds.some(x=>!Number.isInteger(x)||x<=0))
 const basePath=path.resolve('test-artifacts/front-operation-bot-stress');
 const fields=['selections','arrivals','abandons','reassignments','retainedTargets',
   'routeRejected','alternativeSelected','stallReroutes','stallFallbacks',
+  'routeRetentions','targetReevaluations',
   'stalledApproaches','orphanSeconds','approachSeconds','holdSeconds'];
 const rows=[];
 for(const seed of seeds){
@@ -38,9 +39,9 @@ const baseline=sums('baseline'),candidate=sums('candidate');
 const difference=Object.fromEntries(Object.keys(baseline).map(k=>
  [k,candidate[k]-baseline[k]]));
 const comparison={
- status:'PASS',method:'Same three game seeds, V47 audited baseline vs cover-commit candidate',
+ status:'PASS',method:'Same game seeds, V48 baseline versus V49 route-progress cover continuity',
  limitation:'Accelerated bot-engine stress, not ten-minute rendered human play; random streams can diverge after game decisions',
  seeds,baseline,candidate,difference,bySeed:rows
 };
 fs.writeFileSync(path.join(basePath,'comparison.json'),JSON.stringify(comparison,null,2));
-console.log('PASS V48 seeded cover policy comparison: '+JSON.stringify(comparison));
+console.log('PASS V49 seeded cover policy comparison: '+JSON.stringify(comparison));
