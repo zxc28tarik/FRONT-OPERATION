@@ -7459,7 +7459,9 @@
              bot.coverAvoidUntil>botAiClockSec)) continue;
           const point=NAV_NODES[node];
           const d=Math.hypot(point.x-bot.pos.x,point.z-bot.pos.z);
-          const limit=isWounded?28:25.5;
+          // Recovery is intentionally local. Long replacement trips create
+          // fresh exposure and another stuck cover loop.
+          const limit=bot.classId==='sniper'?24:18;
           if(d<0.5||d>limit||
              Math.abs(point.y-bot.pos.y)>(bot.classId==='sniper'?3.8:1.35))
             continue;
@@ -7481,7 +7483,7 @@
             const a=NAV_NODES[route[j-1]], b=NAV_NODES[route[j]];
             routeDistance+=Math.hypot(b.x-a.x,b.z-a.z,(b.y-a.y)*1.4);
           }
-          if(routeDistance>Math.max(18,d*2.2+8)) {
+          if(routeDistance>Math.min(32,Math.max(18,d*2.2+8))) {
             recordBotMetric(bot,'coverRouteRejected');
             continue;
           }
@@ -7505,11 +7507,15 @@
         if (!bot || !bot.alive || !bot.visibleEnemy || !audit ||
             bot.coverNode<0 || bot.coverNode!==audit.node || audit.arrived ||
             bot.coverPhase!=='MOVE_TO_COVER' ||
-            nowSec-audit.since<3.6 || nowSec-audit.lastProgressAt<3.6 ||
+            // Do not mistake an AI stance change or a necessary detour
+            // for physical blockage. Require multiple actual V40-style
+            // movement failures, not just low cover-goal progress.
+            nowSec-audit.since<5.4 || nowSec-audit.lastProgressAt<5.4 ||
+            bot.stuckFailures<2 ||
             (bot.coverRecoveryUntil||0)>nowSec ||
             bot.teamFlankGoalNode>=0) return false;
         const failed=bot.coverNode;
-        bot.coverRecoveryUntil=nowSec+3.6;
+        bot.coverRecoveryUntil=nowSec+4.5;
         const alternate=selectAlternativeReachableCover(bot,bot.visibleEnemy.pos,failed);
         if(alternate && alternate.node!==failed) {
           bot.coverNode=alternate.node;
