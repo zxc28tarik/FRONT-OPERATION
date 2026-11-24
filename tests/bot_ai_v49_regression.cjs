@@ -37,6 +37,7 @@ ok(!make(7.2)(b,enemy),'Hard 7.2-second cap ends even recent route progress');
 b=bot();b._coverAudit.routeBestDistance=14;
 ok(!make(7)(b,enemy),'Distant cover may not use the near-arrival grace');
 b=bot();b._coverAudit.routeBestDistance=14;
+b._coverAudit.routeLastProgressAt=5.3;
 ok(make(5.5)(b,enemy),'Attached progressing route is held within original 6.2s budget');
 b=bot();b.path=[1];
 ok(!make(7)(b,enemy),'Route to another objective cannot prolong old cover');
