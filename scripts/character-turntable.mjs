@@ -49,8 +49,8 @@ const pageHtml = '<!doctype html><html><head><meta charset="UTF-8">' +
   '#hint{position:absolute;top:65px;left:30px;font-size:14px;color:#dce5f4}' +
   '.caption{position:absolute;bottom:35px;font-size:24px;font-weight:900;background:#111827e6;padding:12px 20px;border-radius:12px;border:2px solid #9aa9bf}' +
   '#left{left:12%}#right{right:12%;border-color:#38bdf8}</style></head><body>' +
-  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V111 DETAILS</div>' +
-  '<div id="left" class="caption">ORIGINAL V25</div><div id="right" class="caption">V25 + V111 DETAILS</div>' +
+  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V118 DETAILS</div>' +
+  '<div id="left" class="caption">ORIGINAL V25</div><div id="right" class="caption">V25 + V118 DETAILS</div>' +
   '</body></html>';
 const server = createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });

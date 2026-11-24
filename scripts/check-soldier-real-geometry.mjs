@@ -19,6 +19,16 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
    assert(limbs.every(n=>n.position.toArray().every(Number.isFinite)&&n.quaternion.toArray().every(Number.isFinite)&&n.scale.y>0&&n.scale.y<1.8));
    assert(m.muzzleFlash.position.equals(muzzle));
  }
+ // Combat pose keeps pivot angle fixed, follows real state and restores rest.
+ const rest=m.weaponPivot.position.clone(),pitch=m.weaponPivot.rotation.x;
+ m.setVisualCombatPose({kick:1,reload:0,swap:0});
+ assert(m.weaponPivot.position.z<rest.z&&m.weaponPivot.rotation.x===pitch);
+ m.setVisualCombatPose({kick:0,reload:1,swap:1});
+ assert(m.weaponPivot.position.y<rest.y&&m.weaponPivot.rotation.x===pitch);
+ assert(hands.every(h=>h.position.toArray().every(Number.isFinite)));
+ m.resetVisualCombatPose();assert(m.weaponPivot.position.distanceTo(rest)<.00001);
+ let camo=0;m.root.traverse(n=>{if(n.material?.name==='V112 camouflage')camo++;});
+ assert(camo>0);
  const head=m.head.children.find(n=>n.name==='v106_face'),other=alt.head.children.find(n=>n.name==='v106_face');
  assert(head.geometry===other.geometry&&head.material!==other.material);
  assert.equal(alt.root.userData.visualVariant,1);assert.equal(alt2.root.userData.visualVariant,2);
@@ -33,4 +43,4 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert.equal(m.head.parent,m.upperBody);assert.equal(m.muzzleFlash.parent,m.weaponPivot);
  nearTotal+=near;farTotal+=far;models+=3;
 }
-console.log('V110/V111 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
+console.log('V112–V118 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');

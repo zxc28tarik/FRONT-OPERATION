@@ -5948,6 +5948,50 @@
           for(const child of node.children||[])upgradeSurface(child);
         };
         upgradeSurface(model.root);
+        // V112: tileable low-contrast camouflage, mapped onto fabric only.
+        if(!G.v112){
+          const size=128,data=new Uint8Array(size*size*4);
+          const hash=(x,y)=>{let h=Math.imul(x+19,374761393)^Math.imul(y+43,668265263);h=Math.imul(h^(h>>>13),1274126177);return ((h^(h>>>16))>>>0)/4294967295;};
+          const noise=(x,y,period)=>{
+            x=x*period/size;y=y*period/size;
+            const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;
+            const a=fx*fx*(3-2*fx),b=fy*fy*(3-2*fy);
+            const h=(u,v)=>hash((u+period)%period,(v+period)%period);
+            return (h(ix,iy)*(1-a)+h(ix+1,iy)*a)*(1-b)+(h(ix,iy+1)*(1-a)+h(ix+1,iy+1)*a)*b;
+          };
+          for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+            const n=noise(x,y,5)*.62+noise(x,y,11)*.27+noise(x,y,23)*.11;
+            const tone=n<.34?169:n<.49?199:n<.64?226:247;
+            const i=(y*size+x)*4;data[i]=data[i+1]=data[i+2]=tone;data[i+3]=255;
+          }
+          const map=new THREE.DataTexture(data,size,size,THREE.RGBAFormat);
+          map.wrapS=map.wrapT=THREE.RepeatWrapping;map.generateMipmaps=true;
+          map.magFilter=THREE.LinearFilter;map.minFilter=THREE.LinearMipmapLinearFilter;map.needsUpdate=true;
+          const materials=new Map();
+          for(const key of [mats.blueUniform,mats.redUniform,mats.bluePants,mats.redPants,D.clothBlue,D.clothRed,mats.ghillieOlive,D.olive]){
+            const source=V101.materials.get(key);
+            if(source&&typeof source.clone==='function'){
+              const m=source.clone();m.map=map;m.name='V112 camouflage';m.needsUpdate=true;materials.set(source,m);
+            }
+          }
+          G.v112={map,materials};
+        }
+        const applyCamo=node=>{
+          if(node===model.weaponPivot)return;
+          const material=G.v112.materials.get(node.material);
+          if(material)node.material=material;
+          for(const child of node.children||[])applyCamo(child);
+        };
+        applyCamo(model.root);
+        // V113: role-specific width/depth only, retaining all joint heights and hit volumes.
+        const bodyProfile={assault:[1,1],medic:[.95,.97],engineer:[1.02,1.01],sniper:[.93,.95],heavy:[1.10,1.08]}[classId]||[1,1];
+        for(const pivot of [model.upperBody,model.leftHip,model.rightHip,model.leftKnee,model.rightKnee]){
+          for(const n of pivot.children){
+            if(n.name==='v100_anatomy'){
+              n.scale.x*=bodyProfile[0];n.scale.z*=bodyProfile[1];
+            }
+          }
+        }
         // V105: coherent, role-specific protective shells instead of one generic helmet.
         // Use the existing helmet reference and head pivot; approved V25 factory stays intact.
         if(!G.v105){
@@ -6047,14 +6091,23 @@
             mesh.scale.y=length/nominal;
             if(length>.0001)mesh.quaternion.setFromUnitVectors(axis,direction.normalize());
           };
-          model.updateVisualGrip=(pitch)=>{
+          model.updateVisualGrip=(pitch,reload=0)=>{
             if(!Number.isFinite(pitch))return;
-            if(model.lastVisualGripPitch===pitch)return;
-            model.lastVisualGripPitch=pitch;
+            reload=Math.max(0,Math.min(1,reload||0));
+            const wpos=model.weaponPivot.position;
+            const gripKey=[pitch,reload,wpos.x,wpos.y,wpos.z].join(':');
+            if(model.lastVisualGripPitch===gripKey)return;
+            model.lastVisualGripPitch=gripKey;
             const c=Math.cos(pitch),s=Math.sin(pitch),w=model.weaponPivot.position;
             for(const arm of arms){
               const p=arm.rest;
               arm.hand.position.set(w.x+p.x,w.y+c*p.y-s*p.z,w.z+s*p.y+c*p.z);
+              if(arm.left&&reload>0){
+                // The support glove travels to the magazine well, not through the torso.
+                arm.hand.position.x+=(w.x-.044-arm.hand.position.x)*reload;
+                arm.hand.position.y+=(w.y-.105-arm.hand.position.y)*reload;
+                arm.hand.position.z+=(w.z+.105-arm.hand.position.z)*reload;
+              }
               arm.hand.rotation.set(pitch+(arm.left?-.10:-.28),arm.left?.11:-.09,arm.left?.16:-.12);
               const a=arm.shoulder.position,e=arm.elbow.position,h=arm.hand.position;
               line.subVectors(h,a);
@@ -6134,7 +6187,7 @@
         }
         // V109: bounded individual color variants; team identifiers remain unchanged.
         if(variantId!==0){
-          const fabricColors=new Set(V101.materials.values());
+          const fabricColors=new Set([...V101.materials.values(),...G.v112.materials.values()]);
           const vary=n=>{
             if(n===model.weaponPivot)return;
             if(fabricColors.has(n.material)&&typeof n.material.clone==='function'){
@@ -6147,6 +6200,39 @@
           };
           vary(model.root);
         }
+        // V114/V115: a visual-only firearm recoil and reload controller.
+        // Actual game ammo, firing cadence, aim and damage are not written here.
+        const weaponRest={x:model.weaponPivot.position.x,y:model.weaponPivot.position.y,z:model.weaponPivot.position.z};
+        const magazine=model.weaponPivot.children.find(n=>Math.abs(n.position.x)<.01&&Math.abs(n.position.y+.085)<.012&&Math.abs(n.position.z-.16)<.02);
+        const magRest=magazine?{x:magazine.position.x,y:magazine.position.y,z:magazine.position.z,rx:magazine.rotation.x}:null;
+        model.setVisualCombatPose=(pose)=>{
+          const p=pose||{},kick=Math.max(0,Math.min(1,p.kick||0)),reload=Math.max(0,Math.min(1,p.reload||0)),swap=Math.max(0,Math.min(1,p.swap||0));
+          model.weaponPivot.position.set(weaponRest.x,weaponRest.y-.025*reload,weaponRest.z-kick*.033-.012*reload);
+          if(magazine&&magRest){
+            magazine.position.set(magRest.x-.027*swap,magRest.y-.105*swap,magRest.z-.025*swap);
+            magazine.rotation.x=magRest.rx+swap*.38;
+          }
+          if(model.updateVisualGrip)model.updateVisualGrip(model.weaponPivot.rotation.x,reload);
+        };
+        model.resetVisualCombatPose=()=>{
+          model.setVisualCombatPose({kick:0,reload:0,swap:0});
+          model.head.rotation.z=0;
+          model.upperBody.position.y=.93;
+        };
+        // V117: restrained helmet/metal response; no emissive uniform or team color changes.
+        if(!G.v117){
+          const replacement=new Map();
+          for(const [source,color,roughness,metalness] of [[mats.helmetOlive,0x414a50,.78,.09],[D.hard,0x414a50,.76,.10],[D.lens,0x314957,.26,.22],[mats.bootLeather,0x22262a,.91,.01]]){
+            replacement.set(source,new THREE.MeshStandardMaterial({color,roughness,metalness}));
+          }
+          G.v117=replacement;
+        }
+        const surfaceFinish=node=>{
+          if(node===model.weaponPivot)return;
+          const m=G.v117.get(node.material);if(m)node.material=m;
+          for(const child of node.children||[])surfaceFinish(child);
+        };
+        surfaceFinish(model.root);
         // V111: distance-dependent detail visibility. Base silhouette, head, class kit and weapon stay visible.
         const nearDetails=arms.map(a=>a.glove);
         const midDetails=groups.slice(2,6).filter(Boolean);
@@ -10361,6 +10447,7 @@
         bot.assignedLane = bot.squadId;
         bot.burstCount = 0;
         bot.ammoState={};bot.botReload=null;bot.lastAmmoWeapon=null;bot.foObjectiveDelay=null;bot.retreatRouteRetry=null;
+        if(bot.mesh.resetVisualCombatPose)bot.mesh.resetVisualCombatPose();
         bot.stuckTimer = 0;
         bot.stuckFailures = 0;
         bot.blockedNode = -1;
@@ -13699,6 +13786,21 @@
           botStartReload(bot,id,s.mag>0);
       }
 
+      // V114–V116: pure visual animation curves driven by game state.
+      function botVisualCombatPose(muzzleTimer,reloadLeft,reloadDuration,role){
+        const phase=reloadDuration>0?Math.max(0,Math.min(1,1-reloadLeft/reloadDuration)):0;
+        const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+        const reload=reloadDuration>0?smooth(phase/.18)*smooth((1-phase)/.22):0;
+        const swap=reloadDuration>0?smooth((phase-.12)/.26)*smooth((.78-phase)/.24):0;
+        const scale=role==='sniper'?1:role==='heavy'?.72:.52;
+        const kick=Math.max(0,Math.min(1,(muzzleTimer||0)/.055))*scale;
+        return {kick,reload,swap};
+      }
+      function botVisualFall(progress,side){
+        const t=Math.max(0,Math.min(1,progress)),ease=t*t*(3-2*t);
+        return {pitch:ease*Math.PI*.48,roll:ease*side*.31,drop:ease*.45,
+          knee:Math.sin(t*Math.PI)*.72,head:Math.sin(t*Math.PI)*.28};
+      }
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -13724,9 +13826,13 @@
             observeBotCoverLifecycle(bot,nowSec);
             bot.deathAnimTimer -= dt;
             const fallProg = Math.min(1, 1 - bot.deathAnimTimer / 0.65);
-            bot.mesh.root.rotation.x = fallProg * (Math.PI * 0.48);
-            bot.mesh.root.rotation.z = fallProg * bot.deathFallDir * 0.25;
-            bot.mesh.root.position.y = bot.pos.y - fallProg * 0.45;
+            const fall=botVisualFall(fallProg,bot.deathFallDir);
+            bot.mesh.root.rotation.x=fall.pitch;
+            bot.mesh.root.rotation.z=fall.roll;
+            bot.mesh.root.position.y=bot.pos.y-fall.drop;
+            bot.mesh.leftKnee.rotation.x=fall.knee;
+            bot.mesh.rightKnee.rotation.x=fall.knee*.7;
+            bot.mesh.head.rotation.z=fall.head*bot.deathFallDir;
             if (bot.deathAnimTimer <= 0) {
               bot.dying = false;
               bot.mesh.root.visible = false;
@@ -13780,6 +13886,7 @@
             bot.mesh.upperBody.rotation.y = 0;
             bot.mesh.upperBody.rotation.x = bot.crouchAmt * 0.28 + bot.hitFlinchPitch;
             bot.mesh.upperBody.rotation.z = bot.hitFlinchRoll;
+            if(bot.mesh.resetVisualCombatPose)bot.mesh.resetVisualCombatPose();
             bot.mesh.leftHip.rotation.x *= Math.exp(-10 * dt);
             bot.mesh.rightHip.rotation.x *= Math.exp(-10 * dt);
             bot.mesh.leftKnee.rotation.x = bot.crouchAmt * 0.45;
@@ -14855,8 +14962,12 @@
           bot.mesh.upperBody.rotation.x = bot.crouchAmt * 0.22 + bot.hitFlinchPitch;
           bot.mesh.upperBody.rotation.z = bot.hitFlinchRoll;
           bot.mesh.weaponPivot.rotation.x = -bot.aimPitch * 0.75;
-          if(bot.mesh.updateVisualGrip)bot.mesh.updateVisualGrip(bot.mesh.weaponPivot.rotation.x);
+          if(bot.mesh.setVisualCombatPose){
+            const reload=bot.botReload;
+            bot.mesh.setVisualCombatPose(botVisualCombatPose(bot.muzzleTimer,reload?.left||0,reload?WEAPONS[reload.id]?.reloadTime||0:0,bot.classId));
+          }else if(bot.mesh.updateVisualGrip)bot.mesh.updateVisualGrip(bot.mesh.weaponPivot.rotation.x);
           bot.mesh.head.rotation.x = -bot.aimPitch * 0.65;
+          bot.mesh.head.rotation.z = bot.hitFlinchRoll*.46;
 
           // Ground movement produces approximate audible footsteps only
           // when fast enough; the player shares the same acoustic cue model.
