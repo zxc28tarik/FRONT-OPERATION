@@ -3630,7 +3630,7 @@
         }
         validateGroundNavEdges();
       }
-      const FO_TERSANE_X=3.4,FO_TERSANE_Z=1.5;
+      const FO_TERSANE_X=2.28,FO_TERSANE_Z=.9;
       function foWorldX(v){return foActiveMap==='bomb'?v*FO_TERSANE_X:v;}
       function foWorldZ(v){return foActiveMap==='bomb'?v*FO_TERSANE_Z:v;}
       const FO_BOMB_SITES = [
@@ -3674,15 +3674,17 @@
           return true;
         };
         const add=(x,z)=>{
-          if(walk(x,z)&&!nodes.some(n=>Math.hypot(n.x-x,n.z-z)<7))
+          if(walk(x,z)&&!nodes.some(n=>Math.hypot(n.x-x,n.z-z)<4.2))
             nodes.push({x,y:0,z,tag:x<-18*FO_TERSANE_X?'west':x>18*FO_TERSANE_X?'east':'mid'});
         };
         for(let x=-36;x<=36;x+=8)for(let z=-50;z<=50;z+=7.5)add(x*FO_TERSANE_X,z*FO_TERSANE_Z);
         // Walk around the corners of the new tall sight screens and existing
         // architecture without trying to walk through their collision boxes.
-        // Additional mid junctions, including the new eastern doorway.
+        // Compact grid and explicit forward crossover waypoints.
+        for(const z of [-9,-28])for(const x of [0,2.5,5.5,8.5,12,16])
+          add(x*FO_TERSANE_X,z*FO_TERSANE_Z);
         for(const x of [26,29])add(x*FO_TERSANE_X,-6*FO_TERSANE_Z);
-        for(let x=-36;x<=36;x+=4)for(const z of [-8.2,-6,-3.8])add(x*FO_TERSANE_X,z*FO_TERSANE_Z);
+        for(let x=-36;x<=36;x+=4)for(const z of [-8.2,-6,-3.8,-28])add(x*FO_TERSANE_X,z*FO_TERSANE_Z);
         for(const c of low){
           if(c.maxX-c.minX>75||c.maxZ-c.minZ>75)continue;
           for(const x of [c.minX-1.1,c.maxX+1.1])for(const z of [c.minZ-1.1,c.maxZ+1.1])add(x,z);
@@ -3692,7 +3694,7 @@
         for(const [a,b] of edges)link(a,b);
         for(let i=0;i<nodes.length;i++){
           const n=nodes[i],near=nodes.map((p,j)=>({j,d:Math.hypot(n.x-p.x,n.z-p.z)}))
-            .filter(p=>p.j!==i&&p.d<=33).sort((a,b)=>a.d-b.d);
+            .filter(p=>p.j!==i&&p.d<=23).sort((a,b)=>a.d-b.d);
           let count=0;for(const p of near){if(link(i,p.j)||set.has(Math.min(i,p.j)+':'+Math.max(i,p.j)))count++;if(count>=6)break;}
         }
         // Keep only connected auxiliary nodes; the original 50 may never be
@@ -3704,7 +3706,7 @@
         return {nodes:kept,edges:links.filter(([a,b])=>seen.has(a)&&seen.has(b)).map(([a,b])=>[remap.get(a),remap.get(b)])};
       }
       function buildDepot17Map() {
-        // V8 Tersane: wider arena, same length, new transverse mid district.
+        // V10 Tersane: compact 60% linear scale of V9 design, same soldier height.
         const navSolids=[];
         const solid=(x,y,z,w,h,d,m,...flags)=>{
           const X=x*FO_TERSANE_X,Z=z*FO_TERSANE_Z,W=w*FO_TERSANE_X,D=d*FO_TERSANE_Z;
@@ -3916,19 +3918,21 @@
             for(const side of [-1,1])deco(x,h*.72,z+side*(d/2+.03),w*.58,.65,.065,windowMat);
           }
         }
-        // V8: a transverse mid district with alternating protected transfer
-        // bays. One visible axis, but never a full-width unobstructed sightline.
-        slab(0,-6,77,8.6,darkFloor);
-        for(const x of [-32,-16,0,16,32])slab(x,-6,5.6,7.4,paint);
-        for(let x=-35;x<=35;x+=2.5)slab(x,-6,.65,.09,paint);
-        for(const [x,z,w,d,h] of [[-24,-7.4,1.15,3.4,3.2],[-8,-4.5,1.15,3.4,3.4],
-          [8,-7.4,1.15,3.4,3.4],[24,-3.8,1.15,2.4,3.2]]){
-          box(x,z,w,d,h,darkWall);deco(x,h+.08,z,w+.09,.16,d+.12,metal);
+        // V9/V10: longitudinal middle divider, with two forward transfers.
+        // Offset from the central lane to preserve its original gateway.
+        // No east-west crossing on the deployment half.
+        for(const [z,len] of [[28.75,65.5],[-18,8],[-47.25,29.5]]){
+          box(5.5,z,1.2,len,4.2,darkWall);
+          deco(5.5,4.28,z,1.34,.16,len+.12,metal);
         }
-        for(const [x,z] of [[-17,-8.8],[14,-3.6]]){
-          for(const dx of [-2.2,2.2])solid(x+dx,1.75,z,.24,3.5,.24,metal,true,true,true);
-          roof(x,z,5.2,2.3,3.55);
-          deco(x,3.31,z,3.2,.14,.18,light);
+        for(const z of [-9,-28]){
+          slab(5.5,z,12,5.5,darkFloor);
+          for(const x of [1,10])slab(x,z,2,4.5,paint);
+        }
+        // Offset shoulders, outside the two traversal openings.
+        for(const [x,z] of [[1,-4],[10,-14],[1,-22],[10,-32]]){
+          box(x,z,2.4,.9,3.1,darkWall);
+          deco(x,3.18,z,2.5,.16,1,metal);
         }
         // Tersane V3: finishing layer only. All small meshes either attach
         // to existing physical surfaces, lie on the floor, or are overhead.
@@ -4060,10 +4064,10 @@
         }
         foActiveMap=mode;
         // Only Tersane needs the larger light frustum and longer draw distance.
-        const extent=mode==='bomb'?179:66;
+        const extent=mode==='bomb'?119:66;
         const shadow=dirLight.shadow.camera;
         shadow.left=shadow.bottom=-extent;shadow.right=shadow.top=extent;
-        shadow.far=mode==='bomb'?355:180;shadow.updateProjectionMatrix();
+        shadow.far=mode==='bomb'?240:180;shadow.updateProjectionMatrix();
         scene.fog.density=mode==='bomb'?.0058:.0077;
       }
 
@@ -12919,7 +12923,7 @@ function buildSquadLeadership() {
         const h = radarCanvas.height;
         const cx = w / 2;
         const cy = h / 2;
-        const scale = foActiveMap==='bomb'?.76:1.65;
+        const scale = foActiveMap==='bomb'?1.17:1.65;
 
         const isDroneView = droneSystem.isPlayerControlling();
         const refPos = isDroneView ? droneSystem.playerDrone.pos : (isFoSpectating()?camera.position:player.pos);
