@@ -3642,7 +3642,7 @@
         }
         validateGroundNavEdges();
       }
-      const FO_TERSANE_X=1.4,FO_TERSANE_Z=1.5;
+      const FO_TERSANE_X=2.8,FO_TERSANE_Z=1.5;
       function foWorldX(v){return foActiveMap==='bomb'?v*FO_TERSANE_X:v;}
       function foWorldZ(v){return foActiveMap==='bomb'?v*FO_TERSANE_Z:v;}
       const FO_BOMB_SITES = [
@@ -3655,7 +3655,7 @@
         {id:'service',name:'SERVIS KORIDORU',x:0,entry:12,exit:17},
         {id:'loading',name:'YUKLEME HATTI',x:32,entry:14,exit:19}
       ];
-      function depotGraph() {
+      function depotGraph(solids=[]) {
         const nodes=[],edges=[],xs=[-32,-16,0,16,32],zs=[50,39,28,17,6,-6,-17,-28,-39,-50];
         for(let row=0;row<zs.length;row++)for(let col=0;col<xs.length;col++){
           const i=row*5+col;
@@ -3666,11 +3666,60 @@
           if(col>0)edges.push([i-1,i]);
           if(row>0)edges.push([i-5,i]);
         }
-        return {nodes,edges};
+        if(!solids.length)return {nodes,edges};
+        // Stable original 50 IDs (including objectives and gate waypoints).
+        // Add walkable junctions in the wider terrain, then only connect clear
+        // segments; this is the same physical geometry used by movement.
+        const low=solids.filter(c=>c.minY<1.55&&c.maxY>.25);
+        const walk=(x,z)=>Math.abs(x)<=38.5*FO_TERSANE_X&&Math.abs(z)<=59.5*FO_TERSANE_Z&&
+          !low.some(c=>x+.48>c.minX&&x-.48<c.maxX&&z+.48>c.minZ&&z-.48<c.maxZ);
+        const clear=(a,b)=>{
+          for(const c of low){
+            let lo=0,hi=1;
+            for(const [p,q,min,max] of [[a.x,b.x,c.minX-.48,c.maxX+.48],[a.z,b.z,c.minZ-.48,c.maxZ+.48]]){
+              const v=q-p;
+              if(Math.abs(v)<1e-8){if(p<min||p>max){lo=2;break;}}
+              else{const t1=(min-p)/v,t2=(max-p)/v;lo=Math.max(lo,Math.min(t1,t2));hi=Math.min(hi,Math.max(t1,t2));if(lo>hi)break;}
+            }
+            if(lo<=hi)return false;
+          }
+          return true;
+        };
+        const add=(x,z)=>{
+          if(walk(x,z)&&!nodes.some(n=>Math.hypot(n.x-x,n.z-z)<2.2))
+            nodes.push({x,y:0,z,tag:x<-18*FO_TERSANE_X?'west':x>18*FO_TERSANE_X?'east':'mid'});
+        };
+        for(let x=-36;x<=36;x+=8)for(let z=-50;z<=50;z+=5.5)add(x*FO_TERSANE_X,z*FO_TERSANE_Z);
+        // Walk around the corners of the new tall sight screens and existing
+        // architecture without trying to walk through their collision boxes.
+        for(const c of low){
+          if(c.maxX-c.minX>75||c.maxZ-c.minZ>75)continue;
+          for(const x of [c.minX-1.1,c.maxX+1.1])for(const z of [c.minZ-1.1,c.maxZ+1.1])add(x,z);
+        }
+        const set=new Set(),links=[];
+        const link=(a,b)=>{const k=Math.min(a,b)+':'+Math.max(a,b);if(!set.has(k)&&clear(nodes[a],nodes[b])){set.add(k);links.push([a,b]);return true;}return false;};
+        for(const [a,b] of edges)link(a,b);
+        for(let i=0;i<nodes.length;i++){
+          const n=nodes[i],near=nodes.map((p,j)=>({j,d:Math.hypot(n.x-p.x,n.z-p.z)}))
+            .filter(p=>p.j!==i&&p.d<=33).sort((a,b)=>a.d-b.d);
+          let count=0;for(const p of near){if(link(i,p.j)||set.has(Math.min(i,p.j)+':'+Math.max(i,p.j)))count++;if(count>=6)break;}
+        }
+        // Keep only connected auxiliary nodes; the original 50 may never be
+        // silently removed, since their IDs are shared with tactical systems.
+        const adj=nodes.map(()=>[]);for(const [a,b] of links){adj[a].push(b);adj[b].push(a);}
+        const seen=new Set([0]),todo=[0];while(todo.length)for(const j of adj[todo.pop()])if(!seen.has(j)){seen.add(j);todo.push(j);}
+        if(nodes.slice(0,50).some((n,i)=>!seen.has(i)))throw Error('Tersane main navigation disconnected');
+        const remap=new Map(),kept=[];nodes.forEach((n,i)=>{if(seen.has(i)){remap.set(i,kept.length);kept.push(n);}});
+        return {nodes:kept,edges:links.filter(([a,b])=>seen.has(a)&&seen.has(b)).map(([a,b])=>[remap.get(a),remap.get(b)])};
       }
       function buildDepot17Map() {
-        // V5 Tersane: 40% wider and 50% longer, character and eye height unchanged.
-        const solid=(x,y,z,w,h,d,m,...flags)=>addSolidBox(x*FO_TERSANE_X,y,z*FO_TERSANE_Z,w*FO_TERSANE_X,h,d*FO_TERSANE_Z,m,...flags);
+        // V6 Tersane: twice V5 width, same length, character height unchanged.
+        const navSolids=[];
+        const solid=(x,y,z,w,h,d,m,...flags)=>{
+          const X=x*FO_TERSANE_X,Z=z*FO_TERSANE_Z,W=w*FO_TERSANE_X,D=d*FO_TERSANE_Z;
+          navSolids.push({minX:X-W/2,maxX:X+W/2,minY:y-h/2,maxY:y+h/2,minZ:Z-D/2,maxZ:Z+D/2});
+          return addSolidBox(X,y,Z,W,h,D,m,...flags);
+        };
         const detail=(geo,m,x,y,z,rx=0,ry=0,rz=0,...flags)=>{
           // Convert the world-space horizontal stretch to local geometry
           // space, so horizontal planes, pipes and rotated details stay aligned.
@@ -3854,6 +3903,34 @@
           box(x,z,1.05,len,3.7,darkWall);
           deco(x,3.76,z,1.18,.12,len+.12,metal);
         }
+        // V6: actual opaque industrial masses, not fog or artificial aim limits.
+        // Staggered blocks interrupt long axial and diagonal sightlines.
+        const sightBlocks=[
+          [-32,33.5,5.4,2.6,3.2,'cargo'],[-16,33.5,6,2.8,3.4,'cargo'],
+          [0,33.5,5.6,2.6,3.6,'wall'],[16,33.5,5.4,3.1,3.5,'cargo'],[32,33.5,5.1,2.7,3.4,'cargo'],
+          [-16,11.5,5.6,2.2,3.5,'wall'],[0,11.5,3.9,1.5,3.3,'wall'],
+          [16,11.5,6.2,3.7,4.3,'building'],[32,11.5,5.5,3.4,3.6,'cargo'],
+          [-32,-11.5,5.4,3.1,3.5,'cargo'],[-16,-11.5,5.5,2.1,3.3,'wall'],
+          [0,-11.5,5.7,2.6,3.5,'wall'],[16,-11.5,6.4,3.6,4.4,'building'],[32,-11.5,4.4,1.8,3.3,'wall'],
+          [-32,-22.5,6.6,3.6,4.2,'building'],[0,-22.5,5.7,2.9,3.6,'cargo'],
+          [16,-22.5,5.4,2.2,3.3,'wall'],[32,-22.5,6.2,3.4,3.6,'cargo'],
+          [-32,-44.5,5.2,2.8,3.5,'cargo'],[-16,-44.5,5.6,2.3,3.3,'wall'],
+          [0,-44.5,6,3.2,4.1,'building'],[16,-44.5,5.6,2.3,3.3,'wall'],[32,-44.5,5.1,2.8,3.5,'cargo'],
+          [-8,45,3.6,5.8,3.6,'cargo'],[8,45,3.6,5.8,3.6,'cargo'],
+          [-8,-35,3.1,4.3,3.5,'wall'],[8,-35,3.1,4.3,3.5,'wall'],
+          [24,39,3.8,5.8,4.1,'building'],[-24,-39,3.8,5.6,4.2,'building']
+        ];
+        for(const [x,z,w,d,h,kind] of sightBlocks){
+          const material=kind==='cargo'?rust:kind==='building'?wall:darkWall;
+          box(x,z,w,d,h,material);
+          deco(x,h+.08,z,w+.14,.16,d+.12,metal);
+          if(kind==='cargo'){
+            for(const side of [-1,1])for(let k=1;k<=4;k++)
+              deco(x-w*.5+k*w/5,h*.5,z+side*(d/2+.025),.075,h*.82,.05,trim);
+          }else if(kind==='building'){
+            for(const side of [-1,1])deco(x,h*.72,z+side*(d/2+.03),w*.58,.65,.065,windowMat);
+          }
+        }
         // Tersane V3: finishing layer only. All small meshes either attach
         // to existing physical surfaces, lie on the floor, or are overhead.
         // No new cover, collider, nav node, spawn, or objective geometry.
@@ -3962,7 +4039,7 @@
           site.beacon.visible=false;
         }
         dustParticles=null;
-        const graph=depotGraph();installFoGraph(graph.nodes,graph.edges);
+        const graph=depotGraph(navSolids);installFoGraph(graph.nodes,graph.edges);
       }
       function selectFoMap(mode) {
         if(mode===foActiveMap)return;
@@ -3984,10 +4061,10 @@
         }
         foActiveMap=mode;
         // Only Tersane needs the larger light frustum and longer draw distance.
-        const extent=mode==='bomb'?94:66;
+        const extent=mode==='bomb'?151:66;
         const shadow=dirLight.shadow.camera;
         shadow.left=shadow.bottom=-extent;shadow.right=shadow.top=extent;
-        shadow.far=mode==='bomb'?245:180;shadow.updateProjectionMatrix();
+        shadow.far=mode==='bomb'?310:180;shadow.updateProjectionMatrix();
         scene.fog.density=mode==='bomb'?.0058:.0077;
       }
 
@@ -12843,7 +12920,7 @@ function buildSquadLeadership() {
         const h = radarCanvas.height;
         const cx = w / 2;
         const cy = h / 2;
-        const scale = foActiveMap==='bomb'?1.10:1.65;
+        const scale = foActiveMap==='bomb'?.85:1.65;
 
         const isDroneView = droneSystem.isPlayerControlling();
         const refPos = isDroneView ? droneSystem.playerDrone.pos : (isFoSpectating()?camera.position:player.pos);
