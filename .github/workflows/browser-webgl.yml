@@ -15,6 +15,7 @@ on:
       - ai/v42-collider-aware-nav-edges
       - ai/v43-stuck-context-diagnostics
       - ai/v44-medic-walkable-support
+      - ai/v45-reachable-nav-origin
   workflow_dispatch:
 
 jobs:
