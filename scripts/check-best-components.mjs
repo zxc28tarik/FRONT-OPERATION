@@ -76,6 +76,14 @@ test('V22 seven team AI methods retained (V32 match-clock correction allowed)', 
       assert.equal(active, reference.replace(
         'constnowSec=performance.now()/1000;', 'constnowSec=botAiClockSec;'
       ), n);
+    } else if (n === 'assignBotTacticalGoal') {
+      // V45 approved navigation-only correction: the soldier's A* start
+      // must be physically reachable. Class goals, assignment and all
+      // V22 tactics are still required to match the approved source.
+      const oldOrigin = 'conststartIdx=findNearestNavNode(bot.pos);';
+      const checkedOrigin = 'conststartIdx=findNearestNavNode(bot.pos,true);';
+      assert.ok(reference.includes(oldOrigin));
+      assert.equal(active, reference.replace(oldOrigin, checkedOrigin), n);
     } else {
       assert.equal(active, reference, n);
     }
