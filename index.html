@@ -4212,7 +4212,7 @@
               // Narrow game sight window in the east wing's facade.
               box(21.55,z,.7,1,4.8,wall);box(24.5,z,3,1,4.8,wall);
               box(22.45,z,1.1,1,1.05,wall);box(22.45,z,1.1,1,2.5,wall,3.55);
-            }else box(x+dx,z,4.8,1,4.8,wall);
+            }else if(x<0&&z===-27&&dx<0)box(x-6.35,z,3.3,1,4.8,wall);else box(x+dx,z,4.8,1,4.8,wall);
           }
           box(x,-36,17,19,.36,dark,4.98);
           const Y=FO_PRISON_UPPER,wh=3.5,wy=Y+wh/2;
