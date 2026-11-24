@@ -4184,6 +4184,10 @@
         const mat=(t,color)=>new THREE.MeshStandardMaterial({map:t.map,bumpMap:t.bumpMap,bumpScale:.035,color,roughness:.88});
         const wall=mat(concrete,0xa5a69e),dark=mat(concrete,0x666f70),metal=mat(steel,0x57676b);
         const floor=mat(concrete,0x858983);
+        const trim=mat(steel,0x373f40),paint=mat(concrete,0x797b6c),rust=mat(steel,0x806e54);
+        const westMark=new THREE.MeshStandardMaterial({color:0x71838b,roughness:.82});
+        const eastMark=new THREE.MeshStandardMaterial({color:0xa48b65,roughness:.82});
+        const lamp=new THREE.MeshStandardMaterial({color:0xc6c9b2,emissive:0x777961,emissiveIntensity:.55,roughness:.7});
         const box=(x,z,w,d,h,m=wall,y=h/2)=>{
           solids.push({minX:x-w/2,maxX:x+w/2,minY:y-h/2,maxY:y+h/2,minZ:z-d/2,maxZ:z+d/2});
           return addSolidBox(x,y,z,w,h,d,m);
@@ -4192,6 +4196,15 @@
         addDecoMesh(new THREE.PlaneGeometry(84,126),floor,0,0,0,-Math.PI/2);
         for(const x of [-40,40])box(x,0,1.2,124,6,dark);
         for(const z of [-61,61])box(0,z,81,1.2,6,dark);
+        // V96: painted concrete lanes and perimeter details; all are surface trim.
+        for(const x of [-38.9,38.9]){
+          deco(x,1.05,0,.045,.18,117,paint);
+          for(let z=-54;z<=54;z+=12)deco(x,3.2,z,.10,.46,.36,lamp);
+        }
+        for(const x of [-21,21]){
+          for(const side of [-1,1])for(let z=31;z<=46;z+=3.6)
+            deco(x+side*3.7,.018,z,.12,.024,1.7,x<0?westMark:eastMark);
+        }
         // Exactly two lower approaches; exactly four upper gates.
         const wallGaps=(z,openings)=>{
           let at=-39.4;
@@ -4201,6 +4214,14 @@
         wallGaps(28,[[-25,-17],[17,25]]);
         box(-7,5.5,1.2,43,4.6,dark);
         wallGaps(-17,[[-35,-29],[-21,-15],[-3,3],[15,21]]);
+        // Realistic gate headers, high above player clearance, and frame trim.
+        const gate=(x,z,w,mark)=>{
+          for(const d of [-1,1])deco(x+d*(w/2+.15),2.25,z,.23,4.5,1.35,trim);
+          deco(x,4.62,z,w+.54,.36,1.38,trim);
+          deco(x,4.34,z,w,.10,.12,mark);
+        };
+        for(const x of [-21,21])gate(x,28,8,x<0?westMark:eastMark);
+        for(const x of [-32,-18,0,18])gate(x,-17,6,x<0?westMark:x>0?eastMark:metal);
         for(const x of [-25,-9,9])box(x,-22,1.1,8.5,4.2,dark);
         // Roofed wings, the west wing also has an outer side entrance.
         for(const x of [-18,18]){
@@ -4239,6 +4260,21 @@
               const t=(j+.5)/20;deco(sx,Y*t-.035,z0+(z1-z0)*t,width,.07,(z1-z0)/20*.92,metal);
             }
           }
+          // V96: restrained industrial details on facade and stairs, no new bottlenecks.
+          const mark=x<0?westMark:eastMark;
+          for(const dx of [-7.4,7.4]){
+            deco(x+dx,2.4,-26.43,.32,4.75,.14,trim);
+            deco(x+dx,Y+1.75,-26.43,.32,3.5,.14,trim);
+          }
+          deco(x,4.92,-26.42,16.5,.16,.12,mark);
+          deco(x,Y+3.45,-26.42,16.5,.18,.12,mark);
+          for(const sx of stairXs){
+            for(let j=0;j<6;j++){
+              const t=(j+.5)/6,z=-57+11.5*t,y=Y*t;
+              // Steel stringers alongside the ramp; do not protrude onto its walk surface.
+              for(const d of [-1,1])deco(sx+d*1.31,y-.16,z,.13,.28,1.91,trim);
+            }
+          }
           // V95: three broad gameplay spaces per floor, not residential rooms.
           // Rear hall and front hall share a generous doorway; outer gallery is open.
           const dir=x<0?-1:1,annex=x+dir*11.5,edge=x+dir*15;
@@ -4261,6 +4297,18 @@
             crate(x+dir*5.5,-30.2,2.5,1.25,1.15);
             crate(x+dir*12.8,-41.7,2.1,2.0,1.8);
             crate(x+dir*12.8,-32.0,2.0,1.5,1.0);
+            // Different materials and readable landmarks between the two wings.
+            deco(x-dir*5.5,base+1.36,-43,1.75,.06,1.12,mark);
+            deco(x+dir*12.8,base+1.91,-41.7,1.9,.07,1.8,rust);
+            for(const z of [-42,-33]){
+              deco(x,base+ht-.22,z,2.8,.10,.24,lamp);
+              deco(annex,base+ht-.23,z,1.65,.11,.24,lamp);
+            }
+            // Floor strip ends before wall portals; not a collider.
+            for(const z of [-43,-37,-33,-29])deco(x,base+.018,z,.16,.025,1.2,mark);
+            // Door frames at the existing 5.2-unit opening.
+            for(const d of [-1,1])deco(x+d*2.66,base+ht/2,-39.5,.12,ht,.49,trim);
+            deco(x,base+ht-.14,-39.5,5.2,.22,.49,trim);
             // Sparse overhead beams and service lights distinguish the three areas.
             for(const z of [-43,-34])deco(x,base+ht-.15,z,11,.16,.32,metal);
             for(const z of [-41,-31])deco(annex,base+ht-.17,z,2.7,.12,.36,metal);
@@ -4279,13 +4327,26 @@
         for(const [x,z,w,d,h] of [[-30,40,6,4,3.2],[30,40,6,4,3.2],[-9,39,5,3,3.2],[10,39,5,3,3.2],
           [-30,9,6,8,4.2],[-18,18,5,4,3.2],[-18,-4,5,4,3.2],[24,16,5,4,3.2],[15,3,5,4,3.2],[29,-5,5,4,3.2],
           [-37,-49,3,3,3.2],[37,-38,3,4,3.2],[-7,-56,4,3,3.2],[7,-56,4,3,3.2]]){
-          box(x,z,w,d,h,dark);deco(x,h+.08,z,w+.18,.16,d+.18,metal);
+          const cargo=(Math.abs(x)>25&&z>0)||z<-45;
+          box(x,z,w,d,h,cargo?metal:dark);deco(x,h+.08,z,w+.18,.16,d+.18,cargo?trim:metal);
+          if(cargo){
+            for(let q=-w/2+.55;q<w/2-.25;q+=.72)
+              deco(x+q,h/2,z+d/2+.025,.10,h*.86,.05,trim);
+            for(const d0 of [-1,1])deco(x+d0*(w/2-.25),h/2,z+d/2+.055,.11,h*.82,.07,rust);
+          }else{
+            deco(x,h*.64,z+d/2+.024,w*.92,.16,.045,paint);
+            for(const d0 of [-1,1])deco(x+d0*(w/2-.22),h/2,z+d/2+.025,.11,h*.8,.05,trim);
+          }
         }
         // V92: asymmetrical gameplay. Left middle is screened; the final
         // west approaches remain open. East entrance uses offset solid cover.
         for(const [x,z,w,d,ht] of [[-23,5,7,2,3.6],[-33,0,5,2,3.6],[-20,-10,7,2,3.6],
           [17,-22,3.1,1.5,2.6],[18,-30,3.4,1.5,2.6],[24,-24,2,3,2.4]]){
           box(x,z,w,d,ht,dark);deco(x,ht+.08,z,w+.14,.16,d+.14,metal);
+        }
+        // Low physical cover in spawn-side courtyards; no interference with the upper gate balance.
+        for(const [x,z,w,d] of [[-32,33,3.1,1.2],[32,33,3.1,1.2],[-5,46,2.2,1.1],[5,46,2.2,1.1]]){
+          box(x,z,w,d,1.05,metal);deco(x,1.10,z,w+.08,.1,d+.08,trim);
         }
         const exitMat=new THREE.MeshBasicMaterial({color:0x82bba2,transparent:true,opacity:.75,side:THREE.DoubleSide});
         addDecoMesh(new THREE.RingGeometry(5.8,6,48),exitMat,0,.035,50,-Math.PI/2);

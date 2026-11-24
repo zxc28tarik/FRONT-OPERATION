@@ -8,7 +8,7 @@ const solids=[];let graph;
 const mesh=()=>({position:{set(){}},visible:true});
 const three=new Proxy({}, {get:()=>function(){return {}}});
 const api=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph',html.slice(a,b)+html.slice(s,e)+'\nbuildFoPrisonMap();return {points:FO_RESCUE_POINTS,exit:FO_RESCUE_EXIT,state:foRescue,reset:resetFoRescue,step:stepFoRescue};')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return mesh()},()=>mesh(),null,(nodes,edges)=>graph={nodes,edges});
-assert.equal(solids.length,140);
+assert.equal(solids.length,144);
 const walk=(x,z)=>!solids.some(c=>1.6>c.y-c.h/2+.05&&0<c.y+c.h/2-.25&&x+.42>c.x-c.w/2&&x-.42<c.x+c.w/2&&z+.42>c.z-c.d/2&&z-.42<c.z+c.d/2);
 const adj=graph.nodes.map(()=>[]);
 for(const [i,j] of graph.edges){
@@ -38,4 +38,4 @@ api.reset();assert.equal(step(1,0).winner,'red');
 assert(html.includes('if(isFoRescueMode())startFoSpectator()')||html.includes('if(foSingleLife())startFoSpectator()'));
 assert(html.includes('updateFoRescue(dt);')&&html.includes('getFoRescueBotOrder(bot,dt)'));
 assert(html.includes('<option value="rescue">'));
-console.log('V90 RESCUE PASS: '+graph.nodes.length+' nodes, '+graph.edges.length+' edges, 140 solids');
+console.log('V90 RESCUE PASS: '+graph.nodes.length+' nodes, '+graph.edges.length+' edges, 144 solids');

@@ -6,7 +6,7 @@ const solids=[],ramps=[];let graph;
 const mesh=()=>({position:{set(){}},visible:true});
 const three=new Proxy({}, {get:()=>function(){return {}}});
 const api=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph','addWalkableRamp',html.slice(a,b)+'\nbuildFoPrisonMap();return {clear:foPrisonRouteClear,upper:FO_PRISON_UPPER};')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({minX:x-w/2,maxX:x+w/2,minY:y-h/2,maxY:y+h/2,minZ:z-d/2,maxZ:z+d/2});return mesh()},()=>mesh(),null,(nodes,edges)=>graph={nodes,edges},(x,zStart,zEnd,yStart,yEnd,width)=>ramps.push({minX:x-width/2,maxX:x+width/2,zStart,zEnd,yStart,yEnd}));
-assert.equal(ramps.length,4);assert.equal(solids.length,140);
+assert.equal(ramps.length,4);assert.equal(solids.length,144);
 for(const x of [-18,18])for(const y of [0,api.upper]){
  const dir=Math.sign(x);
  const at=(X,Z)=>({x:X,y,z:Z});
