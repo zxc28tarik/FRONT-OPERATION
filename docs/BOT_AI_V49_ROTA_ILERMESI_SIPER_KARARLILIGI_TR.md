@@ -28,3 +28,22 @@ V48 A* üzerinde kalan gerçek siper mesafesini `routeLastProgressAt` ile kaydet
 **Kabul ilkesi:** Sadece daha az siper ataması yeterli değildir. V48'in nav güvenilirliği ve gerçek varış/tutma süreleri korunmalı; isabet/atış ve hedef edinimi belirgin kötüleşmemelidir. Başarısızsa bu dalda geri ayarlanır, `main` birleştirilmez.
 
 **Sınırlama:** 600 saniye gerçek insan oynanışı değildir. A/B tohumları başlangıcı eşitler; farklı bot kararları devamındaki RNG akışını değiştirebilir.
+
+
+## İkinci A/B sonucu ve üçüncü güvenlik kapısı
+
+**İkinci ayarın üç-tohum A/B çalışması:** [GitHub Actions #45384047772](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45384047772) PASS.
+
+| Ölçüm (3×600 simüle saniye) | V48 | V49 ikinci ayar |
+|---|---:|---:|
+| Doğrudan siper yeniden atama | 1.039 | 825 |
+| Rota ilerleyememe (6 s) | 29 | 20 |
+| Fiziksel sıkışma kurtarması | 116 | 130 |
+| Siper seçimi | 3.826 | 3.490 |
+| Gerçek siper varışı | 1.980 | 1.842 |
+| Siper tutma bot-saniyesi | 1.078 | 1.109 |
+| Atış / isabet | 6.779 / 965 | 6.597 / 996 |
+
+**Değerlendirme:** Atama başına varış oranı %51,8→%52,8 artsa da toplam gerçek varış −%7 ve fiziksel sıkışma kurtarması +%12 yükseldi. Bu nedenle ikinci ayarı da son onay olarak işaretlemiyoruz.
+
+**Üçüncü ayar:** V49 rota-koruma istisnası fiziksel bir sıkışma/yandan kaçış hâlinde çalışmayacak. `stuckFailures>0`, aktif `unstuckTimer` veya süresi dolmamış `blockedNodeTimer` bulunan botlar mevcut güvenli taktik yeniden seçim yoluna döner. Bu sürüme dört ilave deterministik kontrol eklendi (**toplam 640 bot regresyonu**). Üçüncü ayarın stres ve WebGL sonuçları, kendi CI koşusundan ayrı doğrulanmalıdır.
