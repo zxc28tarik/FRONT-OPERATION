@@ -149,3 +149,9 @@ jobs:
 
       - name: Run V74 diagnostic isolation checks
         run: node tests/bot_ai_v74_diagnostic_regression.cjs
+
+      - name: Run V75 bounded objective continuity regression
+        run: node tests/bot_ai_v75_objective_continuity_regression.cjs
+
+      - name: Verify V75/V76 all-seed comparison coverage
+        run: node tests/bot_ai_v75_comparison_coverage.cjs
