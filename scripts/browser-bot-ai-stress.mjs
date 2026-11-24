@@ -83,6 +83,19 @@ try {
        actor.movingSeconds>actor.aliveSeconds)
       throw Error('V46 target/cover consistency invariant failed');
   }
+  const coverCounts=(key)=>observedActors.reduce((n,b)=>n+(b[key]||0),0);
+  const selections=coverCounts('coverAssignments');
+  const arrivals=coverCounts('coverArrivals');
+  const abandons=coverCounts('coverAbandons');
+  const coverReasonTotal=Object.values(stats.coverAbandonReasons||{})
+    .reduce((n,v)=>n+v,0);
+  if(arrivals>selections||abandons>selections||
+      arrivals+abandons>selections||
+      coverCounts('coverReassignments')>abandons||
+      coverCounts('coverOrphanSeconds')>coverCounts('coverApproachSeconds')||
+      (stats.coverEvents||[]).length>90||coverReasonTotal!==abandons)
+    throw Error('V47 cover lifecycle accounting invalid: '+
+      JSON.stringify({selections,arrivals,abandons,coverReasonTotal}));
   if(errors.length)throw Error('Uncaught browser game errors: '+errors.slice(0,5).join(' | '));
   result={
     status:'PASS',
@@ -109,6 +122,21 @@ try {
         red:stats.spread.red.meanClosePairs
       }
     },
+    coverLifecycle:{
+      selections,arrivals,abandons,
+      reassignments:coverCounts('coverReassignments'),
+      stalledApproaches:coverCounts('coverStalledApproaches'),
+      orphanSeconds:coverCounts('coverOrphanSeconds'),
+      approachSeconds:coverCounts('coverApproachSeconds'),
+      holdSeconds:coverCounts('coverHoldSeconds'),
+      abandonmentReasons:stats.coverAbandonReasons||{},
+      recentEvents:stats.coverEvents||[],
+      byClass:Object.fromEntries(Object.entries(stats.classes).map(([id,b])=>[
+        id,{selections:b.coverAssignments,arrivals:b.coverArrivals,
+          abandons:b.coverAbandons,stalled:b.coverStalledApproaches,
+          orphanSeconds:b.coverOrphanSeconds}
+      ]))
+    },
     stuckContextSamples:stats.stuckContexts||[],
     samples:stats.samples,
     botShots:totalShots,
@@ -130,11 +158,11 @@ try {
         coverHoldSeconds:row.coverHoldSeconds,movingSeconds:row.movingSeconds}])),
     pageErrors:errors
   };
-  console.log('PASS V46 accelerated 600s real bot logic stress: '+
+  console.log('PASS V47 accelerated 600s real bot logic stress: '+
     JSON.stringify(result));
 } catch(e) {
   result={...result,error:String(e),pageErrors:errors};
-  console.error('FAIL V46 accelerated bot stress: '+String(e));
+  console.error('FAIL V47 accelerated bot stress: '+String(e));
   process.exitCode=1;
 } finally {
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(result,null,2));
