@@ -1,8 +1,8 @@
-name: V43 accelerated 600s bot engine stress
+name: V44 accelerated 600s bot engine stress
 on:
   push:
     branches:
-      - ai/v43-stuck-context-diagnostics
+      - ai/v44-medic-walkable-support
     paths:
       - .github/workflows/bot-ai-stress.yml
       - scripts/browser-bot-ai-stress.mjs
@@ -27,7 +27,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: front-operation-bot-v43-600s
+          name: front-operation-bot-v44-600s
           path: test-artifacts/front-operation-bot-stress/
           if-no-files-found: warn
           retention-days: 14
