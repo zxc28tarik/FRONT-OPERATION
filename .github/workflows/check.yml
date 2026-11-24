@@ -122,3 +122,6 @@ jobs:
 
       - name: Run V69 class objective regression
         run: node tests/bot_ai_v69_class_objectives_regression.cjs
+
+      - name: Run V70 phase continuity regression
+        run: node tests/bot_ai_v70_phase_regression.cjs

@@ -5971,10 +5971,19 @@
           if(defenders.length>=3){
             const crowded=pressure[0]>pressure[1]+.5?FO_BOMB_SITES[0]:pressure[1]>pressure[0]+.5?FO_BOMB_SITES[1]:null;
             const rotation=foBotPlan.rotation;
-            if(rotation&&(now>=rotation.until||!defenders.some(b=>b.id===rotation.id))){
+            if(rotation){
               const original=FO_BOMB_SITES.find(s=>s.id===rotation.from);
-              if(original&&assignments.has(rotation.id))assignments.set(rotation.id,original);
-              foBotPlan.rotation=null;
+              const member=defenders.find(b=>b.id===rotation.id);
+              const others=defenders.filter(b=>b.id!==rotation.id&&assignments.get(b.id)===original);
+              const destination=member&&assignments.get(member.id);
+              // Retain a valid assignment on renewed observations instead of
+              // returning and reassigning on the same review tick.
+              if(member&&original&&others.length&&crowded===destination&&now>=rotation.until){
+                rotation.until=now+5;
+              }else if(!member||!others.length||now>=rotation.until){
+                if(original&&member)assignments.set(member.id,original);
+                foBotPlan.rotation=null;
+              }
             }
             if(crowded&&!foBotPlan.rotation){
               const other=FO_BOMB_SITES.find(s=>s!==crowded);
@@ -5988,6 +5997,12 @@
           }
         }
         const reserved={blue:new Set(),red:new Set()};
+        // Reserve all current objective nodes before allocating supporting
+        // positions, including nodes shared between different site lists.
+        for(const site of sites)if(site)for(const team of ['blue','red']){
+          const acts=planted?team==='red':team==='blue';
+          if(acts&&live.some(b=>b.team===team&&assignments.get(b.id)===site))reserved[team].add(site.node);
+        }
         for(const site of sites){
           if(!site)continue;
           for(const team of ['blue','red']){
@@ -6001,8 +6016,17 @@
               reserved[team].add(site.node);
             }
             const used=reserved[team];
+            const role=team==='red'?(planted?'RETAKE':'GUARD'):(planted?'HOLD':'ESCORT');
+            // Same-role incumbents keep a valid unique node before a newly
+            // reassigned member can claim it. Role changes are reevaluated.
+            const stable=group.filter(b=>b!==operator&&previous.get(b.id)?.site===site&&previous.get(b.id)?.role===role&&site.guards.includes(previous.get(b.id)?.goal));
+            for(const bot of stable){
+              const goal=previous.get(bot.id).goal;
+              if(!NAV_NODES[goal]||used.has(goal))continue;
+              used.add(goal);foBotPlan.orders.set(bot.id,{site,role,goal});
+            }
             for(const bot of group){
-              if(bot===operator)continue;
+              if(bot===operator||foBotPlan.orders.has(bot.id))continue;
               const prev=previous.get(bot.id);
               const candidates=site.guards.filter(n=>NAV_NODES[n]&&!used.has(n));
               if(!candidates.length){
@@ -6011,7 +6035,6 @@
                   .sort((a,b)=>a.d-b.d);
                 if(extra.length)candidates.push(extra[0].i);
               }
-              const role=team==='red'?(planted?'RETAKE':'GUARD'):(planted?'HOLD':'ESCORT');
               const goal=prev&&prev.site===site&&prev.role===role&&candidates.includes(prev.goal)?prev.goal:
                 candidates.sort((a,b)=>foClassGuardCost(bot,site,NAV_NODES[a],role)-
                   foClassGuardCost(bot,site,NAV_NODES[b],role)||a-b)[0]??site.guards[Number(bot.id.split('_')[1])%site.guards.length];
