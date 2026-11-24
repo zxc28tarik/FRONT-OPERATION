@@ -5760,7 +5760,28 @@
         return floorY;
       }
 
+      // V63: permit a small step onto a landing only at the top of a ramp.
+      // The deck edge projects into the ramp before the feet reach deck height.
+      // Without this transition both sniper ramps can trap a walking actor.
+      function tryRampLandingStep(pos,radius,ramps,colliders){
+        let lift=pos.y;
+        for(const r of ramps){
+          const topAtEnd=r.yEnd>=r.yStart,topZ=topAtEnd?r.zEnd:r.zStart,topY=Math.max(r.yStart,r.yEnd);
+          if(pos.x<r.minX||pos.x>r.maxX||Math.abs(pos.z-topZ)>1.25||pos.y<topY-.55||pos.y>topY+.25)continue;
+          for(const c of colliders){
+            const rise=c.maxY-pos.y;
+            if(rise<=0||rise>.50||Math.abs(c.maxY-topY)>.24||c.maxY-c.minY>.55)continue;
+            if(topZ<c.minZ-.4||topZ>c.maxZ+.4)continue;
+            const dx=pos.x-Math.max(c.minX,Math.min(pos.x,c.maxX));
+            const dz=pos.z-Math.max(c.minZ,Math.min(pos.z,c.maxZ));
+            if(dx*dx+dz*dz<=radius*radius+1e-7)lift=Math.max(lift,c.maxY);
+          }
+        }
+        pos.y=lift;
+      }
+
       function resolveHorizontalCollision(pos, radius, height) {
+        tryRampLandingStep(pos,radius,mapRamps,mapColliders);
         pos.x = Math.max(-foWorldX(39.2), Math.min(foWorldX(39.2), pos.x));
         pos.z = Math.max(-foWorldZ(60.2), Math.min(foWorldZ(60.2), pos.z));
 
