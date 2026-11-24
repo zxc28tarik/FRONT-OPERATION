@@ -188,3 +188,6 @@ jobs:
 
       - name: Run V86 long-range contact regression
         run: node tests/bot_ai_v86_long_range_regression.cjs
+
+      - name: Run V87 pause map switch regression
+        run: node tests/ui_v87_pause_map_regression.cjs
