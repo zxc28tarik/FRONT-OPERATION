@@ -30,5 +30,5 @@ ok(api.tick(bot,home,threat,1,true,()=>true,()=>false).phase==='HOLD','Second fa
 ok(api.tick(bot,home,threat,1,true,()=>true,()=>false).phase==='REPLAN'&&bot.coverNode===-1,'Repeated impossible peek releases cover');
 ok(html.includes('isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned'),'Existing fire permission unchanged');
 ok(html.includes('if(holdContact){bot.combatStrafeGoal=null;bot.dodgeMode=\'HOLD\';}'),'Contact actually suppresses movement');
-ok(html.includes('bot.contactOpportunity.fired=true'),'Actual shot closes opportunity');
+ok(html.includes('recordBotContactShot(bot,nowSec);'),'Actual shot records follow-through opportunity');
 console.log('BOT AI V63 CONTACT PASS ('+n+' checks)');
