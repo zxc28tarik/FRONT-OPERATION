@@ -59,6 +59,7 @@ for(const [a,b] of [[0,19],[1,34],[41,19],[42,34],[4,13],[39,14]]){
 const old=JSON.stringify(data.blockedEdges);
 api.validate();
 verify(JSON.stringify(data.blockedEdges)===old,'Repeated validation is deterministic');
+verify(data.reachableNodes===50,'Every original waypoint stays connected after filtering');
 verify(data.activeEdges+data.blockedEdges.length===86,
  'Validator statistics account for every original connection');
 verify(html.includes('        buildMarienCQCMap();\n        validateGroundNavEdges();'),
