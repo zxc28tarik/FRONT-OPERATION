@@ -197,3 +197,6 @@ jobs:
 
       - name: Run V91 branching rescue regression
         run: node tests/rescue_v91_branching_regression.cjs
+
+      - name: Run V92 asymmetric prison regression
+        run: node tests/rescue_v92_asymmetry_regression.cjs
