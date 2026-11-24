@@ -3686,10 +3686,10 @@
           return true;
         };
         const add=(x,z)=>{
-          if(walk(x,z)&&!nodes.some(n=>Math.hypot(n.x-x,n.z-z)<2.2))
+          if(walk(x,z)&&!nodes.some(n=>Math.hypot(n.x-x,n.z-z)<7))
             nodes.push({x,y:0,z,tag:x<-18*FO_TERSANE_X?'west':x>18*FO_TERSANE_X?'east':'mid'});
         };
-        for(let x=-36;x<=36;x+=8)for(let z=-50;z<=50;z+=5.5)add(x*FO_TERSANE_X,z*FO_TERSANE_Z);
+        for(let x=-36;x<=36;x+=8)for(let z=-50;z<=50;z+=7.5)add(x*FO_TERSANE_X,z*FO_TERSANE_Z);
         // Walk around the corners of the new tall sight screens and existing
         // architecture without trying to walk through their collision boxes.
         for(const c of low){
