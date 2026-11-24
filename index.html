@@ -12495,8 +12495,10 @@ function buildSquadLeadership() {
                   lookOwner='ALERT';
                   desiredUpperYaw = Math.atan2(bot.alertPos.x - bot.pos.x, bot.alertPos.z - bot.pos.z);
                 } else if (bot.state === 'INVESTIGATE' && bot.lastKnownEnemyPos) {
+                  lookOwner='LAST_CONTACT';
                   desiredUpperYaw = Math.atan2(bot.lastKnownEnemyPos.x - bot.pos.x, bot.lastKnownEnemyPos.z - bot.pos.z);
-                } else if (moveTargetPos && moveSpeed > 0) {
+                } else if (lookOwner!=='SOUND' && moveTargetPos && moveSpeed > 0) {
+                  lookOwner='ROUTE';
                   desiredUpperYaw = Math.atan2(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z);
                 }
               }
@@ -12530,10 +12532,10 @@ function buildSquadLeadership() {
           if(selectedPlan.kind!=='MISSION')foMissionOrder=null;
           moveTargetPos=selectedPlan.target;moveSpeed=selectedPlan.speed;
           targetCrouch=selectedPlan.crouch;desiredUpperYaw=selectedPlan.yaw;
-          const lookRequests=[{owner:'ROUTE',yaw:bot.legYaw,pitch:0},
-            {owner:selectedPlan.lookOwner,yaw:selectedPlan.yaw,pitch:desiredAimPitch}];
+          const lookRequests=[{owner:selectedPlan.lookOwner,yaw:selectedPlan.yaw,pitch:desiredAimPitch,targetId:bestEnemy?.id||null}];
           if(bestEnemy&&trackedEnemyEye)lookRequests.push({owner:'VISIBLE_TARGET',targetId:bestEnemy.id,
             yaw:Math.atan2(trackedEnemyEye.x-bot.pos.x,trackedEnemyEye.z-bot.pos.z),pitch:desiredAimPitch});
+          lookRequests.push({owner:'ROUTE',yaw:bot.legYaw,pitch:0});
           const activeLook=selectBotLookRequest(bot,lookRequests,nowSec);
           desiredUpperYaw=activeLook.yaw;
           const legacyState=({ADVANCE:'ADVANCE',HOLD:'DEFEND_HOLD',SUPPORT:'SUPPORT_ALLY',INVESTIGATE:'INVESTIGATE',CONTACT_HOLD:'INVESTIGATE',ENGAGE:'ENGAGE',FLANK:'ENGAGE',COVER:'TAKE_COVER',RETREAT:'RETREAT',MISSION:moveSpeed>0?'ADVANCE':'DEFEND_HOLD'})[selectedPlan.kind];
@@ -12762,7 +12764,7 @@ function buildSquadLeadership() {
             bot.legYaw = lerpAngle(bot.legYaw, desiredUpperYaw, dt * 5);
           }
           // Convert desired visual elevation into weapon-pivot angle, compensating torso crouch.
-          const pitchCommand=Math.max(-1.1,Math.min(1.1,(activeLook.pitch+bot.crouchAmt*.22+bot.hitFlinchPitch)/.75));
+          const pitchCommand=Math.max(-1.1,Math.min(1.1,(activeLook.pitch+bot.crouchAmt*.22)/.75));
           updateBotLookController(bot,{...activeLook,pitch:pitchCommand},dt);
           // Combat strafing moves the legs sideways, not the muzzle.
           // Rotate the body base enough to stay inside the torso's twist range.
