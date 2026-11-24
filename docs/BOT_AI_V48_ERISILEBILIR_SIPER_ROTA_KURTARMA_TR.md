@@ -73,3 +73,27 @@ Böylece V47'nin karar hissiyatı ile V48'in daha doğru fiziksel teşhis sistem
 İlk tutarlı üç-tohumlu A/B koşusunda ([#45381718407](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45381718407)), maçların başlatılması ve 600 saniyelik hızlandırma aynı tarayıcı çağrısına alındı; PRNG yeni maç başlamadan hemen önce aynı tohumdan sıfırlandı. Baseline ve adayda *atış, isabet, siper seçimi, varış ve sıkışma sayıları tamamen eşit*, yalnız `coverStalledApproaches` **42→26** çıktı. Bu, yeni A* teşhisinin oyunun davranışını bozmadığını, fakat kurtarma koşulunun hiç tetiklenmediğini kanıtlıyor.
 
 Bunun üzerine **iki kademeli acil kurtarma** eklendi: (1) 4,2 saniye gerçek A* ilerleme kaybı ve en az bir fiziksel sıkışma; **veya** (2) fiziksel sıkışma sayacı olmasa bile aynı siper hedefi için **7,2 saniyelik uzun ve kesintisiz gerçek rota ilerleme kaybı**. Yakın taktik duraksamalar ve kanat emirleri korunur. Testin son sürümdeki davranışı doğrulaması ayrıca gereklidir; gecikmeli kurtarmanın daha iyi olduğu henüz varsayılmaz. Çift hedefli bu sınır için 28. deterministik V48 kontrolü eklenmiştir.
+
+
+## V48 son üç eşleştirmeli doğrulama — tamamlandı
+
+**GitHub Actions:** [V48 3-tohumlu Chromium karşılaştırma #45382035507](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45382035507) — **PASS**. V47 kontrol kodu `5356db87317340a02e88ef65db7ee6c73e7581a8`, V48 oyun kodu `a6f836d5c3c3198c4faf28f200eff190704fc046`. İki sürümün maç başlangıcı aynı rastgele tohumdan yeniden kurulup start + 600s simülasyon *tek* sayfa işlemi içinde çalıştırıldı.
+
+| Karşılaştırma (3 × 600 simüle saniye) | V47 | V48 | Fark |
+|---|---:|---:|---:|
+| Bot sıkışma kurtarması | 132 | **116** | −16 (−%12,1) |
+| Siper yaklaşmasında 6s ilerleyememe | 42 | **29** | −13 (−%31,0) |
+| Gerçek sipere ulaşma | 1.949 | **1.980** | +31 (+%1,6) |
+| Sipere ulaşmadan vazgeçme | 1.757 | 1.835 | +78 (+%4,4) |
+| Siper yeniden atama | 948 | 1.039 | +91 (+%9,6) |
+| Siper tutma, bot-saniye | 1.085 | 1.078 | −7 (−%0,6) |
+| Atış | 6.766 | 6.779 | +13 (+%0,2) |
+| İsabet | 997 | 965 | −32 (−%3,2) |
+
+**V48 yeni kurtarma sayaçları:** 17 gerçek A* siper yeniden rota seçimi, 1 güvenli siperden vazgeçme, 121 alternatif rota adayı güvenlik/rota nedeniyle elendi. Bu ölçümler, değişikliğin artık yalnızca telemetri olmadığına; gerçek davranışa da sınırlı ve denetlenebilir biçimde uygulandığına işaret eder.
+
+**Sınırlama / açık kalan hedef:** Sıkışma ve uzun duraksama azaldı ve gerçekleşen varış sayısı arttı. Ancak gereksiz olabilecek siper atamaları %9,6 çoğaldı; isabet sayısı %3,2 azaldı. Bu nedenle V48 tüm çatışma davranışlarını üstün hâle getirmiş kabul edilemez. V49'da güvenli siper değiştirme sonrası kısa görev kararlılığı, siperden çıkma nedeni ve nişan süresi üzerindeki dolaylı etkiler incelenmelidir; 0,34 s kullanıcı nişan ayarı değişmez.
+
+**QA doğruluğu:** [Bir önceki deterministik eşleştirme #45381718407](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45381718407) yeni rota-ilerleme teşhisini gerçek siper kurtarması devreye girmeden sınadı; V47/V48 tüm ateş/siper/sıkışma sayıları **birebir eşit** çıktı, yalnız yanlış uzun-ilerlememe tespitleri 42→26 indi. Bu, test altyapısının farklı gerçek-tarayıcı karelerinden kaynaklanan eski rastgele gürültüsünü büyük ölçüde kaldırdığını doğrular.
+
+`main` dalına merge yapılmadı. Taslak [PR #10](https://github.com/zxc28tarik/FRONT-OPERATION/pull/10) üzerinden inceleme mümkündür.
