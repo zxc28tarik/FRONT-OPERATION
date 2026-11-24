@@ -19,11 +19,11 @@ const make=(now)=>new Function('botAiClockSec','THREE','NAV_NODES','hasLineOfSig
   now,{Vector3:V},nodes,()=>!concealed);
 const bot=()=>({
   id:'blue_2',pos:new V(0,0,0),coverNode:0,coverPhase:'MOVE_TO_COVER',
-  targetId:'red_0',aimSettleTimer:.19,
-  _coverAudit:{node:0,arrived:false,since:0,lastProgressAt:1.1,routeLastProgressAt:6.7}
+  targetId:'red_0',aimSettleTimer:.19,path:[0],pathIndex:0,
+  _coverAudit:{node:0,arrived:false,since:0,lastProgressAt:1.1,routeLastProgressAt:6.7,routeBestDistance:8}
 });
 const enemy={id:'red_1',pos:new V(25,0,0),eye:new V(25,1.45,0)};
-ok(make(7)(bot(),enemy),'Recently progressing A* detour can outlive V47 6.2s cap');
+ok(make(7)(bot(),enemy),'Near-arrival A* detour may briefly outlive V47 6.2s cap');
 ok(make(7)(bot(),enemy),'Repeated safe decision is stable, not a single-frame exception');
 let b=bot();make(7)(b,enemy);
 ok(b.coverNode===0&&b.targetId==='red_0'&&b.aimSettleTimer===.19,
@@ -31,10 +31,15 @@ ok(b.coverNode===0&&b.targetId==='red_0'&&b.aimSettleTimer===.19,
 b=bot();b._coverAudit.routeLastProgressAt=4.5;
 ok(!make(7)(b,enemy),'Stalled A* progress cannot extend cover commitment');
 b=bot();b._coverAudit.routeLastProgressAt=6.0;
-ok(make(8.1)(b,enemy),'A* progress within 2.25 seconds can extend at age 8.1');
-ok(!make(8.4)(b,enemy),'Hard age limit releases even a continuing A* detour');
-b=bot();b._coverAudit.routeLastProgressAt=7.9;
-ok(!make(8.4)(b,enemy),'Hard cap is independent of recent route movement');
+ok(make(7.1)(b,enemy),'Fresh A* progress and near arrival allow a one-second grace');
+b=bot();b._coverAudit.routeLastProgressAt=7.0;
+ok(!make(7.2)(b,enemy),'Hard 7.2-second cap ends even recent route progress');
+b=bot();b._coverAudit.routeBestDistance=14;
+ok(!make(7)(b,enemy),'Distant cover may not use the near-arrival grace');
+b=bot();b._coverAudit.routeBestDistance=14;
+ok(make(5.5)(b,enemy),'Attached progressing route is held within original 6.2s budget');
+b=bot();b.path=[1];
+ok(!make(7)(b,enemy),'Route to another objective cannot prolong old cover');
 b=bot();delete b._coverAudit.routeLastProgressAt;
 ok(!make(7)(b,enemy),'Missing V48 route evidence preserves conservative V47 expiry');
 b=bot();b._coverAudit.routeLastProgressAt=Number.NaN;
@@ -44,8 +49,9 @@ ok(!make(7)(b,enemy),'Future progress timestamps cannot fake route advancement')
 // A future time never originates in the real monotonic bot clock;
 // it must not be accepted as proof of forward movement.
 const guard=html.slice(start,end);
-ok(guard.includes('age >= 0 && age < 8.4')&&
-   guard.includes('routeLastProgressAt'),'Bounded and route-aware guard exists');
+ok(guard.includes('age < 6.2 || (age < 7.2 && nearlyArrived)')&&
+   guard.includes('routeAttached')&&guard.includes('routeLastProgressAt'),
+   'Bounded original budget plus near-arrival exception requires attached route');
 concealed=false;
 ok(!make(7)(bot(),enemy),'Exposed crouch cover is abandoned despite progress');
 concealed=true;
