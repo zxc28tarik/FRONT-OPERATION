@@ -143,8 +143,25 @@ try {
     throw Error('V47 cover lifecycle accounting invalid: '+
       JSON.stringify({selections,arrivals,abandons,coverReasonTotal,reassignments:coverCounts('coverReassignments'),orphanSeconds:coverCounts('coverOrphanSeconds'),approachSeconds:coverCounts('coverApproachSeconds'),events:(stats.coverEvents||[]).length}));
   if(errors.length)throw Error('Uncaught browser game errors: '+errors.slice(0,5).join(' | '));
+  const auditFields=['ammoRounds','ammoSidearmRounds','ammoWeaponSwitches','ammoReloadStarts','ammoReloadCompletes','ammoReloadCancels','ammoEmptyAttempts','ammoReloadSeconds','rolePlantSeconds','roleDefuseSeconds','roleEscortSeconds','roleGuardSeconds','roleHoldSeconds','roleRetakeSeconds','coverSidearmPreferences','coverDutyPreferences'];
+  const auditRows=Object.values(stats.actors||{});
+  const ammoAudit=auditRows.some(x=>Object.hasOwn(x,'ammoRounds'))?{
+    totals:Object.fromEntries(auditFields.map(k=>[k,auditRows.reduce((n,x)=>n+(x[k]||0),0)])),
+    byClass:Object.fromEntries(Object.entries(stats.classes||{}).map(([id,x])=>[id,Object.fromEntries(auditFields.map(k=>[k,x[k]||0]))]))
+  }:null;
+  if(ammoAudit){
+    for(const x of auditRows){
+      if(auditFields.some(k=>!Number.isFinite(x[k])||x[k]<0)||
+         x.ammoRounds<x.shots+x.droneShots||x.ammoSidearmRounds>x.ammoRounds||
+         x.ammoReloadCompletes+x.ammoReloadCancels>x.ammoReloadStarts||
+         x.ammoReloadSeconds>x.aliveSeconds||
+         ['rolePlantSeconds','roleDefuseSeconds','roleEscortSeconds','roleGuardSeconds','roleHoldSeconds','roleRetakeSeconds'].reduce((n,k)=>n+x[k],0)>x.aliveSeconds)
+        throw Error('V73 ammunition/role telemetry invariant failed');
+    }
+  }
   result={
     status:'PASS',
+    ammoAudit,
     seed,variant,
     method:'600 seconds accelerated actual updateBots + drone/FX in Chromium',
     limitation:'Not a ten-minute real-time, rendered or human-played match; kill-score limits restarted',

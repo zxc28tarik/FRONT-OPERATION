@@ -68,6 +68,24 @@ try{
  report={...report,...data,pageErrors:errors};
  if(!data.endedAt||data.phase!=='ended'||!data.reason||data.nav!==251||data.invalid||data.respawns||data.missingOrders>11||data.hits>data.shots||errors.length)
    throw Error('Full-round invariant failure: '+JSON.stringify({end:data.endedAt,phase:data.phase,reason:data.reason,nav:data.nav,invalid:data.invalid,respawns:data.respawns,missingOrders:data.missingOrders,errors}));
+ const stats=data.stats;
+  const auditFields=['ammoRounds','ammoSidearmRounds','ammoWeaponSwitches','ammoReloadStarts','ammoReloadCompletes','ammoReloadCancels','ammoEmptyAttempts','ammoReloadSeconds','rolePlantSeconds','roleDefuseSeconds','roleEscortSeconds','roleGuardSeconds','roleHoldSeconds','roleRetakeSeconds','coverSidearmPreferences','coverDutyPreferences'];
+  const auditRows=Object.values(stats.actors||{});
+  const ammoAudit=auditRows.some(x=>Object.hasOwn(x,'ammoRounds'))?{
+    totals:Object.fromEntries(auditFields.map(k=>[k,auditRows.reduce((n,x)=>n+(x[k]||0),0)])),
+    byClass:Object.fromEntries(Object.entries(stats.classes||{}).map(([id,x])=>[id,Object.fromEntries(auditFields.map(k=>[k,x[k]||0]))]))
+  }:null;
+  if(ammoAudit){
+    for(const x of auditRows){
+      if(auditFields.some(k=>!Number.isFinite(x[k])||x[k]<0)||
+         x.ammoRounds<x.shots+x.droneShots||x.ammoSidearmRounds>x.ammoRounds||
+         x.ammoReloadCompletes+x.ammoReloadCancels>x.ammoReloadStarts||
+         x.ammoReloadSeconds>x.aliveSeconds||
+         ['rolePlantSeconds','roleDefuseSeconds','roleEscortSeconds','roleGuardSeconds','roleHoldSeconds','roleRetakeSeconds'].reduce((n,k)=>n+x[k],0)>x.aliveSeconds)
+        throw Error('V73 ammunition/role telemetry invariant failed');
+    }
+  }
+ report.ammoAudit=ammoAudit;
  report.status='PASS';
  console.log('V63 BOMB FULL ROUND '+JSON.stringify({seed,variant,elapsed:data.elapsed,reason:data.reason,plantedAt:data.plantedAt,shots:data.shots,hits:data.hits,stuck:data.stuck,actorSeconds:data.actorSeconds,operators:data.samples.map(s=>({t:s.t,operators:s.operators}))}));
 }catch(e){report.error=String(e);console.error(report.error);process.exitCode=1;}
