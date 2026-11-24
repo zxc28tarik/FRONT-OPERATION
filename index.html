@@ -8537,7 +8537,9 @@ function buildSquadLeadership() {
             id: b.id, team: b.team, classId: b.classId,
             role: b.teamRole, difficulty: b.difficulty,
             behavior:b.behavior?.kind||null,lookOwner:b.behaviorPlan?.lookOwner||null,
-            behaviorTransitions:b.behavior?.transitions||0,localMovement:b.behaviorPlan?.local||null
+            behaviorTransitions:b.behavior?.transitions||0,localMovement:b.behaviorPlan?.local||null,
+            activeLookOwner:b.lookControl?.owner||null,lookTransitions:b.lookControl?.transitions||0,
+            lookYawVelocity:b.lookYawVelocity||0
           })),
           started: matchState.started,
           playerAlive: player.alive,
@@ -8959,6 +8961,7 @@ function buildSquadLeadership() {
         bot.telemetryTargetId = null;
         bot.lastDirectContactAt = -Infinity;
         bot.behavior=null;bot.behaviorPlan=null;
+        bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -9156,8 +9159,11 @@ function buildSquadLeadership() {
         const vertAngle = Math.atan2(Math.abs(dy), Math.max(0.25, horizDist));
         if (vertAngle > 1.15) return null;
 
-        const lookX = Math.sin(bot.upperYaw);
-        const lookZ = Math.cos(bot.upperYaw);
+        const legYaw=Number.isFinite(bot.legYaw)?bot.legYaw:bot.upperYaw;
+        const twist=Math.atan2(Math.sin(bot.upperYaw-legYaw),Math.cos(bot.upperYaw-legYaw));
+        const renderedYaw=legYaw+Math.max(-1.15,Math.min(1.15,twist));
+        const lookX = Math.sin(renderedYaw);
+        const lookZ = Math.cos(renderedYaw);
         const invDist = 1 / Math.max(0.0001, horizDist);
         const dirX = dx * invDist;
         const dirZ = dz * invDist;
@@ -11086,6 +11092,11 @@ function buildSquadLeadership() {
         // only 1.15 rad relative to the legs; logical yaw alone is insufficient.
         const legYaw=Number.isFinite(bot.legYaw)?bot.legYaw:bot.upperYaw;
         const actualYaw=legYaw+Math.max(-1.15,Math.min(1.15,normalizeAngle(bot.upperYaw-legYaw)));
+        if(bot.lookControl&&Number.isFinite(bot.aimPitch)&&Number.isFinite(bot.pos.y)&&Number.isFinite(targetEye.y)){
+          const wantedPitch=Math.atan2(targetEye.y-(bot.pos.y+1.42-(bot.crouchAmt||0)*.32),Math.max(.5,Math.hypot(targetEye.x-bot.pos.x,targetEye.z-bot.pos.z)));
+          const visualPitch=bot.aimPitch*.75-(bot.crouchAmt||0)*.22-(bot.hitFlinchPitch||0);
+          if(Math.abs(wantedPitch-visualPitch)>.26)return false;
+        }
         return Math.abs(normalizeAngle(yaw - bot.upperYaw)) <= tolerance &&
           Math.abs(normalizeAngle(yaw-actualYaw))<=Math.min(tolerance,.22);
       }
@@ -11620,6 +11631,54 @@ function buildSquadLeadership() {
         return {...plan,target:p,speed:Math.max(0,override.speed),local:override.kind||'RECOVER'};
       }
 
+      // V55: independent look arbitration, bounded critically damped angular motion.
+      const BOT_LOOK_PRIORITY=Object.freeze({ROUTE:10,MISSION_ROUTE:15,GUARD_SCAN:20,SOUND:40,
+        ALERT:45,MISSION_CONTACT:50,LAST_CONTACT:60,SUPPORT_TARGET:70,DRONE_TARGET:80,VISIBLE_TARGET:100});
+      function selectBotLookRequest(bot,requests,nowSec){
+        let best=null;
+        for(const r of requests){
+          if(!r||!Number.isFinite(r.yaw)||!Object.prototype.hasOwnProperty.call(BOT_LOOK_PRIORITY,r.owner))continue;
+          if(!best||BOT_LOOK_PRIORITY[r.owner]>BOT_LOOK_PRIORITY[best.owner])best=r;
+        }
+        best=best||{owner:'ROUTE',yaw:bot.upperYaw,pitch:0};
+        const old=bot.lookControl;
+        const key=best.owner+':'+(best.targetId||'');
+        // No expired observation can retain ownership: all requests are refreshed by current perception.
+        const same=old&&old.key===key;
+        const control={key,owner:best.owner,targetId:best.targetId||null,
+          since:same?old.since:nowSec,transitions:same?old.transitions:(old?.transitions||0)+1,
+          yaw:best.yaw,pitch:Number.isFinite(best.pitch)?best.pitch:0};
+        bot.lookControl=control;
+        return control;
+      }
+      function stepBotLookAxis(current,velocity,target,dt,combat,wrapped=true){
+        current=Number.isFinite(current)?current:0;velocity=Number.isFinite(velocity)?velocity:0;
+        if(!Number.isFinite(target))target=current;
+        const clamp=(v,l)=>Math.max(-l,Math.min(l,v));
+        const diff=(a,b)=>wrapped?Math.atan2(Math.sin(a-b),Math.cos(a-b)):a-b;
+        let remaining=Math.max(0,Math.min(.12,dt));
+        const stiffness=combat?240:145,damping=combat?31:24;
+        const maxAccel=combat?65:42,maxSpeed=combat?10:6;
+        while(remaining>1e-7){
+          const h=Math.min(remaining,1/120),error=diff(target,current);
+          velocity=clamp(velocity+clamp(stiffness*error-damping*velocity,maxAccel)*h,maxSpeed);
+          const step=velocity*h;
+          if(Math.abs(error)<.0005&&Math.abs(velocity)<.02||step*error>0&&Math.abs(step)>=Math.abs(error)){
+            current=target;velocity=0;
+          }else current+=step;
+          if(wrapped)current=Math.atan2(Math.sin(current),Math.cos(current));
+          remaining-=h;
+        }
+        return {angle:current,velocity};
+      }
+      function updateBotLookController(bot,request,dt){
+        const combat=['VISIBLE_TARGET','DRONE_TARGET','SUPPORT_TARGET','LAST_CONTACT'].includes(request.owner);
+        const y=stepBotLookAxis(bot.upperYaw,bot.lookYawVelocity,request.yaw,dt,combat);
+        const p=stepBotLookAxis(bot.aimPitch,bot.lookPitchVelocity,request.pitch,dt,combat,false);
+        bot.upperYaw=y.angle;bot.lookYawVelocity=y.velocity;
+        bot.aimPitch=p.angle;bot.lookPitchVelocity=p.velocity;
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -11685,6 +11744,7 @@ function buildSquadLeadership() {
           if (activeBotDrone) {
             bot.moveVelX = 0;
             bot.moveVelZ = 0;
+            bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
             bot.behaviorPlan=selectBotBehaviorPlan(bot,[{kind:'DRONE',speed:0,crouch:1,yaw:bot.legYaw}],nowSec);
             observeBotCoverLifecycle(bot,nowSec);
             bot.combatStrafeGoal = null;
@@ -11752,6 +11812,7 @@ function buildSquadLeadership() {
           let moveSpeed = bot.classId === 'heavy' ? 4.4 : bot.classId === 'sniper' ? 4.8 : 5.3;
           let targetCrouch = 0;
           let desiredUpperYaw = bot.legYaw;
+          let desiredAimPitch=0;
           let foPriorityCombat=false;
           let foMissionOrder=null;
           let behaviorHint='ADVANCE',lookOwner='ROUTE';
@@ -11763,7 +11824,7 @@ function buildSquadLeadership() {
             const distToEnemy = Math.hypot(bestEnemy.pos.x - bot.pos.x, bestEnemy.pos.z - bot.pos.z);
             desiredUpperYaw = Math.atan2(trackedEnemyEye.x - bot.pos.x, trackedEnemyEye.z - bot.pos.z);
             const dyAim = (trackedEnemyEye.y - 0.12) - (bot.pos.y + 1.42);
-            bot.aimPitch = Math.max(-0.65, Math.min(0.65, Math.atan2(dyAim, Math.max(0.5, distToEnemy))));
+            desiredAimPitch = Math.max(-0.65, Math.min(0.65, Math.atan2(dyAim, Math.max(0.5, distToEnemy))));
 
             const woundedThreshold = bot.classId === 'heavy' ? 52 : 42;
             const isWounded = bot.hp < woundedThreshold;
@@ -12034,7 +12095,7 @@ function buildSquadLeadership() {
               }
             }
           } else {
-            bot.aimPitch *= Math.exp(-8 * dt);
+            desiredAimPitch=0;
             bot.burstCount = 0;
 
             const woundedThreshold = bot.classId === 'heavy' ? 52 : 42;
@@ -12066,7 +12127,7 @@ function buildSquadLeadership() {
               const dDist = botEyeNoTarget.distanceTo(visibleEnemyDrone.pos);
               desiredUpperYaw = Math.atan2(visibleEnemyDrone.pos.x - bot.pos.x, visibleEnemyDrone.pos.z - bot.pos.z);
               const dyDrone = visibleEnemyDrone.pos.y - (bot.pos.y + 1.42);
-              bot.aimPitch = Math.max(-0.85, Math.min(0.85, Math.atan2(dyDrone, Math.max(0.5, dDist))));
+              desiredAimPitch = Math.max(-0.85, Math.min(0.85, Math.atan2(dyDrone, Math.max(0.5, dDist))));
               moveSpeed = 1.8;
 
               // Drones use the same aim and ally-line rules as infantry.
@@ -12113,7 +12174,7 @@ function buildSquadLeadership() {
                 const distSuppress = Math.hypot(coverOpp.threatPos.x - bot.pos.x, coverOpp.threatPos.z - bot.pos.z);
                 desiredUpperYaw = Math.atan2(coverOpp.threatPos.x - bot.pos.x, coverOpp.threatPos.z - bot.pos.z);
                 const dySup = coverOpp.targetEye.y - (bot.pos.y + 1.42);
-                bot.aimPitch = Math.max(-0.65, Math.min(0.65, Math.atan2(dySup, Math.max(0.5, distSuppress))));
+                desiredAimPitch = Math.max(-0.65, Math.min(0.65, Math.atan2(dySup, Math.max(0.5, distSuppress))));
                 moveSpeed = bot.classId === 'heavy' ? 1.4 : 2.4;
                 targetCrouch = bot.classId === 'heavy' ? 0.55 : 0;
 
@@ -12434,8 +12495,10 @@ function buildSquadLeadership() {
                   lookOwner='ALERT';
                   desiredUpperYaw = Math.atan2(bot.alertPos.x - bot.pos.x, bot.alertPos.z - bot.pos.z);
                 } else if (bot.state === 'INVESTIGATE' && bot.lastKnownEnemyPos) {
+                  lookOwner='LAST_CONTACT';
                   desiredUpperYaw = Math.atan2(bot.lastKnownEnemyPos.x - bot.pos.x, bot.lastKnownEnemyPos.z - bot.pos.z);
-                } else if (moveTargetPos && moveSpeed > 0) {
+                } else if (lookOwner!=='SOUND' && moveTargetPos && moveSpeed > 0) {
+                  lookOwner='ROUTE';
                   desiredUpperYaw = Math.atan2(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z);
                 }
               }
@@ -12469,6 +12532,12 @@ function buildSquadLeadership() {
           if(selectedPlan.kind!=='MISSION')foMissionOrder=null;
           moveTargetPos=selectedPlan.target;moveSpeed=selectedPlan.speed;
           targetCrouch=selectedPlan.crouch;desiredUpperYaw=selectedPlan.yaw;
+          const lookRequests=[{owner:selectedPlan.lookOwner,yaw:selectedPlan.yaw,pitch:desiredAimPitch,targetId:bestEnemy?.id||null}];
+          if(bestEnemy&&trackedEnemyEye)lookRequests.push({owner:'VISIBLE_TARGET',targetId:bestEnemy.id,
+            yaw:Math.atan2(trackedEnemyEye.x-bot.pos.x,trackedEnemyEye.z-bot.pos.z),pitch:desiredAimPitch});
+          lookRequests.push({owner:'ROUTE',yaw:bot.legYaw,pitch:0});
+          const activeLook=selectBotLookRequest(bot,lookRequests,nowSec);
+          desiredUpperYaw=activeLook.yaw;
           const legacyState=({ADVANCE:'ADVANCE',HOLD:'DEFEND_HOLD',SUPPORT:'SUPPORT_ALLY',INVESTIGATE:'INVESTIGATE',CONTACT_HOLD:'INVESTIGATE',ENGAGE:'ENGAGE',FLANK:'ENGAGE',COVER:'TAKE_COVER',RETREAT:'RETREAT',MISSION:moveSpeed>0?'ADVANCE':'DEFEND_HOLD'})[selectedPlan.kind];
           if(legacyState&&bot.state!==legacyState)setBotState(bot,legacyState,.5,true);
           // New contact cancels obsolete navigation detours, but not an active escape from cover.
@@ -12694,7 +12763,9 @@ function buildSquadLeadership() {
           } else {
             bot.legYaw = lerpAngle(bot.legYaw, desiredUpperYaw, dt * 5);
           }
-          bot.upperYaw = lerpAngle(bot.upperYaw, desiredUpperYaw, 1-Math.exp(-dt * (bestEnemy?16:10)));
+          // Convert desired visual elevation into weapon-pivot angle, compensating torso crouch.
+          const pitchCommand=Math.max(-1.1,Math.min(1.1,(activeLook.pitch+bot.crouchAmt*.22)/.75));
+          updateBotLookController(bot,{...activeLook,pitch:pitchCommand},dt);
           // Combat strafing moves the legs sideways, not the muzzle.
           // Rotate the body base enough to stay inside the torso's twist range.
           if(bestEnemy||foPriorityCombat||bot.state==='ENGAGE'){
