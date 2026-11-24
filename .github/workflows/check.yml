@@ -101,3 +101,6 @@ jobs:
 
       - name: Run V63 objective route regression
         run: node tests/bot_ai_v63_objective_regression.cjs
+
+      - name: Run V63 contact engagement regression
+        run: node tests/bot_ai_v63_contact_regression.cjs
