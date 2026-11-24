@@ -6812,7 +6812,7 @@
             if(previous.node >= 0) recordBotMetric(bot,'coverReassignments');
             const d = distanceTo(current);
             bot._coverAudit = {node:current,arrived:false,since:nowSec,
-              bestDistance:d,lastProgressAt:nowSec,stallRecorded:false};
+              initialDistance:d,bestDistance:d,lastProgressAt:nowSec,stallRecorded:false};
             event('selected', current,null,0,d);
           } else {
             bot._coverAudit = {node:-1,arrived:false};
@@ -10311,6 +10311,23 @@ function buildSquadLeadership() {
         return null;
       }
 
+      // V47: Do not replace a distant cover destination while the soldier
+      // is still closing on it. A nearby attacker, a stalled route or an
+      // expired commitment can immediately override the hold.
+      function shouldKeepApproachingCover(bot, threatPos, nowSec) {
+        const audit = bot && bot._coverAudit;
+        if (!audit || audit.node !== bot.coverNode || audit.arrived ||
+            bot.coverPhase !== 'MOVE_TO_COVER' || !threatPos) return false;
+        const age = nowSec - audit.since;
+        const progressAgo = nowSec - audit.lastProgressAt;
+        const threatDist = Math.hypot(threatPos.x-bot.pos.x,
+                                      threatPos.z-bot.pos.z);
+        const timeBudget = Math.min(6.2,Math.max(3.4,
+          (audit.initialDistance || 0)/4.2 + 1.2));
+        return age >= 0 && age < timeBudget &&
+          progressAgo < 2.25 && threatDist >= 9.0;
+      }
+
       function refreshBotCoverForMovingEnemy(bot, threatPos, dt) {
         if (bot.coverNode < 0 || !threatPos) return false;
         bot.coverCommitTimer = Math.max(0, bot.coverCommitTimer - dt);
@@ -10324,6 +10341,7 @@ function buildSquadLeadership() {
           threatPos.z - bot.coverThreatAnchor.z
         );
         if (travel < 8 || bot.coverCommitTimer > 0 || bot.coverRelocateCooldown > 0) return false;
+        if (shouldKeepApproachingCover(bot, threatPos, botAiClockSec)) return false;
         const node = NAV_NODES[bot.coverNode];
         if (!node) return false;
         const threatEye = new THREE.Vector3(threatPos.x, threatPos.y + 1.45, threatPos.z);
