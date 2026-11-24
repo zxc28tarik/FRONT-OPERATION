@@ -47,14 +47,16 @@ jobs:
           node-version: '22'
       - name: Install Playwright and Chromium browser
         run: |
-          npm install --no-save playwright@1.55.0
+          npm install --no-save playwright@1.55.0 three@0.128.0
           npx playwright install --with-deps chromium
+      - name: Validate real geometry and visual arm/LOD
+        run: node scripts/check-soldier-real-geometry.mjs
       - name: Run actual WebGL 6v6 match and UI acceptance
         run: node scripts/browser-webgl-smoke.mjs
       - name: Test independent Depot 17 bomb mode
         if: github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller' || github.ref_name == 'ai/v56-locomotion' || github.ref_name == 'ai/v57-navigation' || github.ref_name == 'ai/v58-map-awareness' || github.ref_name == 'ai/v59-combat-discipline' || github.ref_name == 'ai/v60-team-coordination' || github.ref_name == 'ai/v61-bomb-objectives' || github.ref_name == 'ai/v62-personalities' || github.ref_name == 'ai/v63-integrated-validation' || github.ref_name == 'ai/v72-integrated-acceptance'
         run: node scripts/browser-bomb-depot-smoke.mjs
-      - name: Render V25 versus V109 characters from three angles
+      - name: Render V25 versus V111 characters from three angles
         run: node scripts/character-turntable.mjs
       - name: Save browser screenshots and report even if tests fail
         if: always()

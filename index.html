@@ -6023,7 +6023,9 @@
           const hand=upper.children.find(n=>geomOf(n)===H.shapes.get(approved.handGlove)&&Math.abs(n.position.x-(left?.01:.13))<.015);
           const fore=upper.children.find(n=>n.name==='v100_anatomy'&&Math.abs(n.position.x-(left?-.07:.16))<.015&&Math.abs(n.position.z-(left?.31:.24))<.015);
           const elbow=upper.children.find(n=>geomOf(n)===approved.elbowJoint&&Math.abs(n.position.x-(left?-.15:.19))<.015);
-          if(!hand||!fore||!elbow)continue;
+          const shoulder=upper.children.find(n=>geomOf(n)===approved.shoulderJoint&&Math.abs(n.position.x-(left?-.21:.21))<.015);
+          const upperArm=upper.children.find(n=>n.name==='v100_anatomy'&&Math.abs(n.position.x-(left?-.19:.21))<.015&&Math.abs(n.position.z-(left?.11:.08))<.015);
+          if(!hand||!fore||!elbow||!shoulder||!upperArm)continue;
           hand.name=left?'v107_support_hand':'v107_trigger_hand';hand.material=H.glove;
           const glove=detail(hand,'glove');
           for(let j=0;j<4;j++){
@@ -6033,23 +6035,41 @@
           }
           ell(glove,H.palm,left?.028:-.028,-.007,.008,.011,.025,.012,0,0,left?-.45:.45);
           const rest={x:left?-.031:.028,y:left?-.018:-.034,z:left?(classId==='sniper'?.26:classId==='heavy'?.20:classId==='medic'||classId==='engineer'?.115:.17):.048};
-          arms.push({left,hand,fore,elbow,rest,glove});
+          arms.push({left,hand,fore,elbow,shoulder,upperArm,rest,glove,restElbow:{x:elbow.position.x,y:elbow.position.y,z:elbow.position.z}});
         }
-        // V108: visual arm fit follows the weapon pitch without changing aim or muzzle.
+        // V110: two-segment visual arm fitting, with a stable elbow bend plane.
         if(arms.length===2&&typeof arms[0].fore.quaternion?.setFromUnitVectors==='function'){
-          const axis=new THREE.Vector3(0,1,0),direction=new THREE.Vector3();
+          const axis=new THREE.Vector3(0,1,0),direction=new THREE.Vector3(),line=new THREE.Vector3(),bend=new THREE.Vector3();
+          const fitSegment=(mesh,a,b,nominal)=>{
+            mesh.position.set((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2);
+            direction.subVectors(a,b);
+            const length=direction.length();
+            mesh.scale.y=length/nominal;
+            if(length>.0001)mesh.quaternion.setFromUnitVectors(axis,direction.normalize());
+          };
           model.updateVisualGrip=(pitch)=>{
+            if(!Number.isFinite(pitch))return;
+            if(model.lastVisualGripPitch===pitch)return;
+            model.lastVisualGripPitch=pitch;
             const c=Math.cos(pitch),s=Math.sin(pitch),w=model.weaponPivot.position;
             for(const arm of arms){
               const p=arm.rest;
               arm.hand.position.set(w.x+p.x,w.y+c*p.y-s*p.z,w.z+s*p.y+c*p.z);
               arm.hand.rotation.set(pitch+(arm.left?-.10:-.28),arm.left?.11:-.09,arm.left?.16:-.12);
-              const e=arm.elbow.position,h=arm.hand.position;
-              direction.set(e.x-h.x,e.y-h.y,e.z-h.z);
-              const length=direction.length();
-              arm.fore.position.set((h.x+e.x)/2,(h.y+e.y)/2,(h.z+e.z)/2);
-              arm.fore.scale.y=Math.max(.60,Math.min(1.65,length/.23));
-              if(length>.0001)arm.fore.quaternion.setFromUnitVectors(axis,direction.normalize());
+              const a=arm.shoulder.position,e=arm.elbow.position,h=arm.hand.position;
+              line.subVectors(h,a);
+              const dist=Math.max(.001,line.length());line.multiplyScalar(1/dist);
+              const total=Math.max(.42,dist+.018),u=total*.515,v=total*.485;
+              const along=(u*u-v*v+dist*dist)/(2*dist);
+              const radius=Math.sqrt(Math.max(0,u*u-along*along));
+              bend.set(arm.restElbow.x-a.x,arm.restElbow.y-a.y,arm.restElbow.z-a.z);
+              bend.addScaledVector(line,-bend.dot(line));
+              if(bend.lengthSq()<1e-8){
+                bend.set(arm.left?-1:1,-.4,0);bend.addScaledVector(line,-bend.dot(line));
+              }
+              bend.normalize();
+              e.copy(a).addScaledVector(line,along).addScaledVector(bend,radius);
+              fitSegment(arm.upperArm,a,e,.24);fitSegment(arm.fore,e,h,.23);
             }
           };
           model.updateVisualGrip(0);
@@ -6127,6 +6147,19 @@
           };
           vary(model.root);
         }
+        // V111: distance-dependent detail visibility. Base silhouette, head, class kit and weapon stay visible.
+        const nearDetails=arms.map(a=>a.glove);
+        const midDetails=groups.slice(2,6).filter(Boolean);
+        model.visualDetailLevel=0;
+        model.setVisualDetailDistance=d=>{
+          if(!Number.isFinite(d))return;
+          const old=model.visualDetailLevel;
+          const next=old===0?(d>46?2:d>23?1:0):old===1?(d<19?0:d>46?2:1):(d<19?0:d<40?1:2);
+          if(next===old)return;
+          model.visualDetailLevel=next;
+          for(const g of nearDetails)g.visible=next===0;
+          for(const g of midDetails)g.visible=next<2;
+        };
         model.root.userData=model.root.userData||{};model.root.userData.visualVariant=variantId;
         return model;
       }
@@ -13729,6 +13762,9 @@
           bot.hitFlinchPitch *= Math.exp(-16 * dt);
           bot.hitFlinchRoll *= Math.exp(-16 * dt);
 
+          if(bot.mesh.setVisualDetailDistance){
+            bot.mesh.setVisualDetailDistance(Math.hypot(bot.pos.x-camera.position.x,bot.pos.y-camera.position.y,bot.pos.z-camera.position.z));
+          }
           const activeBotDrone = bot.classId === 'engineer' ? droneSystem.getOperatorDrone(bot.id) : null;
           if (activeBotDrone) {
             bot.moveVelX = 0;
