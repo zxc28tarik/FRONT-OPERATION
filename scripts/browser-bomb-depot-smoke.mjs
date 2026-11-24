@@ -67,10 +67,27 @@ const hook=`
           return {rejectsSide,acceptsFront,rejectsOffset:!isBotAimAligned(stub,eye)};
         },
         defuse:()=>{
-          const b=bots.find(b=>b.team==='red'&&b.alive);
+          refreshFoBotPlan(botAiClockSec);
+          const b=bots.find(b=>b.id===foBotPlan.operators.get(foBomb.site.id)&&b.alive);
           if(!b)throw Error('No defender left');
-          b.pos.set(foBomb.site.x,0,foBomb.site.z);b.visibleEnemy=null;b.activeDroneId=null;b.unstuckTimer=0;
+          b.pos.set(foBomb.site.x,0,foBomb.site.z);b.visibleEnemy=null;b.activeDroneId=null;b.unstuckTimer=0;b.moveVelX=0;b.moveVelZ=0;
           updateFoBomb(4.1);
+        },
+        // Unscripted opening: no teleports, damage commands or fake shots.
+        // The local QA hook advances the actual match loop at a fixed dt.
+        opening:()=>{
+          const start=bots.map(b=>({id:b.id,pos:b.pos.clone()}));
+          let shots=0,elapsed=0;
+          for(let i=0;i<600&&!matchState.ended;i++){
+            const dt=.05;elapsed+=dt;
+            matchState.timeRemaining=Math.max(0,matchState.timeRemaining-dt);
+            updatePlayer(dt);droneSystem.update(dt);updateBots(dt);updateEntitiesAndFX(dt);updateFoBomb(dt);
+            shots+=bots.filter(b=>b.muzzleTimer>0).length;
+          }
+          return {elapsed,shots,phase:foBomb.phase,ended:matchState.ended,
+            moved:bots.map(b=>({id:b.id,dist:b.pos.distanceTo(start.find(a=>a.id===b.id).pos)})),
+            mission:bots.filter(b=>b.alive).map(b=>({id:b.id,role:foBotPlan.orders.get(b.id)?.role,gate:!!b.foGatePassed})),
+            alive:bots.filter(b=>b.alive).length};
         },
         end:()=>{foBomb.reason='QA';endMatch('red');}
       };
@@ -115,6 +132,15 @@ try{
      restored.colliders!==original.colliders||restored.meshes!==original.meshes||
      restored.graph!==original.graph||restored.nav!==50||restored.bounds[0]!==38.5||restored.bounds[1]!==59.5||restored.outerWalkable)throw Error('Marien restore mismatch');
  if(await page.evaluate(()=>document.body.classList.contains('fo-spectating')))throw Error('Spectator HUD leaked into new match');
+ // Start a separate, natural opening on the same map, preserving the
+ // original scripted lifecycle checks above.
+ await page.evaluate(()=>window.__foDepotQa.end());
+ await page.locator('#fo-game-mode').selectOption('bomb');
+ await page.evaluate(()=>{document.getElementById('btn-deploy').click();window.__foDepotQa.freeze();});
+ const opening=await page.evaluate(()=>window.__foDepotQa.opening());
+ console.log('V11 NATURAL OPENING '+JSON.stringify(opening));
+ if(opening.moved.filter(b=>b.dist>5).length<7)throw Error('Most bots failed to advance in natural opening');
+ if(opening.mission.some(b=>!b.role))throw Error('Living bot has no mission');
  if(errors.length)throw Error(errors.join(' | '));
  console.log('PASS real WebGL Tersane V10: compact arena, blocked spawn sightline, 251-node map, both sites reachable, plant, no respawn, teammate switching, free camera, rendered aim gate, defuse, exact Marien restoration');
 }catch(e){console.error('FAIL Depot17 browser: '+String(e));process.exitCode=1;}
