@@ -48,6 +48,9 @@
     }
 
     /* Dynamic Crosshair */
+    body.fo-spectating #crosshair,
+    body.fo-spectating #sniper-scope,
+    body.fo-spectating #reload-indicator { display:none!important; }
     #crosshair {
       position: fixed;
       top: 50%;
@@ -934,6 +937,11 @@
     </div>
   </div>
 
+  <!-- Bomb spectator: small read-only HUD, no full-screen death mask. -->
+  <div id="fo-spectator-hud" class="hidden" style="position:fixed;bottom:7%;left:50%;transform:translateX(-50%);z-index:24;pointer-events:none;text-align:center;padding:10px 18px;background:rgba(11,15,20,.78);border-radius:9px;color:#e4e8e9;font-size:12px;">
+    <div id="fo-spectator-name" style="font-size:15px;font-weight:800;">İZLEYİCİ</div>
+    <div style="margin-top:5px;color:#adb8c0;">[C] Serbest / Takım · [Sol/Sağ tık] Önceki / Sonraki · WASD / Space / Ctrl</div>
+  </div>
   <!-- Respawn Banner -->
   <div id="respawn-overlay" class="hidden fixed inset-0 z-25 bg-slate-950/65 backdrop-blur-[2px] flex flex-col items-center justify-center p-4">
     <div class="hud-glass rounded-2xl px-6 py-5 text-center max-w-md border border-rose-500/40">
@@ -9378,6 +9386,7 @@ function buildSquadLeadership() {
         if (matchState.mode==='bomb') {
           resTxt.textContent += ' • '+foBomb.reason;
           document.getElementById('respawn-overlay').classList.add('hidden');
+          stopFoSpectator();
         }
         document.getElementById('fo-mode-picker').style.display='flex';
         titleEl.textContent = 'MAÇ TAMAMLANDI';
@@ -9497,6 +9506,7 @@ function buildSquadLeadership() {
           document.getElementById('reload-indicator').classList.add('hidden');
           document.getElementById('killer-info').textContent = `Vuran: ${attackerName} [${weaponLabel}]`;
           document.getElementById('respawn-overlay').classList.remove('hidden');
+          if(matchState.mode==='bomb')startFoSpectator();
 
           const killerBot = bots.find((b) => b.name === attackerName);
           if (killerBot) {
@@ -10376,7 +10386,82 @@ function buildSquadLeadership() {
         sound.playRoll();
       }
 
+      // Bomb-only spectator state. No player position, ammo or life mutation.
+      const foSpectator={mode:'follow',targetId:null,pos:new THREE.Vector3(),yaw:0,pitch:0};
+      function isFoSpectating(){
+        return matchState.started&&!matchState.ended&&matchState.mode==='bomb'&&!player.alive;
+      }
+      function foSpectatorTeam(){return bots.filter(b=>b.alive&&b.team===player.team);}
+      function selectFoSpectatorTarget(delta=0){
+        const live=foSpectatorTeam();
+        const current=live.findIndex(b=>b.id===foSpectator.targetId);
+        const next=current<0?0:(current+delta+live.length)%live.length;
+        const target=live[next]||null;
+        foSpectator.targetId=target?target.id:null;
+        return target;
+      }
+      function setFoSpectatorMode(mode){
+        foSpectator.mode=mode==='free'?'free':'follow';
+        foSpectator.pos.copy(camera.position);
+        foSpectator.yaw=camera.rotation.y;foSpectator.pitch=camera.rotation.x;
+        if(foSpectator.mode==='follow'&&!selectFoSpectatorTarget())foSpectator.mode='free';
+      }
+      function startFoSpectator(){
+        if(!isFoSpectating())return;
+        foSpectator.targetId=null;setFoSpectatorMode('follow');
+        mouseDownLeft=false;mouseDownRight=false;
+        document.getElementById('respawn-overlay').classList.add('hidden');
+        document.getElementById('respawn-countdown').textContent='TEK CAN';
+        document.getElementById('fo-spectator-hud').classList.remove('hidden');
+        document.body.classList.add('fo-spectating');
+        viewmodelGroup.visible=false;
+      }
+      function stopFoSpectator(){
+        foSpectator.targetId=null;foSpectator.mode='follow';
+        document.body.classList.remove('fo-spectating');
+        document.getElementById('fo-spectator-hud').classList.add('hidden');
+        viewmodelGroup.visible=true;
+      }
+      function updateFoSpectator(dt){
+        if(!isFoSpectating())return;
+        if(!document.body.classList.contains('fo-spectating'))startFoSpectator();
+        const name=document.getElementById('fo-spectator-name');
+        if(foSpectator.mode==='follow'){
+          const bot=selectFoSpectatorTarget();
+          if(!bot){setFoSpectatorMode('free');}
+          else{
+            // Third-person tracking, shortened by solid surfaces to avoid
+            // placing the eye behind a wall. Follow teammates only.
+            const yaw=bot.upperYaw,eye=new THREE.Vector3(bot.pos.x,bot.pos.y+1.65-bot.crouchAmt*.32,bot.pos.z);
+            const back=new THREE.Vector3(-Math.sin(yaw)*3.4,1.25,-Math.cos(yaw)*3.4);
+            let desired=eye.clone();
+            for(let n=1;n<=12;n++){
+              const p=eye.clone().addScaledVector(back,n/12);
+              if(!hasLineOfSight(eye,p))break;desired=p;
+            }
+            camera.position.copy(desired);
+            camera.lookAt(eye.clone().add(new THREE.Vector3(Math.sin(yaw)*5,0,Math.cos(yaw)*5)));
+            name.textContent='İZLENİYOR • '+bot.name+' · '+Math.max(0,Math.ceil(bot.hp))+' HP';
+            return;
+          }
+        }
+        const yaw=foSpectator.yaw,pitch=foSpectator.pitch;
+        const forward=new THREE.Vector3(-Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch));
+        const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+        const motion=new THREE.Vector3();
+        motion.addScaledVector(forward,(keys.KeyW?1:0)-(keys.KeyS?1:0));
+        motion.addScaledVector(right,(keys.KeyD?1:0)-(keys.KeyA?1:0));
+        motion.y+=(keys.Space?1:0)-(keys.ControlLeft||keys.ControlRight?1:0);
+        if(motion.lengthSq()>0)motion.normalize().multiplyScalar(dt*(keys.ShiftLeft?15:8));
+        foSpectator.pos.add(motion);
+        foSpectator.pos.x=Math.max(-38.8,Math.min(38.8,foSpectator.pos.x));
+        foSpectator.pos.y=Math.max(.8,Math.min(19,foSpectator.pos.y));
+        foSpectator.pos.z=Math.max(-59.6,Math.min(59.6,foSpectator.pos.z));
+        camera.position.copy(foSpectator.pos);camera.rotation.set(pitch,yaw,0);
+        name.textContent='SERBEST KAMERA';
+      }
       function respawnPlayer() {
+        if(document.body.classList.contains('fo-spectating'))stopFoSpectator();
         droneSystem.onOperatorInterrupted('player');
         droneSystem.grantLifeCharge('player');
         player.alive = true;
@@ -10409,12 +10494,13 @@ function buildSquadLeadership() {
             camera.fov = 74;
             camera.updateProjectionMatrix();
           }
-          camera.position.set(player.pos.x, player.pos.y + 0.72, player.pos.z);
-          camera.rotation.set(-0.22, player.yaw, 0.14);
           if (matchState.mode==='bomb') {
             document.getElementById('respawn-countdown').textContent='TEK CAN';
+            updateFoSpectator(dt);
             return;
           }
+          camera.position.set(player.pos.x, player.pos.y + 0.72, player.pos.z);
+          camera.rotation.set(-0.22, player.yaw, 0.14);
           player.respawnTimer -= dt;
           document.getElementById('respawn-countdown').textContent = Math.max(0, player.respawnTimer).toFixed(1);
           if (player.respawnTimer <= 0) {
@@ -10809,7 +10895,12 @@ function buildSquadLeadership() {
       // V33: Keep upper-body aim, sightline and friendly fire in agreement.
       function isBotAimAligned(bot, targetEye, tolerance = 0.34) {
         const yaw = Math.atan2(targetEye.x - bot.pos.x, targetEye.z - bot.pos.z);
-        return Math.abs(normalizeAngle(yaw - bot.upperYaw)) <= tolerance;
+        // Check the rendered weapon bearing too. The rig's torso can rotate
+        // only 1.15 rad relative to the legs; logical yaw alone is insufficient.
+        const legYaw=Number.isFinite(bot.legYaw)?bot.legYaw:bot.upperYaw;
+        const actualYaw=legYaw+Math.max(-1.15,Math.min(1.15,normalizeAngle(bot.upperYaw-legYaw)));
+        return Math.abs(normalizeAngle(yaw - bot.upperYaw)) <= tolerance &&
+          Math.abs(normalizeAngle(yaw-actualYaw))<=Math.min(tolerance,.22);
       }
 
       function isBotFireLaneClear(bot, targetEye, source = bot.pos) {
@@ -12283,6 +12374,12 @@ function buildSquadLeadership() {
             bot.legYaw = lerpAngle(bot.legYaw, desiredUpperYaw, dt * 5);
           }
           bot.upperYaw = lerpAngle(bot.upperYaw, desiredUpperYaw, dt * 12);
+          // Combat strafing moves the legs sideways, not the muzzle.
+          // Rotate the body base enough to stay inside the torso's twist range.
+          if(bestEnemy||bot.state==='ENGAGE'){
+            const twist=normalizeAngle(bot.upperYaw-bot.legYaw);
+            if(Math.abs(twist)>.92)bot.legYaw=normalizeAngle(bot.upperYaw-Math.sign(twist)*.92);
+          }
           bot.crouchAmt += (targetCrouch - bot.crouchAmt) * Math.min(1, dt * 10);
 
           bot.mesh.root.position.set(bot.pos.x, bot.pos.y - bot.crouchAmt * 0.32, bot.pos.z);
@@ -13122,6 +13219,15 @@ function buildSquadLeadership() {
           return;
         }
 
+        if(isFoSpectating()){
+          if(!e.repeat&&e.code==='KeyC'){
+            setFoSpectatorMode(foSpectator.mode==='follow'?'free':'follow');e.preventDefault();
+          }else if(!e.repeat&&(e.code==='ArrowRight'||e.code==='ArrowLeft')){
+            setFoSpectatorMode('follow');selectFoSpectatorTarget(e.code==='ArrowRight'?1:-1);e.preventDefault();
+          }
+          if(e.code==='Space'||e.code.startsWith('Control'))e.preventDefault();
+          return;
+        }
         if (!player.alive) {
           const classId = classHotkeys[e.code];
           if (classId) {
@@ -13186,6 +13292,14 @@ function buildSquadLeadership() {
         if (!matchState.started || matchState.ended || gamePaused ||
             !document.getElementById('menu-overlay').classList.contains('hidden')) return;
         sound.init();
+        if(isFoSpectating()){
+          if(foSpectator.mode==='follow'&&(e.button===0||e.button===2))
+            selectFoSpectatorTarget(e.button===0?-1:1);
+          else if(foSpectator.mode==='free'&&e.button===0&&document.pointerLockElement!==canvas){
+            isDraggingLook=true;prevDragX=e.clientX;prevDragY=e.clientY;
+          }
+          return;
+        }
 
         if (e.button === 0) {
           mouseDownLeft = true;
@@ -13228,6 +13342,14 @@ function buildSquadLeadership() {
       window.addEventListener('contextmenu', (e) => e.preventDefault());
 
       window.addEventListener('mousemove', (e) => {
+        if(isFoSpectating()){
+          if(gamePaused||foSpectator.mode!=='free')return;
+          let dx=0,dy=0;
+          if(document.pointerLockElement===canvas){dx=e.movementX||0;dy=e.movementY||0;}
+          else if(isDraggingLook){dx=e.clientX-prevDragX;dy=e.clientY-prevDragY;prevDragX=e.clientX;prevDragY=e.clientY;}
+          foSpectator.yaw-=dx*.0021;
+          foSpectator.pitch=Math.max(-1.45,Math.min(1.45,foSpectator.pitch-dy*.0021));return;
+        }
         if (!matchState.started || matchState.ended || !player.alive) return;
         const inDrone = droneSystem.isPlayerControlling();
         const sens = inDrone
