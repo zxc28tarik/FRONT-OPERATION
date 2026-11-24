@@ -12248,7 +12248,6 @@
           const freshLostContact=!bot.visibleEnemy&&!!bot.lastKnownEnemyPos&&Number.isFinite(bot.lastDirectContactAt)&&nowSec-bot.lastDirectContactAt<.75;
           const bestEnemy = bot.visibleEnemy;
           const currentTarget = bestEnemy ? bestEnemy.id : null;
-          updateBotContactOpportunity(bot,bestEnemy,nowSec);
           if (currentTarget && currentTarget !== previousTarget) recordBotMetric(bot,'sightings');
           recordBotTargetTransition(bot, previousTarget, currentTarget);
           bot.telemetryTargetId = currentTarget;
@@ -12285,6 +12284,7 @@
             bot.passageStepTimer = 0;
           }
 
+          updateBotContactOpportunity(bot,bestEnemy,nowSec);
           const activeThreatPos = bestEnemy
             ? bestEnemy.pos
             : ((bot.lastKnownEnemyPos && bot.investigateTimer > 0) ? bot.lastKnownEnemyPos : null);
