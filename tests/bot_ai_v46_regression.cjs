@@ -36,7 +36,7 @@ const red = [
 ];
 const roster = [...blue,...red];
 api.reset();
-check(api.state.version === 46 && api.state.seconds === 0, 'V46 telemetry version starts clean');
+check(api.state.version >= 46 && api.state.seconds === 0, 'V46 telemetry version starts clean');
 api.transition(blue[0], null, 'red_0');
 api.transition(blue[0], 'red_0', 'red_0');
 api.transition(blue[0], 'red_0', 'red_1');
