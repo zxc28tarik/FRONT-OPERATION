@@ -76,6 +76,13 @@ try {
       throw Error('Invalid skill hit ratio');
   if((stats.stuckContexts||[]).length>100)
     throw Error('V43 stalled-bot context ring exceeded cap');
+  const observedActors=Object.values(stats.actors || {});
+  for(const actor of observedActors) {
+    if(actor.sightings!==actor.targetAcquisitions+actor.targetSwitches ||
+       actor.coverApproachSeconds+actor.coverHoldSeconds>actor.aliveSeconds ||
+       actor.movingSeconds>actor.aliveSeconds)
+      throw Error('V46 target/cover consistency invariant failed');
+  }
   if(errors.length)throw Error('Uncaught browser game errors: '+errors.slice(0,5).join(' | '));
   result={
     status:'PASS',
@@ -85,6 +92,23 @@ try {
     wallTimeMs,
     scoreRestarts:engine.scoreRestarts,
     navValidation:nav,
+    behavior: {
+      targetAcquisitions:observedActors.reduce((n,b)=>n+b.targetAcquisitions,0),
+      targetSwitches:observedActors.reduce((n,b)=>n+b.targetSwitches,0),
+      targetLosses:observedActors.reduce((n,b)=>n+b.targetLosses,0),
+      coverApproachSeconds:observedActors.reduce((n,b)=>n+b.coverApproachSeconds,0),
+      coverHoldSeconds:observedActors.reduce((n,b)=>n+b.coverHoldSeconds,0),
+      movingSeconds:observedActors.reduce((n,b)=>n+b.movingSeconds,0),
+      engagedSeconds:observedActors.reduce((n,b)=>n+b.engagedSeconds,0),
+      meanLargestFocus: {
+        blue:stats.spread.blue.meanLargestFocus,
+        red:stats.spread.red.meanLargestFocus
+      },
+      meanClosePairs: {
+        blue:stats.spread.blue.meanClosePairs,
+        red:stats.spread.red.meanClosePairs
+      }
+    },
     stuckContextSamples:stats.stuckContexts||[],
     samples:stats.samples,
     botShots:totalShots,
@@ -100,14 +124,17 @@ try {
     totalStuckRecoveries:allRecoveries,
     byBot:Object.fromEntries(Object.entries(stats.actors).map(([id,row])=>
       [id,{shots:row.shots,hits:row.hits,kills:row.kills,
-        deaths:row.deaths,stuckRecoveries:row.stuckRecoveries}])),
+        deaths:row.deaths,stuckRecoveries:row.stuckRecoveries,
+        targetAcquisitions:row.targetAcquisitions,targetSwitches:row.targetSwitches,
+        targetLosses:row.targetLosses,coverApproachSeconds:row.coverApproachSeconds,
+        coverHoldSeconds:row.coverHoldSeconds,movingSeconds:row.movingSeconds}])),
     pageErrors:errors
   };
-  console.log('PASS V45 accelerated 600s real bot logic stress: '+
+  console.log('PASS V46 accelerated 600s real bot logic stress: '+
     JSON.stringify(result));
 } catch(e) {
   result={...result,error:String(e),pageErrors:errors};
-  console.error('FAIL V45 accelerated bot stress: '+String(e));
+  console.error('FAIL V46 accelerated bot stress: '+String(e));
   process.exitCode=1;
 } finally {
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(result,null,2));
