@@ -11727,18 +11727,23 @@
 
       // V67: only bias a dodge that was already requested. Never force
       // an otherwise stationary shooter to close distance or retreat.
-      function botCombatRangeBand(classId){
+      function botCombatRangeBand(classId,weaponId){
+        // V71B: a sidearm is not the class primary; preserve primary bands.
+        if(weaponId==='p320'||weaponId==='glock18c')return [5,16];
         return classId==='sniper'?[22,52]:classId==='heavy'?[13,34]:
           classId==='medic'?[12,30]:classId==='engineer'?[8,24]:[10,28];
       }
-      function chooseBotRangeStrafeGoal(bot,enemy,walk,clear,occupied){
+      function chooseBotRangeStrafeGoal(bot,enemy,walk,clear,occupied,weaponId){
         if(!enemy||!enemy.pos||!enemy.eye||Math.abs(enemy.pos.y-bot.pos.y)>1.35)return null;
         const dx=enemy.pos.x-bot.pos.x,dz=enemy.pos.z-bot.pos.z,d=Math.hypot(dx,dz);
         if(d<.1)return null;
-        const [low,high]=botCombatRangeBand(bot.classId);
+        const [low,high]=botCombatRangeBand(bot.classId,weaponId);
         // Deadband prevents direction flicker at range thresholds.
         const bias=d<low-2?-1:d>high+2?1:0;
         if(!bias)return null;
+        // A fallback pistol must not trigger a new approach toward a distant
+        // contact; retain the existing lateral dodge instead.
+        if(bias>0&&(weaponId==='p320'||weaponId==='glock18c'))return null;
         const fx=dx/d,fz=dz/d,preferred=bot.strafeDir===-1?-1:1;
         for(const side of [preferred,-preferred]){
           for(const lateral of [2.0,1.4]){
@@ -12300,6 +12305,11 @@
         if(!bot.ammoState)bot.ammoState={};
         return bot.ammoState[id]||(bot.ammoState[id]={mag:w.magSize,reserve:w.reserveMax});
       }
+      function botPreferredInfantryWeapon(bot,distance){
+        return bot.classId==='assault'?'hk416':
+          (bot.classId==='medic'||bot.classId==='engineer')?'mp7':
+          bot.classId==='sniper'?(distance<11?'glock18c':'mrad'):'minimi';
+      }
       function botAmmoWeapon(bot,preferred){
         const s=botAmmoSlot(bot,preferred);
         if(s&&(s.mag>0||s.reserve>0))return preferred;
@@ -12515,6 +12525,8 @@
 
             const woundedThreshold = bot.classId === 'heavy' ? 52 : 42;
             const isWounded = bot.hp < woundedThreshold;
+            // Select once; movement and shooting share the actual available firearm.
+            const botWeaponId=botAmmoWeapon(bot,botPreferredInfantryWeapon(bot,distToEnemy));
             const isSniperTooClose = bot.classId === 'sniper' && distToEnemy < 11.5;
             const initialFireLane=isBotFireLaneClear(bot,bestEnemy.eye);
             const holdContact=botShouldHoldContact(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
@@ -12641,7 +12653,7 @@
                     const ranged=chooseBotRangeStrafeGoal(bot,bestEnemy,isPositionWalkable,
                       p=>isBotFireLaneClear(bot,bestEnemy.eye,p),
                       p=>bots.some(a=>a.alive&&a.team===bot.team&&a.id!==bot.id&&Math.abs(a.pos.y-p.y)<=1.35&&Math.hypot(a.pos.x-p.x,a.pos.z-p.z)<1.2)||
-                        (player.alive&&player.team===bot.team&&Math.abs(player.pos.y-p.y)<=1.35&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<1.2));
+                        (player.alive&&player.team===bot.team&&Math.abs(player.pos.y-p.y)<=1.35&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<1.2),botWeaponId);
                     if(ranged){bot.strafeDir=ranged.side;bot.combatStrafeGoal=new THREE.Vector3(ranged.point.x,ranged.point.y,ranged.point.z);}
                     else bot.combatStrafeGoal = chooseBotCombatStrafeGoal(bot, desiredUpperYaw);
                   }else bot.combatStrafeGoal=null;
@@ -12710,9 +12722,6 @@
             if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned) {
               bot.fireTimer -= dt;
             }
-            const botWeaponId=botAmmoWeapon(bot,bot.classId === 'assault' ? 'hk416'
-                : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
-                : (bot.classId === 'sniper' ? (distToEnemy < 11 ? 'glock18c' : 'mrad') : 'minimi'));
             if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0 &&
                 botTrySpendRound(bot,botWeaponId)) {
               const bw = WEAPONS[botWeaponId];
