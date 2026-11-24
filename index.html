@@ -12505,11 +12505,16 @@
       }
       // V84: an actual shot starts a short follow-through window, not a
       // reason to abandon an exposed opponent. Urgent retreat remains superior.
+      // V85: direct contact takes precedence until the visible target is gone
+      // or the shot is physically obstructed. Reloading is still combat.
+      function botMustContinueContact(enemy,clearLane,hasAmmo){
+        return !!(enemy&&clearLane&&hasAmmo);
+      }
       function botFollowThroughPriority(bot,enemy,now,clearLane,wounded,tooClose){
         const c=bot.contactOpportunity;
         return !!(enemy&&c&&c.id===enemy.id&&c.fired&&Number.isFinite(c.firstShotAt)&&
           !wounded&&!tooClose&&clearLane&&bot.coverNode<0&&
-          now>=c.firstShotAt&&now-c.firstShotAt<2.4&&now-c.started<5);
+          now>=c.firstShotAt);
       }
       function recordBotContactShot(bot,now){
         const c=bot.contactOpportunity;
@@ -12783,22 +12788,25 @@
             desiredAimPitch = Math.max(-0.65, Math.min(0.65, Math.atan2(dyAim, Math.max(0.5, distToEnemy))));
 
             const woundedThreshold = bot.classId === 'heavy' ? 52 : 42;
-            const isWounded = bot.hp < woundedThreshold;
             // Select once; movement and shooting share the actual available firearm.
             const botWeaponId=botAmmoWeapon(bot,botPreferredInfantryWeapon(bot,distToEnemy));
-            const isSniperTooClose = bot.classId === 'sniper' && distToEnemy < 11.5;
             const initialFireLane=isBotFireLaneClear(bot,bestEnemy.eye);
+            const activeAmmo=botAmmoSlot(bot,botWeaponId);
+            const directCombat=botMustContinueContact(bestEnemy,initialFireLane,
+              !!activeAmmo&&(activeAmmo.mag>0||activeAmmo.reserve>0));
+            const isWounded = !directCombat && bot.hp < woundedThreshold;
+            const isSniperTooClose = !directCombat && bot.classId === 'sniper' && distToEnemy < 11.5;
             const pressure=botObservedPressure(bot,bestEnemy,distToEnemy);
-            if(botMayPauseCoverApproach(bot,initialFireLane,pressure,isWounded,isSniperTooClose)){
+            if((directCombat&&bot.coverNode>=0)||botMayPauseCoverApproach(bot,initialFireLane,pressure,isWounded,isSniperTooClose)){
               bot.coverNode=-1;bot.coverPhase='NONE';bot.coverThreatAnchor=null;
               resetBotCoverCycle(bot);bot.coverSearchCooldown=Math.max(bot.coverSearchCooldown,1.2);
             }
             const openingPriority=botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
             const followThrough=botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
-            if(openingPriority&&bot.teamFlankGoalNode>=0&&!pressure){
+            if((directCombat||openingPriority&&!pressure)&&bot.teamFlankGoalNode>=0){
               bot.teamFlankGoalNode=-1;bot.teamFlankRoute=[];bot.teamFlankPathIndex=0;
             }
-            const holdContact=openingPriority||followThrough||botShouldHoldContact(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
+            const holdContact=directCombat||openingPriority||followThrough||botShouldHoldContact(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
             if (!isWounded && !isSniperTooClose && distToEnemy > 8) {
               refreshBotCoverForMovingEnemy(bot, activeThreatPos, dt);
             }
