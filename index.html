@@ -5708,10 +5708,16 @@
         }
         // Route distribution belongs only to the bomb mode. An attacker
         // crosses its assigned gateway once, then resumes its objective.
-        if(!planted&&bot.team==='blue'&&bot.pos.z>19&&!bot.foGatePassed){
-          const route=FO_TERSANE_ROUTES[idx%FO_TERSANE_ROUTES.length];
-          if(bot.pos.z<22&&Math.abs(bot.pos.x-route.x)<3.2)bot.foGatePassed=true;
-          else goal=route.exit;
+        if(!planted&&bot.team==='blue'){
+          if(bot.pos.z<19)bot.foGatePassed=true;
+          if(bot.pos.z>27)bot.foGatePassed=false;
+          if(!bot.foGatePassed){
+            const route=FO_TERSANE_ROUTES[idx%FO_TERSANE_ROUTES.length];
+            const entry=NAV_NODES[route.entry];
+            if(Math.hypot(bot.pos.x-entry.x,bot.pos.z-entry.z)<2.0)bot.foGateEntryReached=true;
+            if(bot.pos.z>32)bot.foGateEntryReached=false;
+            goal=bot.foGateEntryReached?route.exit:route.entry;
+          }
         }
         const dest=NAV_NODES[goal];
         if(!dest)return null;
