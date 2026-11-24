@@ -165,5 +165,5 @@ assert.equal(actualMuzzle.y, 1.26);
 assert.equal(fakeRoot.position.y, -0.16);
 assert.equal(fakeRoot.updated, true);
 assert.equal(getMuzzle(null, new Vector3(0, 1.45, 0)).y, 1.45);
-console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99/V101/V104/V105/V136 details, head and muzzle hierarchy');
+console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99/V101/V104/V105/V145 details, head and muzzle hierarchy');
 console.log('PASS: visible BOT muzzle world position and fallback');

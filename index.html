@@ -5753,15 +5753,23 @@
         // V106: fitted facial contours and eyewear, shared geometries.
         if(!G.v106){
           const fitted=(kind)=>{
-            const geo=new THREE.SphereGeometry(1,24,16);
+            const geo=new THREE.SphereGeometry(1,32,24);
             if(typeof geo.getAttribute!=='function')return geo;
             const p=geo.getAttribute('position');
             for(let i=0;i<p.count;i++){
               const x=p.getX(i),y=p.getY(i),z=p.getZ(i),front=Math.max(0,z);
               const nose=Math.exp(-(x*x*18+(y-.32)**2*9))*front;
               const cheek=Math.exp(-((Math.abs(x)-.52)**2*16+(y-.02)**2*8))*front;
-              if(kind==='skull')p.setXYZ(i,x*(.096+.009*Math.max(0,y)),y*.107,z*.095+nose*.018+cheek*.007);
-              else p.setXYZ(i,x*(.078-.014*Math.max(0,-y)),y*.068,z*.043+nose*.019+cheek*.006);
+              if(kind==='skull'){
+                // V138: continuous brow, eye socket and jaw taper.
+                const brow=Math.exp(-((Math.abs(x)-.36)**2*15+(y-.36)**2*32))*front;
+                const orbit=Math.exp(-((Math.abs(x)-.39)**2*21+(y-.18)**2*42))*front;
+                p.setXYZ(i,x*(.096+.009*Math.max(0,y)-Math.max(0,-y)*.012),y*.107,z*.095+nose*.018+cheek*.007+brow*.006-orbit*.007);
+              }
+              else{
+                const chin=Math.exp(-(x*x*12+(y+.62)**2*12))*front;
+                p.setXYZ(i,x*(.078-.014*Math.max(0,-y)),y*.068,z*.043+nose*.019+cheek*.006+chin*.006);
+              }
             }
             p.needsUpdate=true;geo.computeVertexNormals();geo.computeBoundingSphere();return geo;
           };
@@ -6330,7 +6338,20 @@
           for(const [base,source] of V101.anatomy){
             if(typeof source.clone!=='function'||typeof source.getAttribute!=='function')continue;
             if(base===approved.neck)continue;
-            const g=source.clone(),p=g.getAttribute('position');
+            // V137: subdivide the anatomical profile to support continuous textile folds.
+            const rows=source.parameters?.points;
+            const sx=base===approved.shin?.94:1;
+            const sz=base===approved.thigh?.93:base===approved.shin?1.03:base===approved.upperArm?.96:base===approved.forearm?.94:base===approved.abdomen?.73:base===approved.chest?.63:1;
+            let g=source.clone();
+            if(rows?.length>2){
+              const dense=[];
+              for(let j=0;j<rows.length-1;j++){
+                const a=rows[j],b=rows[j+1];
+                for(let k=0;k<3;k++)dense.push(new THREE.Vector2(a.x+(b.x-a.x)*k/3,a.y+(b.y-a.y)*k/3));
+              }
+              dense.push(rows[rows.length-1]);g=new THREE.LatheGeometry(dense,20);g.scale(sx,1,sz);
+            }
+            const p=g.getAttribute('position');
             const limb=base===approved.thigh||base===approved.shin||base===approved.upperArm||base===approved.forearm;
             for(let i=0;i<p.count;i++){
               const x=p.getX(i),y=p.getY(i),z=p.getZ(i),r=Math.hypot(x,z);
@@ -6364,6 +6385,57 @@
           })];
         }
         if(G.v130&&oldSkull){oldSkull.geometry=G.v130[variantId];oldSkull.userData.v130Face=variantId;}
+        // V139: role-specific fitted carrier surfaces; unchanged mount and hitbox.
+        if(!G.v139)G.v139=new Map();
+        const armorProfile={assault:[.13,.008,.018],medic:[.18,.005,.025],engineer:[.10,.009,.013],sniper:[.19,.005,.024],heavy:[.065,.013,.008]}[classId]||[.13,.008,.018];
+        for(const n of model.upperBody.children.filter(n=>n.name==='v105_role_vest')){
+          if(typeof n.geometry.clone!=='function'||typeof n.geometry.getAttribute!=='function')continue;
+          const front=n.position.z>0,key=classId+':'+front;
+          let shape=G.v139.get(key);
+          if(!shape){
+            shape=n.geometry.clone();const p=shape.getAttribute('position');
+            for(let i=0;i<p.count;i++){
+              const x=p.getX(i),y=p.getY(i),z=p.getZ(i),top=Math.max(0,y/.17),bottom=Math.max(0,-y/.17);
+              const width=1-armorProfile[0]*top-.035*bottom,edge=Math.min(1,Math.abs(x)/.16),out=front?1:-1;
+              const bulge=armorProfile[1]*(1-edge*edge)*(1-.5*Math.abs(y)/.18);
+              p.setXYZ(i,x*width,y-top*armorProfile[2]*edge,z+out*bulge);
+            }
+            p.needsUpdate=true;shape.computeVertexNormals();shape.computeBoundingBox();shape.computeBoundingSphere();G.v139.set(key,shape);
+          }
+          n.geometry=shape;n.userData.v139Carrier=true;
+        }
+        // V140: shared subtle faction-compatible textile tint; retain separate team markers.
+        if(!G.v140&&G.v112.map.image?.data){
+          const maps=new Map(),old=G.v112.map.image;
+          for(const faction of ['blue','red']){
+            const bytes=new Uint8Array(old.data);
+            for(let i=0;i<bytes.length;i+=4){
+              const t=(bytes[i]-169)/78,bias=(1-t)*.055;
+              bytes[i]=Math.round(bytes[i]*(faction==='red'?1:1-bias));
+              bytes[i+1]=Math.round(bytes[i+1]*(1-bias*.55));
+              bytes[i+2]=Math.round(bytes[i+2]*(faction==='blue'?1:1-bias));
+            }
+            const texture=new THREE.DataTexture(bytes,old.width,old.height,THREE.RGBAFormat);
+            texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.generateMipmaps=true;
+            texture.magFilter=THREE.LinearFilter;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.needsUpdate=true;
+            maps.set(faction,texture);
+          }
+          G.v140={maps,materials:new Map()};
+        }
+        if(G.v140){
+          const textile=n=>{
+            if(n===model.weaponPivot)return;
+            const source=n.material;
+            if(source?.name==='V112 camouflage'&&typeof source.clone==='function'){
+              const key=team+':'+source.uuid;
+              let mat=G.v140.materials.get(key);
+              if(!mat){mat=source.clone();mat.map=G.v140.maps.get(team)||G.v112.map;mat.needsUpdate=true;G.v140.materials.set(key,mat);}
+              n.material=mat;
+            }
+            for(const child of n.children||[])textile(child);
+          };
+          textile(model.root);
+        }
         // V131: polish only the existing third-person firearm surfaces. No new functional components.
         if(!G.v131)G.v131=new Map();
         for(const n of model.weaponPivot.children){
@@ -6391,6 +6463,7 @@
           }
         }
         for(const overlay of footOverlays)if(!overlay.group.parent)overlay.boot.add(overlay.group);
+        // V144: reuse existing silhouette and animation hierarchy, with no added draw calls.
         model.setVisualFootPose=(left,right)=>{
           if(ankles.length===2){ankles[0].rotation.x=Number.isFinite(left)?left:0;ankles[1].rotation.x=Number.isFinite(right)?right:0;}
         };
@@ -10609,7 +10682,7 @@
         bot.burstCount = 0;
         bot.ammoState={};bot.botReload=null;bot.lastAmmoWeapon=null;bot.foObjectiveDelay=null;bot.retreatRouteRetry=null;
         if(bot.mesh.resetVisualCombatPose)bot.mesh.resetVisualCombatPose();
-        bot.visualCarry=0;bot.lastVisualLegYaw=null;
+        bot.visualCarry=0;bot.lastVisualLegYaw=null;bot.visualTransition=null;
         bot.stuckTimer = 0;
         bot.stuckFailures = 0;
         bot.blockedNode = -1;
@@ -13969,6 +14042,7 @@
       function botVisualGroundMotion(phase,speed,forward,side,crouch,slope,role){
         const c=Math.max(0,Math.min(1,crouch||0)),run=Math.max(0,Math.min(1,(speed-2)/3));
         const move=Math.max(0,Math.min(1,speed/.6)),grade=Math.max(-.7,Math.min(.7,slope||0))*move;
+        if(move===0)return {leftFoot:0,rightFoot:0,leftKnee:0,rightKnee:0,leftHip:0,rightHip:0,bob:0,weightShift:0};
         const a=Math.sin(phase),b=Math.cos(phase),weight=role==='heavy'?.8:1;
         const rise=Math.max(0,grade)*.23,down=Math.max(0,-grade)*.13;
         return {leftFoot:move*(-b*.15*forward-grade*.23)*(1-c*.5),
@@ -13977,6 +14051,19 @@
           leftHip:grade*.12*forward,rightHip:grade*.12*forward,
           bob:move*(.004+run*.011)*Math.cos(2*phase)*weight*(1-c*.5),
           weightShift:move*a*.018*side*weight};
+      }
+      // V141–V143: visual acceleration, braking and cover transition envelope.
+      function botVisualTransition(previous,speed,dt,cover,crouch,role){
+        const d=Math.max(0,Math.min(.12,Number.isFinite(dt)?dt:0));
+        const target=Math.max(0,Math.min(7,Number.isFinite(speed)?speed:0));
+        const old=Number.isFinite(previous?.speed)?previous.speed:target;
+        const next=old+(target-old)*(1-Math.exp(-d*(target<old?11:7)));
+        const accel=Math.max(-1,Math.min(1,(target-old)/2.8));
+        const oldCover=Number.isFinite(previous?.cover)?previous.cover:0;
+        const coverTarget=cover==='CROUCH_HOLD'?1:cover==='PEEK_FIRE'?.45:0;
+        const coverBlend=oldCover+(coverTarget-oldCover)*(1-Math.exp(-d*12));
+        const c=Math.max(0,Math.min(1,crouch||0)),weight=role==='heavy'?.8:1;
+        return {speed:next,cover:coverBlend,accel,hipBias:accel*.045*weight,kneeBias:coverBlend*c*.10,footDamp:1-coverBlend*.32};
       }
       function botVisualCombatPose(muzzleTimer,reloadLeft,reloadDuration,role){
         const phase=reloadDuration>0?Math.max(0,Math.min(1,1-reloadLeft/reloadDuration)):0;
@@ -15155,6 +15242,8 @@
           bot.lastVisualLegYaw=bot.legYaw;
           const quietCarry=!bestEnemy&&!foPriorityCombat&&!bot.botReload&&!(bot.muzzleTimer>0)&&bot.state!=='ENGAGE';
           const visualStance=botVisualStance(bot.classId,nowSec*2.7+bot.animPhase,actualSpeed,bot.crouchAmt,visualTurnRate,quietCarry);
+          const visualMotion=botVisualTransition(bot.visualTransition,actualSpeed,dt,bot.coverPhase,bot.crouchAmt,bot.classId);
+          bot.visualTransition=visualMotion;
           bot.visualCarry=quietCarry?((bot.visualCarry||0)+(visualStance.carry-(bot.visualCarry||0))*(1-Math.exp(-dt*9))):0;
           bot.mesh.upperBody.rotation.y = Math.max(-1.15, Math.min(1.15, relUpperYaw));
           bot.mesh.upperBody.rotation.x = bot.crouchAmt * 0.22 + bot.hitFlinchPitch;
@@ -15184,14 +15273,14 @@
             bot.animPhase += dt * actualSpeed * 2.35;
             const pose=botLocomotionPose((bot.pos.x-beforeMoveX)/Math.max(.001,dt),(bot.pos.z-beforeMoveZ)/Math.max(.001,dt),bot.legYaw,actualSpeed);
             bot.visualGaitPhase=((bot.visualGaitPhase??bot.animPhase)+dt*actualSpeed*(bot.classId==='heavy'?2.13:2.35))%(Math.PI*2);
-            const gait=botVisualGait(bot.visualGaitPhase,actualSpeed,pose.forward,pose.side,bot.crouchAmt,bot.classId);
+            const gait=botVisualGait(bot.visualGaitPhase,visualMotion.speed,pose.forward,pose.side,bot.crouchAmt,bot.classId);
             const grade=(bot.pos.y-beforeMoveY)/Math.max(.04,actualSpeed*dt);
             const ground=botVisualGroundMotion(bot.visualGaitPhase,actualSpeed,pose.forward,pose.side,bot.crouchAmt,grade,bot.classId);
             // Lower-body and ankle details move; the combat torso/aim direction remains unchanged.
-            gait.leftHip+=ground.leftHip;gait.rightHip+=ground.rightHip;
-            gait.leftKnee+=ground.leftKnee;gait.rightKnee+=ground.rightKnee;
+            gait.leftHip+=ground.leftHip+visualMotion.hipBias;gait.rightHip+=ground.rightHip+visualMotion.hipBias;
+            gait.leftKnee+=ground.leftKnee+visualMotion.kneeBias;gait.rightKnee+=ground.rightKnee+visualMotion.kneeBias;
             gait.leftSide+=ground.weightShift;gait.rightSide+=ground.weightShift;
-            if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(ground.leftFoot,ground.rightFoot);
+            if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(ground.leftFoot*visualMotion.footDamp,ground.rightFoot*visualMotion.footDamp);
             if(quietCarry)bot.mesh.upperBody.position.y=.93+ground.bob;
             const smooth=1-Math.exp(-dt*19);
             const blend=(obj,key,target)=>obj[key]+=(target-obj[key])*smooth;
@@ -15204,11 +15293,11 @@
             bot.mesh.leftHip.rotation.z+=(-visualStance.stanceWidth-bot.mesh.leftHip.rotation.z)*stanceBlend;
             bot.mesh.rightHip.rotation.z+=(visualStance.stanceWidth-bot.mesh.rightHip.rotation.z)*stanceBlend;
             const breath=visualStance.breath;
-            bot.mesh.leftHip.rotation.x *= Math.exp(-10 * dt);
-            bot.mesh.rightHip.rotation.x *= Math.exp(-10 * dt);
+            bot.mesh.leftHip.rotation.x+=(visualMotion.hipBias-bot.mesh.leftHip.rotation.x)*(1-Math.exp(-10*dt));
+            bot.mesh.rightHip.rotation.x+=(visualMotion.hipBias-bot.mesh.rightHip.rotation.x)*(1-Math.exp(-10*dt));
             const kneeBlend=1-Math.exp(-dt*13);
-            bot.mesh.leftKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnLeft+visualStance.kneeBias-bot.mesh.leftKnee.rotation.x)*kneeBlend;
-            bot.mesh.rightKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnRight+visualStance.kneeBias-bot.mesh.rightKnee.rotation.x)*kneeBlend;
+            bot.mesh.leftKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnLeft+visualStance.kneeBias+visualMotion.kneeBias-bot.mesh.leftKnee.rotation.x)*kneeBlend;
+            bot.mesh.rightKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnRight+visualStance.kneeBias+visualMotion.kneeBias-bot.mesh.rightKnee.rotation.x)*kneeBlend;
             bot.mesh.upperBody.position.y = 0.93 + breath;
           }
         }

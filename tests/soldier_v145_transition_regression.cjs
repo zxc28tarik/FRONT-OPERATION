@@ -1,0 +1,16 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
+const a=html.indexOf('      function botVisualTransition('),b=html.indexOf('      function botVisualCombatPose(',a);
+const step=new Function(html.slice(a,b)+'\nreturn botVisualTransition;')();
+let s=step({speed:0,cover:0},5,1/60,'NONE',0,'assault');
+assert(s.speed>0&&s.speed<5&&s.accel>0);
+for(let i=0;i<60;i++)s=step(s,5,1/60,'NONE',0,'assault');
+assert(s.speed>4.95);
+s=step(s,0,1/60,'CROUCH_HOLD',1,'assault');assert(s.accel<0&&s.speed>0);
+for(let i=0;i<60;i++)s=step(s,0,1/60,'CROUCH_HOLD',1,'assault');
+assert(s.speed<.01&&s.cover>.99&&s.kneeBias>.09&&s.footDamp<.7);
+for(let i=0;i<60;i++)s=step(s,0,1/60,'PEEK_FIRE',.2,'assault');
+assert(s.cover>.44&&s.cover<.46&&s.kneeBias<.015);
+for(let i=0;i<60;i++)s=step(s,0,1/60,'NONE',0,'assault');
+assert(s.cover<.001);
+console.log('V141–V143 transition PASS: acceleration, braking, cover hold, peek and release');
