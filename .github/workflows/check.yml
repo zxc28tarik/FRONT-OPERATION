@@ -134,3 +134,6 @@ jobs:
 
       - name: Run V71C target continuity regression
         run: node tests/bot_ai_v71c_target_regression.cjs
+
+      - name: Run V71D cover context regression
+        run: node tests/bot_ai_v71d_cover_regression.cjs
