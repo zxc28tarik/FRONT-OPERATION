@@ -3249,17 +3249,11 @@
         addSolidBox(11, 2.2, 42, 16, 4.4, 1.5, matConcrete);
         addSolidBox(0, 0.65, 44.5, 6.5, 1.3, 1.2, matBlueTrim);
         addDecoMesh(new THREE.BoxGeometry(38, 0.28, 1.7), matBlueTrim, 0, 4.5, 42);
-        createCorridorSign('DERBARAN ÜSSÜ • GÜNEY', '#0f294a', '#38bdf8', -6.5, 3.3, 41.2, Math.PI);
-        createCorridorSign('BATI DEPO HATTI', '#1e293b', '#94a3b8', -16.5, 3.3, 41.2, Math.PI);
-        createCorridorSign('DOĞU AVLU HATTI', '#1e293b', '#94a3b8', 16.5, 3.3, 41.2, Math.PI);
 
         addSolidBox(-11, 2.2, -42, 16, 4.4, 1.5, matConcrete);
         addSolidBox(11, 2.2, -42, 16, 4.4, 1.5, matConcrete);
         addSolidBox(0, 0.65, -44.5, 6.5, 1.3, 1.2, matRedTrim);
         addDecoMesh(new THREE.BoxGeometry(38, 0.28, 1.7), matRedTrim, 0, 4.5, -42);
-        createCorridorSign('N.I.U. ÜSSÜ • KUZEY', '#450a0a', '#f43f5e', 6.5, 3.3, -41.2, 0);
-        createCorridorSign('BATI DEPO HATTI', '#1e293b', '#94a3b8', -16.5, 3.3, -41.2, 0);
-        createCorridorSign('DOĞU AVLU HATTI', '#1e293b', '#94a3b8', 16.5, 3.3, -41.2, 0);
 
         // WEST LANE (X = -39 to -18): ENCLOSED INDUSTRIAL WAREHOUSE
         addSolidBox(-28.5, 8.2, 0, 23, 0.6, 86, matSteel, true, true, true);
@@ -3592,12 +3586,6 @@
     mesh.rotation.y = rotY;
     scene.add(mesh);
   }
-        addV5TacticalSign(0, 2.4, 41.18, Math.PI, 'DERBARAN ÜSSÜ', 'ANA KARARGAH • HQ-01', '#3b82f6');
-        addV5TacticalSign(0, 2.4, -41.18, 0, 'N.I.U. ÜSSÜ', 'ANA KARARGAH • HQ-02', '#ef4444');
-        addV5TacticalSign(-20, 2.6, 36, Math.PI, 'SOL HAT • DEPO', 'SEKTÖR A • KAPALI ALAN', '#f59e0b');
-        addV5TacticalSign(20, 2.6, 36, Math.PI, 'SAĞ HAT • AVLU', 'SEKTÖR C • AÇIK SAHA', '#f59e0b');
-        addV5TacticalSign(-20, 2.6, -36, 0, 'SOL HAT • DEPO', 'SEKTÖR A • KAPALI ALAN', '#f59e0b');
-        addV5TacticalSign(20, 2.6, -36, 0, 'SAĞ HAT • AVLU', 'SEKTÖR C • AÇIK SAHA', '#f59e0b');
 
         const dustCount = 140;
         const dustGeo = new THREE.BufferGeometry();
@@ -3764,8 +3752,6 @@
           deco(x,h+.25,z,w+.5,.5,d+.5,metal);
         }
         for(const z of [-44.5,44.5])for(const x of [-24,24])box(x,z,8,2,3.2,wall);
-        sign('DERBARAN',0,3.2,59,Math.PI,'#7faab5');
-        sign('N.I.U.',0,3.2,-59,0,'#c99468');
         // Paved main street, faded pedestrian markings and loading yard.
         slab(0,0,10,88,darkFloor);
         for(let z=-38;z<=38;z+=7)slab(0,z,.16,3,paint);
@@ -3792,7 +3778,6 @@
         // Workshop islands beside the paths, with contrasting machine bays.
         box(-21,-22,4.4,3.1,1.55,metal);
         box(-11,-34,3.7,3,1.7,crate);
-        sign('A / BAKIM',-16,4.5,-13.2,0);
         // B: outdoor loading yard; different silhouette, large gantry and
         // offset low loading screens, not a second copy of A.
         slab(16,-28,22,23,paint);
@@ -3808,7 +3793,6 @@
         deco(16.5,6.65,-30.5,14.4,.15,1.0,metal);
         deco(19.5,5.6,-30.5,1.4,.55,.9,trim);
         deco(19.5,4.8,-30.5,.12,1.2,.12,trim);
-        sign('B / YUKLEME',16,3.2,-40,0,'#7faab5');
         // Central street bends around a real, enterable service building.
         // A corridor through its center retains north/south and side access.
         for(const z of [-2,14]){
@@ -3821,7 +3805,6 @@
         for(const x of [-10.1,10.1])for(const z of [1,11])
           deco(x,2.9,z,.12,1.1,2.4,windowMat);
         deco(0,4.22,6,18,.15,.25,light);
-        sign('SERVIS',0,3.3,14.8,0,'#9eaaa8');
         // West approach: tight back alley broken by workshop blocks.
         box(-25,10,7,13,4.6,wall);
         box(-25,29,8,9,5.5,darkWall);
@@ -3852,7 +3835,6 @@
           for(const dx of [-3.32,3.32])deco(x+dx,2.3,gateZ,.2,4.6,1.48,trim);
           // Open headroom under a lintel with a physical collision volume.
           solid(x,4.32,gateZ,6.6,.56,1.25,metal,true,true,true);
-          sign(route.name,x,4.05,gateZ+.69,0,'#a5b3ad');
         }
         // Long enclosed west storage hall. Two side doors connect the
         // neighboring lane without exposing the entire building.
@@ -3872,7 +3854,6 @@
           box(-35.3,z,2.2,3.4,1.35,crate);
           deco(-35.3,1.44,z,2.35,.16,3.6,trim);
         }
-        sign('DEPO',-32,4.2,37.65,0,'#a6b5ae');
         // Additional enclosed equipment room on the eastern approach.
         // Short roof and two end doorways; the east route remains traversable.
         slab(32,-5,10,17,darkFloor);
@@ -3887,7 +3868,6 @@
           deco(32.5,4.2,z,3.8,.11,.16,light);
         }
         box(35,-7,2.1,2.5,1.15,crate);
-        sign('EKIPMAN',32,3.5,4.1,0,'#9eaaa8');
         // V5: longer independent approaches, separated by real structures.
         // Lateral connections are limited to junctions, not every open row.
         for(const x of [-24,-8,24]){
