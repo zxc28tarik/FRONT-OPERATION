@@ -19,5 +19,9 @@ ok(preferred(bot,8)==='glock18c'&&preferred(bot,20)==='mrad','Existing sniper se
 ok(preferred({classId:'medic'},20)==='mp7'&&preferred({classId:'heavy'},20)==='minimi','Other class choices unchanged');
 ok(html.includes('const botWeaponId=botAmmoWeapon(bot,botPreferredInfantryWeapon(bot,distToEnemy));'),'Live decision resolves weapon before movement');
 ok(html.includes('),botWeaponId);\n                    if(ranged)')&&html.includes('botTrySpendRound(bot,botWeaponId)'),'Same weapon used in movement and shooting');
-ok(html.includes("const isSniperTooClose = bot.classId === 'sniper' && distToEnemy < 11.5;"),'Existing emergency class retreat preserved');
+// V85 explicitly prioritizes an open, ammunition-supported contact.
+ok(html.includes("const isSniperTooClose = !directCombat && bot.classId === 'sniper' && distToEnemy < 11.5;"),'Emergency sniper retreat remains available outside direct contact');
+const directStart=html.indexOf('      function botMustContinueContact('),directEnd=html.indexOf('      function botFollowThroughPriority(',directStart);
+const direct=new Function(html.slice(directStart,directEnd)+'\nreturn botMustContinueContact;')();
+ok(direct({id:'enemy'},true,true)&&!direct({id:'enemy'},false,true)&&!direct({id:'enemy'},true,false),'V85 contact precedence still requires lane and ammo');
 console.log('BOT AI V71B ACTIVE WEAPON PASS ('+n+' checks)');

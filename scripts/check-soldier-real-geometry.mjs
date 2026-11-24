@@ -36,7 +36,8 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert.equal(alt.root.userData.visualVariant,1);assert.equal(alt2.root.userData.visualVariant,2);
  m.root.traverse(n=>{if(!n.isMesh)return;const p=n.geometry.getAttribute('position'),normal=n.geometry.getAttribute('normal');assert(p.array.every(Number.isFinite)&&normal.array.every(Number.isFinite));});
  const ankles=[m.leftKnee,m.rightKnee].map(n=>n.children.find(c=>c.name==='v132_ankle'));
- assert(ankles.every(a=>a&&a.children.length===3),'articulated boots');
+ assert(ankles.every(a=>a&&a.children.length===4),'articulated boots and overlays');
+ assert(ankles.every(a=>a.children.some(n=>n.name==='v136_foot_overlay')));
  m.setVisualFootPose(.15,-.2);assert.equal(ankles[0].rotation.x,.15);assert.equal(ankles[1].rotation.x,-.2);
  m.resetVisualCombatPose();assert(ankles.every(a=>a.rotation.x===0));
  let folds=0,weapon=0;m.root.traverse(n=>{if(n.userData.v129Sculpted)folds++;if(n.userData.v131Refined)weapon++;});
@@ -57,4 +58,4 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert.equal(m.head.parent,m.upperBody);assert.equal(m.muzzleFlash.parent,m.weaponPivot);
  nearTotal+=near;farTotal+=far;models+=3;
 }
-console.log('V135 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
+console.log('V136 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
