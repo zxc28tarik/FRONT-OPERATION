@@ -8,7 +8,7 @@ const start=html.indexOf('      const FO_BOMB_RULES=');
 const end=html.indexOf('      function foBombActors()',start);
 const api=new Function(html.slice(start,end)+'\nreturn {rules:FO_BOMB_RULES,step:stepFoBomb,inside:foBombInside};')();
 const fresh=()=>({phase:'unplanted',site:null,actor:null,progress:0,seconds:0});
-const a={id:'A',x:-16*2.8,z:-28*1.5,node:36},b={id:'B',x:16*2.8,z:-28*1.5,node:38};
+const a={id:'A',x:-16*3.4,z:-28*1.5,node:36},b={id:'B',x:16*3.4,z:-28*1.5,node:38};
 const plant={id:'blue_1',site:a},defuse={id:'red_1',site:a};
 let x=fresh();
 ok(api.step(x,1,100,0,6,null).winner==='red','Attackers eliminated before plant');
@@ -64,11 +64,11 @@ for(const [a,b] of liveGraph.edges){
 const reach=(start)=>{const seen=new Set([start]),todo=[start];
  while(todo.length)for(const j of links[todo.pop()])if(!seen.has(j)){seen.add(j);todo.push(j)}
  return seen;};
-ok(solids.length===108,'Tersane enlarged physical geometry built');
+ok(solids.length===119,'Tersane enlarged physical geometry built');
 ok(liveGraph.nodes.every(n=>walk(n.x,n.z)),'Every Tersane nav node walkable');
-ok(reach(0).size===liveGraph.nodes.length&&liveGraph.nodes.length===225,'All Tersane nodes connected after collision filtering');
+ok(reach(0).size===liveGraph.nodes.length&&liveGraph.nodes.length===243,'All Tersane nodes connected after collision filtering');
 let intervals=0,previous=false;
-for(let i=0;i<=2156;i++){const clear=walk(-107.8+i*.1,31.5);if(clear&&!previous)intervals++;previous=clear;}
+for(let i=0;i<=2618;i++){const clear=walk(-130.9+i*.1,31.5);if(clear&&!previous)intervals++;previous=clear;}
 ok(intervals===4,'Exactly four physical dividing-wall openings');
 ok(routes.length===4&&new Set(routes.map(q=>q.x)).size===4,'Four distinct route assignments');
 for(const route of routes){
@@ -78,7 +78,7 @@ for(const route of routes){
 const underRoof=(x,z)=>solids.some(c=>c.y-c.h/2>3&&c.w>=8&&c.d>=12&&
  x>c.x-c.w/2&&x<c.x+c.w/2&&z>c.z-c.d/2&&z<c.z+c.d/2);
 for(const [name,x,z] of [['A hangar',-16,-28],['service',0,6],['west storage',-32,20],['east equipment',32,-5]])
- ok(underRoof(x*2.8,z*1.5)&&walk(x*1.4,z*1.5),'Enclosed and enterable '+name);
+ ok(underRoof(x*3.4,z*1.5)&&walk(x*1.4,z*1.5),'Enclosed and enterable '+name);
 ok(html.includes('goal=bot.foGateEntryReached?route.exit:route.entry;'),'Bot enters assigned gate before advancing');
 const aimStart=html.indexOf('      function isBotAimAligned(');
 const aimEnd=html.indexOf('      function isBotFireLaneClear(',aimStart);
@@ -92,12 +92,12 @@ ok(html.includes("const twist=normalizeAngle(bot.upperYaw-bot.legYaw);"),'Combat
 ok(html.includes("function isFoSpectating()")&&html.includes("!player.alive;"),'Spectator requires death');
 ok(html.includes("b.alive&&b.team===player.team"),'Follow target is live teammate');
 ok(html.includes("updateFoSpectator(dt);")&&html.includes("stopFoSpectator();"),'Spectator frame and reset integrated');
-ok(Math.abs(g.nodes[0].x-g.nodes[4].x-(-179.2))<.001,'East-west spread doubled from V5');
+ok(Math.abs(g.nodes[0].x-g.nodes[4].x-(-217.6))<.001,'East-west width increased from V6');
 ok(g.nodes[0].z-g.nodes[45].z===150,'North-south spawn separation increased 50 percent');
-ok(links.reduce((sum,l)=>sum+l.length,0)/2===746,'746 validated navigation edges');
+ok(links.reduce((sum,l)=>sum+l.length,0)/2===801,'801 validated navigation edges');
 const bounds=new Function('mode',html.slice(gstart,html.indexOf('      const FO_BOMB_SITES',gstart))+
  '\nconst foActiveMap=mode;return [foWorldX(38.5),foWorldZ(59.5)];');
-ok(bounds('bomb')[0]>107&&bounds('bomb')[1]>89,'Bomb arena world bounds expanded');
+ok(bounds('bomb')[0]>130&&bounds('bomb')[1]>89,'Bomb arena world bounds expanded');
 ok(bounds('deathmatch')[0]===38.5&&bounds('deathmatch')[1]===59.5,'Marien world bounds unchanged');
 ok(html.includes('foActiveMap=mode; // Set bounds before validating the selected graph.'),'Select correct bounds before nav validation');
 ok(html.includes('foWorldZ(50));'),'Player deploys at expanded spawn');
@@ -120,5 +120,12 @@ for(let i=0;i<50;i++)for(let j=i+1;j<50;j++){
  });
  if(!blocked)visible++;
 }
-ok(total===1180&&visible===75,'Long sightlines: 75/1180 clear at head height');
+ok(total===1180&&visible===74,'Long sightlines: 74/1180 clear at head height');
+const midSeen=new Set([25]),midTodo=[25];
+while(midTodo.length)for(const j of links[midTodo.pop()]){
+ const z=liveGraph.nodes[j].z;
+ if(!midSeen.has(j)&&z>=-15&&z<=-1.5){midSeen.add(j);midTodo.push(j)}
+}
+ok([25,26,27,28,29].every(i=>midSeen.has(i)),'All five middle sectors connected inside transverse band');
+ok(midSeen.size>=26,'Protected transverse navigation junctions');
 console.log('BOMB MODE PASS ('+n+' checks)');
