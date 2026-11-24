@@ -62,3 +62,6 @@ jobs:
 
       - name: Run BOT AI V48 reachable cover route recovery regression
         run: node tests/bot_ai_v48_regression.cjs
+
+      - name: Run BOT AI V49 route-progress retention regression
+        run: node tests/bot_ai_v49_regression.cjs
