@@ -185,3 +185,6 @@ jobs:
 
       - name: Run V85 uninterrupted contact regression
         run: node tests/bot_ai_v85_uninterrupted_contact_regression.cjs
+
+      - name: Run V86 long-range contact regression
+        run: node tests/bot_ai_v86_long_range_regression.cjs
