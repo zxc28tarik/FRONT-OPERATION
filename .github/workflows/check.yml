@@ -36,3 +36,6 @@ jobs:
         run: node tests/bot_ai_v40_regression.cjs
       - name: Run BOT AI V41 physical gate and nav-graph regression
         run: node tests/bot_ai_v41_regression.cjs
+
+      - name: Run BOT AI V42 real-collider route validation regression
+        run: node tests/bot_ai_v42_regression.cjs
