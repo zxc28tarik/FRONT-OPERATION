@@ -4120,6 +4120,7 @@
         for(const r of FO_RESCUE_BRANCHES){add(r.x,r.z);add(r.approach.x,r.approach.z);add(r.search.x,r.search.z);}
         add(-10,-36);add(10,-36);add(-26,-36);add(FO_RESCUE_SNIPER.x,FO_RESCUE_SNIPER.z);
         for(let z=-54;z<=54;z+=6)for(let x=-36;x<=36;x+=6)add(x,z);
+        for(const dir of [-1,1])for(let x=25;x<=32;x+=1)for(let z=-44;z<=-28;z+=1)add(dir*x,z);
         for(const q of low){
           if(q.maxX-q.minX>70||q.maxZ-q.minZ>70)continue;
           for(const x of [q.minX-1,q.maxX+1])for(const z of [q.minZ-1,q.maxZ+1])add(x,z);
@@ -4142,6 +4143,7 @@
           if(id>=0)return id;nodes.push(p);return nodes.length-1;
         };
         for(const x of [-18,18])for(let dx=-6;dx<=6;dx+=2)for(let z=-44;z<=-28;z+=2)append(x+dx,FO_PRISON_UPPER,z,'upper');
+        for(const dir of [-1,1])for(let x=25;x<=32;x+=1)for(let z=-44;z<=-28;z+=1)append(dir*x,FO_PRISON_UPPER,z,'upper_annex');
         for(let x=-10;x<=10;x+=2)for(const z of [-38,-36,-34])append(x,FO_PRISON_UPPER,z,'upper_link');
         const upperEnd=nodes.length;
         const link3=(a,b)=>{
@@ -4204,8 +4206,7 @@
         for(const x of [-18,18]){
           const inner=x<0?x+8:x-8,outer=x<0?x-8:x+8;
           for(const z of [-42,-30])box(inner,z,1,6,4.8,wall);
-          if(x<0)for(const z of [-42,-30])box(outer,z,1,6,4.8,wall);
-          else box(outer,-36,1,18,4.8,wall);
+          for(const [z,len] of [[-43.5,3],[-38.5,2],[-32.5,2],[-28.5,3]])box(outer,z,.65,len,4.8,wall);
           for(const z of [-45,-27])for(const dx of [-5.6,5.6]){
             if(x===18&&z===-27&&dx===5.6){
               // Narrow game sight window in the east wing's facade.
@@ -4215,7 +4216,7 @@
           }
           box(x,-36,17,19,.36,dark,4.98);
           const Y=FO_PRISON_UPPER,wh=3.5,wy=Y+wh/2;
-          box(outer,-36,1,18,wh,wall,wy);
+          for(const [z,len] of [[-43.5,3],[-38.5,2],[-32.5,2],[-28.5,3]])box(outer,z,.65,len,wh,wall,wy);
           for(const z of [-42,-30])box(inner,z,1,6,wh,wall,wy);
           // Two roofed stair entrances on the rear facade, with separate landings.
           const stairXs=[x,x+(x<0?-5:5)].sort((a,b)=>a-b);
@@ -4278,6 +4279,29 @@
           box(x+1.6,-40.8,.55,.55,.8,metal,.4);
           for(const z of [-42,-30])deco(x,4.55,z,9,.12,.22,metal);
           for(const dx of [-4,4])box(x+dx,-40,1.8,2,1.2,metal);
+          // V94: wider outward wings. Each floor has an independent corridor,
+          // a small storeroom, a larger sleeping room and a medium office.
+          const dir=x<0?-1:1,annex=x+dir*11.5,edge=x+dir*15;
+          const corridor=x+dir*9.35,roomSide=x+dir*12.85;
+          for(const base of [0,Y]){
+            const ht=base===0?4.8:wh,cy=base+ht/2;
+            if(base===0&&x<0){
+              box(edge,-41,1,8,ht,wall,cy);box(edge,-30,1,6,ht,wall,cy);
+            }else box(edge,-36,1,18,ht,wall,cy);
+            for(const z of [-45,-27])box(annex,z,7,1,ht,wall,cy);
+            const divider=x+dir*10.7;
+            for(const [z,len] of [[-44,2],[-39,2],[-33.5,2],[-28,2]])
+              box(divider,z,.28,len,ht,wall,cy);
+            for(const z of [-41,-34])box(x+dir*12.85,z,4.3,.3,ht,wall,cy);
+            box(roomSide,-43.5,.85,1.15,1.8,metal,base+.9);
+            bed(roomSide+dir*.5,-37.5,base,base>0);
+            box(roomSide+dir*.5,-30.8,1.4,.8,.94,dark,base+.47);
+            deco(roomSide+dir*.5,base+1,-30.8,1.5,.12,.95,metal);
+            box(roomSide+dir*.5,-29.4,.6,.6,.85,metal,base+.425);
+            for(const z of [-42,-36,-30])deco(corridor,base+ht-.18,z,1.1,.12,.35,metal);
+          }
+          box(annex,-36,7.2,19,.36,dark,4.98);
+          box(annex,-36,7.2,19.2,.32,dark,Y+3.66);
         }
         // Shared interior connector: both inner wing portals open onto it.
         box(0,-40,20,1,4.8,wall);
@@ -4289,7 +4313,7 @@
         // Staggered cover outside entrances, without filling gate mouths.
         for(const [x,z,w,d,h] of [[-30,40,6,4,3.2],[30,40,6,4,3.2],[-9,39,5,3,3.2],[10,39,5,3,3.2],
           [-30,9,6,8,4.2],[-18,18,5,4,3.2],[-18,-4,5,4,3.2],[24,16,5,4,3.2],[15,3,5,4,3.2],[29,-5,5,4,3.2],
-          [-34,-43,4,4,3.2],[34,-38,5,5,3.2],[-7,-56,4,3,3.2],[7,-56,4,3,3.2]]){
+          [-37,-49,3,3,3.2],[37,-38,3,4,3.2],[-7,-56,4,3,3.2],[7,-56,4,3,3.2]]){
           box(x,z,w,d,h,dark);deco(x,h+.08,z,w+.18,.16,d+.18,metal);
         }
         // V92: asymmetrical gameplay. Left middle is screened; the final
