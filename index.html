@@ -8564,9 +8564,18 @@ function buildSquadLeadership() {
           const directExpired = botAiClockSec - audit.lastProgressAt >= 2.25 ||
                                 age >= 6.2;
           const routeAgo = botAiClockSec - audit.routeLastProgressAt;
+          // Only credit progress on the CURRENT cover path. A recent clock
+          // from another objective must not keep an unreachable old cover.
+          const routeAttached = Array.isArray(bot.path) &&
+            bot.path.length > 0 && bot.path[bot.path.length-1] === bot.coverNode;
+          const nearlyArrived = Number.isFinite(audit.routeBestDistance) &&
+            audit.routeBestDistance < 9;
+          // A small wall detour may override V47's direct-distance clock,
+          // but not its 6.2s budget. Only a bot almost at cover gets a
+          // final one-second extension; 7.2s is a hard upper limit.
           const routeMoving = Number.isFinite(audit.routeLastProgressAt) &&
-            routeAgo >= 0 && routeAgo < 2.25 &&
-            age >= 0 && age < 8.4;
+            routeAgo >= 0 && routeAgo < 1.6 && routeAttached &&
+            age >= 0 && (age < 6.2 || (age < 7.2 && nearlyArrived));
           if (directExpired && !routeMoving) return false;
         }
         const range = Math.hypot(cand.pos.x-bot.pos.x,cand.pos.z-bot.pos.z);
