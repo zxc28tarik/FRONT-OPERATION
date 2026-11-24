@@ -7434,6 +7434,20 @@
         expert: Object.freeze({ reactionScale: 0.78, accuracyScale: 1.23, aimSettleSec: 0.34 })
       });
 
+      // V62: personality describes behavioral preference, never weapon skill.
+      const BOT_PERSONALITY_PROFILES=Object.freeze({
+        balanced:Object.freeze({id:'balanced',dodgeScale:1,coverDistance:11.5,holdSec:.85,peekSec:1.65,decisionScale:1,investigateSpeed:3.1}),
+        aggressive:Object.freeze({id:'aggressive',dodgeScale:1.3,coverDistance:17,holdSec:.65,peekSec:1.85,decisionScale:.85,investigateSpeed:3.1}),
+        cautious:Object.freeze({id:'cautious',dodgeScale:.65,coverDistance:9,holdSec:1.25,peekSec:1.25,decisionScale:1.3,investigateSpeed:2.5}),
+        support:Object.freeze({id:'support',dodgeScale:.85,coverDistance:12.5,holdSec:1.05,peekSec:1.5,decisionScale:1.15,investigateSpeed:2.8})
+      });
+      function chooseBotPersonality(id){
+        const index=Math.max(0,Number(String(id).split('_')[1])||0);
+        const offset=String(id).startsWith('red_')?1:0;
+        const cycle=['balanced','aggressive','cautious','support'];
+        return BOT_PERSONALITY_PROFILES[cycle[(index+offset)%cycle.length]];
+      }
+
       // V40: In-memory telemetry only. No new HUD and no network transfer.
       const BOT_METRIC_FIELDS = [
         'spawns','shots','hits','droneShots','droneHits','kills','deaths',
@@ -8661,7 +8675,7 @@
         window.__frontOperationAiQaSnapshot = () => ({
           members: bots.map(b => ({
             id: b.id, team: b.team, classId: b.classId,
-            role: b.teamRole, difficulty: b.difficulty,
+            role: b.teamRole, difficulty: b.difficulty,personality:b.personalityTuning?.id||'balanced',
             behavior:b.behavior?.kind||null,lookOwner:b.behaviorPlan?.lookOwner||null,
             behaviorTransitions:b.behavior?.transitions||0,localMovement:b.behaviorPlan?.local||null,
             activeLookOwner:b.lookControl?.owner||null,lookTransitions:b.lookControl?.transitions||0,
@@ -8839,6 +8853,7 @@
             name: BOT_NAMES_BLUE[i],
             team: 'blue',
             classId: cls,
+            personalityTuning:chooseBotPersonality(bId),
             difficulty: chooseBotDifficultyForSpawn(),
             aimSettleTimer: 0,
             teamRole: 'POINT',
@@ -8959,6 +8974,7 @@
             name: BOT_NAMES_RED[i],
             team: 'red',
             classId: cls,
+            personalityTuning:chooseBotPersonality('red_'+i),
             difficulty: chooseBotDifficultyForSpawn(),
             aimSettleTimer: 0,
             teamRole: 'POINT',
@@ -9086,6 +9102,8 @@
         bot.deathAnimTimer = 0;
         // Each new life counts as one bot spawn, including respawns.
         bot.difficulty = chooseBotDifficultyForSpawn();
+        // A new life can change difficulty but retains this actor's personality.
+        bot.personalityTuning=bot.personalityTuning||chooseBotPersonality(bot.id);
         recordBotMetric(bot, 'spawns');
         bot.aimSettleTimer = 0;
         resetBotAimTracking(bot);
@@ -11883,7 +11901,7 @@
       function chooseBotDodgeMode(bot,enemy,dist,changedThreat,random){
         if(changedThreat||!botObservedPressure(bot,enemy,dist))return 'HOLD';
         const chance=bot.classId==='sniper'?.20:bot.classId==='heavy'?.32:.50;
-        return random<chance?'STRAFE':'HOLD';
+        return random<Math.min(.8,chance*(bot.personalityTuning?.dodgeScale??1))?'STRAFE':'HOLD';
       }
       function resolveBotLocomotion(bot,plan,target,speed,crouch,lookYaw){
         const dx=target?target.x-bot.pos.x:0,dz=target?target.z-bot.pos.z:0,d=Math.hypot(dx,dz);
@@ -11894,7 +11912,8 @@
         if(crouch>.55)return {mode:'CROUCH',speed:Math.min(speed,2.1)};
         if(combat&&forward<-.55)return {mode:'BACKPEDAL',speed:Math.min(speed,3.2)};
         if(combat&&Math.abs(forward)<.60)return {mode:'STRAFE',speed:Math.min(speed,3.4)};
-        if(speed<=3.1||plan.kind==='INVESTIGATE')return {mode:'WALK',speed:Math.min(speed,3.1)};
+        if(plan.kind==='INVESTIGATE')return {mode:'WALK',speed:Math.min(speed,bot.personalityTuning?.investigateSpeed??3.1)};
+        if(speed<=3.1)return {mode:'WALK',speed:Math.min(speed,3.1)};
         return {mode:'RUN',speed};
       }
       function botSeparationStrength(distance,holding,yielding){
@@ -11988,11 +12007,12 @@
           bot.combatCoverCycle={node:bot.coverNode,phase:'RETURN',elapsed:0,peek:null};
         }
         const s=bot.combatCoverCycle;
+        const holdSec=bot.personalityTuning?.holdSec??.85,peekSec=bot.personalityTuning?.peekSec??1.65;
         const home={x:anchor.x,y:anchor.y,z:anchor.z};
         const dist=p=>Math.hypot(p.x-bot.pos.x,p.z-bot.pos.z);
         const result=(phase,target,speed,crouch,fire)=>{
           bot.coverPhase=phase==='AIM'?'PEEK_FIRE':'CROUCH_HOLD';
-          bot.coverPhaseTimer=Math.max(0,(phase==='AIM'?1.65:.85)-s.elapsed);
+          bot.coverPhaseTimer=Math.max(0,(phase==='AIM'?peekSec:holdSec)-s.elapsed);
           return {target,speed,crouch,fire,phase};
         };
         if(s.phase==='RETURN'){
@@ -12006,7 +12026,7 @@
         }
         if(s.phase==='HOLD'){
           s.elapsed+=dt;
-          if(s.elapsed<.85||!threat)return result('HOLD',null,0,1,false);
+          if(s.elapsed<holdSec||!threat)return result('HOLD',null,0,1,false);
           if(bot.coverIsPartial){s.peek=home;}
           else {
             const dx=threat.x-home.x,dz=threat.z-home.z,len=Math.max(.01,Math.hypot(dx,dz));
@@ -12026,7 +12046,7 @@
           s.phase='AIM';s.elapsed=0;
         }
         s.elapsed+=dt;
-        if(s.elapsed>=(visible?1.65:.95)){s.phase='RETURN';s.elapsed=0;return result('RETURN',dist(home)>.38?home:null,2.1,1,false);}
+        if(s.elapsed>=(visible?peekSec:.95)){s.phase='RETURN';s.elapsed=0;return result('RETURN',dist(home)>.38?home:null,2.1,1,false);}
         return result('AIM',null,0,0,visible);
       }
       function botCombatFireReady(bot,kind,plannedSpeed,coverFire){
@@ -12250,7 +12270,7 @@
             } else {
               const wantsTacticalCover = !(bot.teamRole === 'FLANK' &&
                 bot.teamFlankGoalNode >= 0) &&
-                (distToEnemy > 11.5 || bot.classId === 'sniper' || bot.classId === 'heavy');
+                (distToEnemy > (bot.personalityTuning?.coverDistance??11.5) || bot.classId === 'sniper' || bot.classId === 'heavy');
 
               if (wantsTacticalCover && bot.coverNode === -1 && bot.coverSearchCooldown <= 0) {
                 bot.coverSearchCooldown = 1.2;
@@ -12306,7 +12326,7 @@
                 }
                 if (changedThreat || bot.strafeTimer <= 0) {
                   bot.dodgeMode=chooseBotDodgeMode(bot,bestEnemy,distToEnemy,changedThreat,Math.random());
-                  bot.strafeTimer=changedThreat?.65:bot.dodgeMode==='STRAFE'?1.1+Math.random()*.45:1.1+Math.random()*1.0;
+                  bot.strafeTimer=changedThreat?.65:(bot.dodgeMode==='STRAFE'?1.1+Math.random()*.45:1.1+Math.random()*1.0)*(bot.personalityTuning?.decisionScale??1);
                   bot.combatStrafeTargetId = bot.targetId;
                   if(bot.dodgeMode==='STRAFE'){
                     if(!changedThreat&&Math.random()<.5)bot.strafeDir *= -1;
