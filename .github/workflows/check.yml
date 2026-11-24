@@ -77,3 +77,6 @@ jobs:
 
       - name: Run BOT AI V56 locomotion regression
         run: node tests/bot_ai_v56_regression.cjs
+
+      - name: Run BOT AI V57 navigation regression
+        run: node tests/bot_ai_v57_regression.cjs
