@@ -8541,7 +8541,8 @@ function buildSquadLeadership() {
             activeLookOwner:b.lookControl?.owner||null,lookTransitions:b.lookControl?.transitions||0,
             lookYawVelocity:b.lookYawVelocity||0,locomotionMode:b.locomotionMode||'HOLD',
             locomotionSpeed:b.locomotionSpeed||0,dodgeMode:b.dodgeMode||'HOLD',
-            routeOwner:b.behaviorPlan?.route?b.behaviorPlan.kind:null,routeProgress:b.routeProgress?.best??null
+            routeOwner:b.behaviorPlan?.route?b.behaviorPlan.kind:null,routeProgress:b.routeProgress?.best??null,
+            mapLook:b.lookControl?.owner?.startsWith('MAP_')?b.lookControl.owner:null
           })),
           started: matchState.started,
           playerAlive: player.alive,
@@ -11694,7 +11695,7 @@ function buildSquadLeadership() {
       }
 
       // V55: independent look arbitration, bounded critically damped angular motion.
-      const BOT_LOOK_PRIORITY=Object.freeze({ROUTE:10,MISSION_ROUTE:15,GUARD_SCAN:20,SOUND:40,
+      const BOT_LOOK_PRIORITY=Object.freeze({ROUTE:10,MISSION_ROUTE:15,GUARD_SCAN:20,MAP_GUARD:25,MAP_CORNER:30,SOUND:40,
         ALERT:45,MISSION_CONTACT:50,LAST_CONTACT:60,SUPPORT_TARGET:70,DRONE_TARGET:80,VISIBLE_TARGET:100});
       function selectBotLookRequest(bot,requests,nowSec){
         let best=null;
@@ -11777,6 +11778,72 @@ function buildSquadLeadership() {
         const side=(Math.cos(yaw)*vx-Math.sin(yaw)*vz)/speed;
         return {forward:Math.max(-1,Math.min(1,forward)),side:Math.max(-1,Math.min(1,side)),
           amplitude:Math.min(.62,.14+speed*.10)};
+      }
+
+      // V58: derive map awareness from static, validated geometry, never enemy coordinates.
+      let botMapAwarenessCache=null;
+      function buildBotMapAwareness(nodes,adj,walk){
+        return nodes.map((n,i)=>{
+          const arcs=[];
+          for(let j=0;j<16;j++){
+            const yaw=j*Math.PI/8,dx=Math.sin(yaw),dz=Math.cos(yaw);
+            let reach=0;
+            for(let step=1;step<=32;step++){
+              const r=step*.2;
+              if(!walk(n.x+dx*r,n.y,n.z+dz*r))break;
+              reach=r;
+            }
+            arcs.push({yaw,reach});
+          }
+          const exits=(adj[i]||[]).map(e=>nodes[e.to]).filter(q=>q&&Math.abs(q.y-n.y)<.4);
+          const open=arcs.filter(a=>a.reach>=4.8).length;
+          const nearWall=arcs.filter(a=>a.reach<=1.21).length;
+          const tag=n.tag||'';
+          const choke=nearWall>=4&&open<=7||/door|entry|exit|gate|portal/.test(tag);
+          const corner=nearWall>=2&&open>=2&&open<=11;
+          const guard=nearWall>=2&&open>=2||/sniper|cover|guard/.test(tag);
+          const directions=exits.map(q=>Math.atan2(q.x-n.x,q.z-n.z));
+          return {node:i,open,nearWall,choke,corner,guard,directions,arcs};
+        });
+      }
+      function getBotMapAwareness(){
+        // Installing a map replaces node objects, including when returning to Marien.
+        if(!botMapAwarenessCache||botMapAwarenessCache.first!==NAV_NODES[0]||
+            botMapAwarenessCache.size!==NAV_NODES.length){
+          botMapAwarenessCache={first:NAV_NODES[0],size:NAV_NODES.length,
+            data:buildBotMapAwareness(NAV_NODES,NAV_ADJ,isPositionWalkable)};
+        }
+        return botMapAwarenessCache.data;
+      }
+      function botMapGuardYaw(profile,forward,phase){
+        if(!profile)return forward;
+        const choices=profile.arcs.filter(a=>a.reach>=3.2).map(a=>{
+          const delta=Math.atan2(Math.sin(a.yaw-forward),Math.cos(a.yaw-forward));
+          return {...a,delta,score:a.reach-Math.abs(delta)*2.6};
+        }).filter(a=>Math.abs(a.delta)<1.7).sort((a,b)=>b.score-a.score);
+        if(!choices.length)return forward;
+        const best=choices[0],alternate=choices.find(a=>Math.abs(a.delta-best.delta)>.45&&a.score>=best.score-2.5);
+        return (phase%3===2&&alternate?alternate:best).yaw;
+      }
+      function chooseBotMapLook(bot,plan,leg,profile,now){
+        if(!profile||!['ROUTE','MISSION_ROUTE','GUARD_SCAN'].includes(plan.lookOwner))return null;
+        const node=NAV_NODES[profile.node];
+        if(!node||Math.abs(node.y-bot.pos.y)>.45)return null;
+        const d=Math.hypot(node.x-bot.pos.x,node.z-bot.pos.z);
+        const forward=Number.isFinite(plan.yaw)?plan.yaw:bot.upperYaw;
+        if(plan.speed<=0){
+          if(!profile.guard||d>2.5)return null;
+          const phase=Math.floor((now+(bot.animPhase||0)*.1)/1.8);
+          const guardForward=bot.team==='blue'?Math.PI:bot.team==='red'?0:forward;
+          return {owner:'MAP_GUARD',yaw:botMapGuardYaw(profile,guardForward,phase),pitch:0};
+        }
+        if(!leg||!leg.next||d>3.5||d<.45||!(profile.corner||profile.choke))return null;
+        if(Math.abs(leg.next.y-node.y)>.4)return null;
+        const nextYaw=Math.atan2(leg.next.x-node.x,leg.next.z-node.z);
+        const delta=Math.atan2(Math.sin(nextYaw-forward),Math.cos(nextYaw-forward));
+        if(Math.abs(delta)<.42||Math.abs(delta)>2.15)return null;
+        // Look into the upcoming route without forcing a full turn before the corner.
+        return {owner:'MAP_CORNER',yaw:forward+delta*.65,pitch:0,speedCap:2.6};
       }
 
       function updateBots(dt) {
@@ -12644,9 +12711,18 @@ function buildSquadLeadership() {
           const lookRequests=[{owner:selectedPlan.lookOwner,yaw:selectedPlan.yaw,pitch:desiredAimPitch,targetId:bestEnemy?.id||null}];
           if(bestEnemy&&trackedEnemyEye)lookRequests.push({owner:'VISIBLE_TARGET',targetId:bestEnemy.id,
             yaw:Math.atan2(trackedEnemyEye.x-bot.pos.x,trackedEnemyEye.z-bot.pos.z),pitch:desiredAimPitch});
+          let mapLook=null;
+          if(!bestEnemy&&!foPriorityCombat&&['ROUTE','MISSION_ROUTE','GUARD_SCAN'].includes(selectedPlan.lookOwner)){
+            const profiles=getBotMapAwareness();
+            const leg=selectedPlan.route?getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind):null;
+            const idx=leg?leg.path[leg.index]:selectedPlan.speed<=0?findNearestNavNode(bot.pos):-1;
+            mapLook=chooseBotMapLook(bot,selectedPlan,leg,profiles[idx],nowSec);
+            if(mapLook)lookRequests.push(mapLook);
+          }
           lookRequests.push({owner:'ROUTE',yaw:bot.legYaw,pitch:0});
           const activeLook=selectBotLookRequest(bot,lookRequests,nowSec);
           desiredUpperYaw=activeLook.yaw;
+          if(mapLook&&activeLook.owner===mapLook.owner&&Number.isFinite(mapLook.speedCap))moveSpeed=Math.min(moveSpeed,mapLook.speedCap);
           const legacyState=({ADVANCE:'ADVANCE',HOLD:'DEFEND_HOLD',SUPPORT:'SUPPORT_ALLY',INVESTIGATE:'INVESTIGATE',CONTACT_HOLD:'INVESTIGATE',ENGAGE:'ENGAGE',FLANK:'ENGAGE',COVER:'TAKE_COVER',RETREAT:'RETREAT',MISSION:moveSpeed>0?'ADVANCE':'DEFEND_HOLD'})[selectedPlan.kind];
           if(legacyState&&bot.state!==legacyState)setBotState(bot,legacyState,.5,true);
           // New contact cancels obsolete navigation detours, but not an active escape from cover.
