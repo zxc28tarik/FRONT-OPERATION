@@ -98,3 +98,6 @@ jobs:
 
       - name: Run V63 ramp landing regression
         run: node tests/bot_ai_v63_ramp_regression.cjs
+
+      - name: Run V63 objective route regression
+        run: node tests/bot_ai_v63_objective_regression.cjs
