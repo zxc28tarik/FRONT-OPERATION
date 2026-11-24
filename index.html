@@ -9479,9 +9479,7 @@
 
         // V64: the frame's claim count includes this bot's own existing
         // target. Only other teammates should contribute to the spread penalty.
-        const otherClaims = Math.max(0, (targetClaimCounts[cand.id] || 0) -
-          (cand.id === bot.targetId ? 1 : 0));
-        score += otherClaims * 8.5;
+        score += botTargetClaimPenalty(bot,cand.id,targetClaimCounts);
 
         // A briefly occluded, now visibly reacquired contact is preferred
         // modestly over an otherwise equivalent new one. No hidden target
@@ -9497,6 +9495,18 @@
         }
 
         return score;
+      }
+
+      // V71C: a change in teammate allocation alone must not eject an
+      // otherwise equivalent, still-visible contact after its lock expires.
+      function botTargetClaimPenalty(bot,id,counts){
+        return Math.max(0,(counts[id]||0)-(id===bot.targetId?1:0))*8.5;
+      }
+      function botHasMeaningfulTargetImprovement(bot,bestId,bestScore,retainedId,retainedScore,counts){
+        if(!(bestScore<retainedScore-9))return false;
+        const bestPersonal=bestScore-botTargetClaimPenalty(bot,bestId,counts);
+        const retainedPersonal=retainedScore-botTargetClaimPenalty(bot,retainedId,counts);
+        return bestPersonal<retainedPersonal-3;
       }
 
       // V47: Reacquiring a target should not discard a genuinely protected
@@ -9621,7 +9631,8 @@
           // to override it, avoiding scan-to-scan target flicker.
           if (bestCand && retainedCand && bestCand.id !== retainedCand.id) {
             const urgentThreat = bestPerc.dist < 6.5 && bestPerc.dist + 5 < retainedPerc.dist;
-            const meaningfulImprovement = bestScore < retainedScore - 9.0;
+            const meaningfulImprovement = botHasMeaningfulTargetImprovement(bot,
+              bestCand.id,bestScore,retainedCand.id,retainedScore,targetClaimCounts);
             if (!urgentThreat && (bot.targetLockTimer > 0 || !meaningfulImprovement)) {
               bestCand = retainedCand;
               bestPerc = retainedPerc;
