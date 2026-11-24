@@ -8563,8 +8563,9 @@ function buildSquadLeadership() {
           const age = botAiClockSec - audit.since;
           const directExpired = botAiClockSec - audit.lastProgressAt >= 2.25 ||
                                 age >= 6.2;
+          const routeAgo = botAiClockSec - audit.routeLastProgressAt;
           const routeMoving = Number.isFinite(audit.routeLastProgressAt) &&
-            botAiClockSec - audit.routeLastProgressAt < 2.25 &&
+            routeAgo >= 0 && routeAgo < 2.25 &&
             age >= 0 && age < 8.4;
           if (directExpired && !routeMoving) return false;
         }
