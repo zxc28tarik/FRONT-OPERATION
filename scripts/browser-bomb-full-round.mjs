@@ -126,6 +126,11 @@ try{
    console.log('V74 DIAGNOSTIC '+JSON.stringify({seed,variant,frames:data.diagnostics.length,
      final:data.reason,operators:data.diagnostics.filter((_,i)=>i%10===0).flatMap(f=>f.bots.filter(b=>b.role==='PLANT'||b.role==='DEFUSE').map(b=>({t:f.t,id:b.id,role:b.role,state:b.state,contact:b.contact,speed:b.speed,aimSettle:b.aimSettle,fireTimer:b.fireTimer,fireLaneBlockTimer:b.fireLaneBlockTimer,inventory:b.inventory,reload:b.reload,ammoRounds:b.ammoRounds,emptyAttempts:b.emptyAttempts,shots:b.shots})))}));
  }
+  if(stats.stuckBreakdown){
+    const expected=Object.values(stats.actors).reduce((n,b)=>n+b.stuckRecoveries,0);
+    for(const bucket of Object.values(stats.stuckBreakdown))
+      if(Object.values(bucket).reduce((n,v)=>n+v,0)!==expected)throw Error('V77 stuck breakdown count mismatch');
+  }
  report.status='PASS';
  console.log('V63 BOMB FULL ROUND '+JSON.stringify({seed,variant,elapsed:data.elapsed,reason:data.reason,plantedAt:data.plantedAt,shots:data.shots,hits:data.hits,stuck:data.stuck,actorSeconds:data.actorSeconds,objectiveRetry:report.objectiveRetry,operators:data.samples.map(s=>({t:s.t,operators:s.operators}))}));
 }catch(e){report.error=String(e);console.error(report.error);process.exitCode=1;}

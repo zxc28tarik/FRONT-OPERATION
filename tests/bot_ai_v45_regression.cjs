@@ -60,7 +60,7 @@ expect(html.includes("const isEngineerHoldNode") &&
  'V42 graph navigation and engineer defensive positions retained');
 expect(html.includes('isBotDirectWalkingLineClear(bot.pos, injuredAlly.pos)'),
  'V44 medic physical direct-route requirement retained');
-expect(html.includes('recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec);'),
+expect(html.includes('recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec,{'),
  'V43 stuck context data retained');
 expect(html.includes('return index % 15 === 14')&&
  (html.match(/aimSettleSec: 0\.34/g)||[]).length===3,

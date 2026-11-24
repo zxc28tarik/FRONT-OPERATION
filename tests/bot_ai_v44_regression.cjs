@@ -44,7 +44,7 @@ verify(medicSource.includes('if (canReachAllyDirectly) {') &&
  'Blocked direct support transfers to existing A-star path');
 verify(medicSource.includes('canReachAllyDirectly && bot.abilityCooldown <= 0'),
  'Healing at short range also respects actual navigability');
-verify(html.includes('recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec);'),
+verify(html.includes('recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec,{'),
  'V43 diagnostics remain active to verify the behavioral fix');
 verify(html.includes('NAV_VALIDATION.reachableNodes = seen.size;'),
  'V42 graph-connectivity check is unchanged');

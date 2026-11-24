@@ -158,3 +158,6 @@ jobs:
 
       - name: Verify V75/V76 all-seed comparison coverage
         run: node tests/bot_ai_v75_comparison_coverage.cjs
+
+      - name: Run V77 movement isolation regression
+        run: node tests/bot_ai_v77_isolation_regression.cjs

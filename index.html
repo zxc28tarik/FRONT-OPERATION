@@ -7601,7 +7601,7 @@
         version: 49, seconds: 0, carry: 0, samples: 0,
         difficulty: {}, classes: {}, teams: {}, actors: {},
         stuckNodes: {},
-        stuckContexts: [], stuckEventCounts: {},
+        stuckContexts: [], stuckEventCounts: {}, stuckBreakdown:{state:{},classId:{},route:{},trigger:{}},
         coverEvents: [], coverAbandonReasons: {},
         spread: {blue:{sum:0,observations:0,closePairs:0,focusSum:0,focusSamples:0},
                  red:{sum:0,observations:0,closePairs:0,focusSum:0,focusSamples:0}},
@@ -7629,6 +7629,7 @@
         BOT_METRICS.stuckNodes = {};
         BOT_METRICS.stuckContexts = [];
         BOT_METRICS.stuckEventCounts = {};
+        BOT_METRICS.stuckBreakdown={state:{},classId:{},route:{},trigger:{}};
         BOT_METRICS.coverEvents = [];
         BOT_METRICS.coverAbandonReasons = {};
         BOT_METRICS.frame = { count: 0, sumMs: 0, maxMs: 0, slowFrames: 0 };
@@ -7775,10 +7776,16 @@
       // V43 QA: Capture *actual movement intent* on a stalled tick rather
       // than assuming bot.path[pathIndex] was the movement target. In-memory,
       // bounded and only exported via the existing localhost QA snapshot.
-      function recordBotStuckContext(bot, actualTarget, routeNode, atSec) {
+      function recordBotStuckContext(bot, actualTarget, routeNode, atSec, detail=null) {
         if (!bot) return;
         const counts = BOT_METRICS.stuckEventCounts;
         const seen = counts[bot.id] = (counts[bot.id] || 0) + 1;
+        // Count all recovery events before sampling the bounded context ring.
+        for(const [field,value] of Object.entries({state:bot.state||'unknown',classId:bot.classId||'unknown',
+            route:bot.behaviorPlan?.kind||'unknown',trigger:detail?.trigger||'unknown'})){
+          const bucket=BOT_METRICS.stuckBreakdown[field];
+          bucket[value]=(bucket[value]||0)+1;
+        }
         // Save first incidents and every fourth repeat, not every frozen frame.
         if (seen > 4 && seen % 4 !== 0) return;
         let probeClear = null, probeDistance = 0, remaining = 0;
@@ -7813,7 +7820,8 @@
           target: actualTarget
             ? { x: round(actualTarget.x), z: round(actualTarget.z) } : null,
           remaining: round(remaining),
-          probeDistance: round(probeDistance), probeClear
+          probeDistance: round(probeDistance), probeClear,
+          motion:detail?{...detail}:null
         });
         if (BOT_METRICS.stuckContexts.length > 100) BOT_METRICS.stuckContexts.shift();
       }
@@ -11640,7 +11648,10 @@
         // overtaking into the next soldier. At very small gaps use old yield.
         return Math.min(speed,Math.max(1.0,forward+(along-2.25)*1.8));
       }
-      function inspectBotPassage(bot, destination, speed) {
+      // V77: provisional V75 defaults, V76 changes independently testable.
+      const BOT_V77_PASSAGE_CHECK=false;
+      const BOT_V77_RALLY_CHECK=false;
+      function inspectBotPassage(bot, destination, speed,physicalCheck=BOT_V77_PASSAGE_CHECK) {
         if (!destination || speed <= 2.2) return null;
         const vx = destination.x - bot.pos.x, vz = destination.z - bot.pos.z;
         const total = Math.hypot(vx, vz);
@@ -11656,7 +11667,7 @@
           if (along <= 0.35 || along >= 3.1 || lateral > 1.05) return;
           // V76: separate walkable spaces must not create phantom queues.
           // Invalid endpoints keep the conservative legacy behavior.
-          if(Math.abs(ally.pos.y-bot.pos.y)<=.35&&
+          if(physicalCheck&&Math.abs(ally.pos.y-bot.pos.y)<=.35&&
              isPositionWalkable(bot.pos.x,bot.pos.y,bot.pos.z)&&
              isPositionWalkable(ally.pos.x,ally.pos.y,ally.pos.z)&&
              !isBotDirectWalkingLineClear(bot.pos,ally.pos))return;
@@ -11717,12 +11728,12 @@
         return { mode: 'yield', blockerId: blocker.id, point: null };
       }
 
-      function selectBotRallyWaypoint(bot, formationPoint) {
+      function selectBotRallyWaypoint(bot, formationPoint,physicalCheck=BOT_V77_RALLY_CHECK) {
         const eye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.0, bot.pos.z);
         const targetEye = new THREE.Vector3(
           formationPoint.x, formationPoint.y + 1.0, formationPoint.z
         );
-        if (hasLineOfSight(eye, targetEye)&&isBotDirectWalkingLineClear(bot.pos,formationPoint)) {
+        if (hasLineOfSight(eye, targetEye)&&(!physicalCheck||isBotDirectWalkingLineClear(bot.pos,formationPoint))) {
           bot.rallyGoalNode = -1;
           return formationPoint;
         }
@@ -11732,7 +11743,7 @@
             ((!bot.path || bot.pathIndex >= bot.path.length) && bot.rallyRetryCooldown <= 0)) {
           bot.path = findPathAStar(findNearestNavNode(bot.pos, true), goal, bot.blockedNode);
           // A-star's singleton failure sentinel is not a valid walking shortcut.
-          if(bot.path.length===1&&!isBotDirectWalkingLineClear(bot.pos,NAV_NODES[bot.path[0]]))bot.path=[];
+          if(physicalCheck&&bot.path.length===1&&!isBotDirectWalkingLineClear(bot.pos,NAV_NODES[bot.path[0]]))bot.path=[];
           bot.pathIndex = 0;
           bot.rallyGoalNode = goal;
           bot.rallyRetryCooldown = 1.0;
@@ -13523,7 +13534,12 @@
                   : (bot.path && bot.path[bot.pathIndex]);
                 if(foMissionOrder)obstructedWp=bot.foObjectivePath?.[bot.foObjectiveIndex];
                 recordBotStuckHotspot(bot, obstructedWp);
-                recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec);
+                recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec,{
+                  trigger:forwardProgress===null?'displacement':'waypoint_progress',
+                  actualMoved,forwardProgress,movedDist,plannedSpeed:moveSpeed,
+                  velocity:Math.hypot(bot.moveVelX||0,bot.moveVelZ||0),
+                  local:bot.behaviorPlan.local||null,route: selectedPlan.kind
+                });
                 if (obstructedWp !== undefined) {
                   bot.blockedNode = obstructedWp;
                   bot.blockedNodeTimer = 4.5;
