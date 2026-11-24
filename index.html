@@ -6704,7 +6704,7 @@
         'targetAcquisitions','targetSwitches','targetLosses',
         'coverApproachSeconds','coverHoldSeconds','movingSeconds',
         'coverAssignments','coverArrivals','coverAbandons','coverReassignments',
-        'coverStalledApproaches','coverOrphanSeconds'
+        'coverStalledApproaches','coverOrphanSeconds','coverRetentions'
       ];
       const newBotMetricBucket = () =>
         Object.fromEntries(BOT_METRIC_FIELDS.map(field => [field, 0]));
@@ -8411,6 +8411,20 @@ function buildSquadLeadership() {
         return score;
       }
 
+      // V47: Reacquiring a target should not discard a genuinely protected
+      // cover location. Safety first: close threats and exposed cover still
+      // force fresh tactical selection, without affecting aim or target lock.
+      function isCoverSafeForNewVisibleTarget(bot, cand) {
+        if (!bot || !cand || bot.coverNode < 0 ||
+            bot.coverPhase === 'NONE' || !cand.pos || !cand.eye) return false;
+        const node = NAV_NODES[bot.coverNode];
+        if (!node) return false;
+        const range = Math.hypot(cand.pos.x-bot.pos.x,cand.pos.z-bot.pos.z);
+        if (!Number.isFinite(range) || range < 9) return false;
+        const crouchEye = new THREE.Vector3(node.x,node.y+0.92,node.z);
+        return !hasLineOfSight(cand.eye,crouchEye);
+      }
+
       function updateBotPerception(bot, dt, targetClaimCounts) {
         _percEyeVec.set(bot.pos.x, bot.pos.y + 1.48, bot.pos.z);
 
@@ -8497,11 +8511,16 @@ function buildSquadLeadership() {
 
           if (bestCand) {
             if (bestCand.id !== prevTargetId) {
-              // Cover selected against the previous enemy may expose the bot
-              // to the new one. Re-evaluate only after an actual switch.
-              bot.coverNode = -1;
-              bot.coverPhase = 'NONE';
-              bot.coverSearchCooldown = 0;
+              // Retain cover only when it also conceals the soldier from
+              // this newly sighted target. Never use old cover against an
+              // immediate close threat or an exposed crouch position.
+              if (!isCoverSafeForNewVisibleTarget(bot,bestCand)) {
+                bot.coverNode = -1;
+                bot.coverPhase = 'NONE';
+                bot.coverSearchCooldown = 0;
+              } else {
+                recordBotMetric(bot,'coverRetentions');
+              }
               bot.targetId = bestCand.id;
               bot.targetLockTimer = 2.4;
               bot.reactionTimer = 0;
