@@ -7584,7 +7584,8 @@
           }
           if (current >= 0) {
             recordBotMetric(bot,'coverAssignments');
-            if(previous.node >= 0) recordBotMetric(bot,'coverReassignments');
+            // Reassignment is an interrupted approach, not a new choice after arrival.
+            if(previous.node >= 0 && !previous.arrived) recordBotMetric(bot,'coverReassignments');
             const d = distanceTo(current);
             bot._coverAudit = {node:current,arrived:false,since:nowSec,
               // Preserve the V47 decision clock and preferred distance:
