@@ -9197,6 +9197,7 @@
         bot.state = 'ADVANCE';
         bot.assignedLane = bot.squadId;
         bot.burstCount = 0;
+        bot.ammoState={};bot.botReload=null;bot.lastAmmoWeapon=null;
         bot.stuckTimer = 0;
         bot.stuckFailures = 0;
         bot.blockedNode = -1;
@@ -12247,6 +12248,71 @@
         return !clearLane&&dist>threshold;
       }
 
+      // V68: shared finite ammunition state for every bot firearm path.
+      function botAmmoSlot(bot,id){
+        const w=WEAPONS[id];
+        if(!w||!(w.magSize>0)||!(w.reloadTime>0))return null;
+        if(!bot.ammoState)bot.ammoState={};
+        return bot.ammoState[id]||(bot.ammoState[id]={mag:w.magSize,reserve:w.reserveMax});
+      }
+      function botAmmoWeapon(bot,preferred){
+        const s=botAmmoSlot(bot,preferred);
+        if(s&&(s.mag>0||s.reserve>0))return preferred;
+        const slots=CLASSES[bot.classId]?.slots;
+        for(const id of [slots?.[2],slots?.[1]]){
+          const a=botAmmoSlot(bot,id);
+          if(a&&(a.mag>0||a.reserve>0))return id;
+        }
+        return preferred;
+      }
+      function botStartReload(bot,id,optional){
+        const s=botAmmoSlot(bot,id),w=WEAPONS[id];
+        if(!s||s.mag>=w.magSize||s.reserve<=0||bot.botReload)return false;
+        bot.botReload={id,left:w.reloadTime,optional:!!optional};
+        return true;
+      }
+      function botTrySpendRound(bot,id){
+        const s=botAmmoSlot(bot,id);
+        if(!s)return false;
+        if(bot.botReload&&bot.botReload.id!==id)bot.botReload=null;
+        if(bot.botReload){
+          if(bot.botReload.optional&&s.mag>0)bot.botReload=null;
+          else return false;
+        }
+        if(s.mag<=0){botStartReload(bot,id,false);return false;}
+        s.mag--;
+        bot.lastAmmoWeapon=id;
+        return true;
+      }
+      function tickBotAmmo(bot,dt,context){
+        // An objective operator without direct combat must be free to
+        // interact; interrupt reload without creating ammunition.
+        const operator=context.role==='PLANT'||context.role==='DEFUSE';
+        if(bot.botReload){
+          if((operator&&!context.contact)|| (context.contact&&bot.botReload.optional)){
+            bot.botReload=null;
+          }else{
+            bot.botReload.left-=dt;
+            if(bot.botReload.left<=0){
+              const id=bot.botReload.id,s=botAmmoSlot(bot,id);
+              const take=Math.min(WEAPONS[id].magSize-s.mag,s.reserve);
+              s.mag+=take;s.reserve-=take;bot.botReload=null;
+            }
+            return;
+          }
+        }
+        if(operator||context.contact||!context.quiet||!context.stationary)return;
+        const id=bot.lastAmmoWeapon||CLASSES[bot.classId]?.slots[1];
+        const s=botAmmoSlot(bot,id);
+        if(!s)return;
+        const guard=context.role==='GUARD'||context.role==='HOLD';
+        // During quiet game-objective holding, avoid running down a magazine;
+        // while moving/attacking, do not opportunistically interrupt travel.
+        const threshold=guard?.45:.25;
+        if(s.mag<=Math.floor(WEAPONS[id].magSize*threshold))
+          botStartReload(bot,id,s.mag>0);
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -12336,6 +12402,10 @@
           considerBotHeardNoise(bot, nowSec, dt);
           if(bot.visibleEnemy)bot.lastDirectContactAt=nowSec;
           const freshLostContact=!bot.visibleEnemy&&!!bot.lastKnownEnemyPos&&Number.isFinite(bot.lastDirectContactAt)&&nowSec-bot.lastDirectContactAt<.75;
+          tickBotAmmo(bot,dt,{contact:!!bot.visibleEnemy,
+            quiet:!freshLostContact&&(!Number.isFinite(bot.lastDirectContactAt)||nowSec-bot.lastDirectContactAt>1.5)&&!(bot.hearingTimer>0),
+            stationary:Math.hypot(bot.moveVelX||0,bot.moveVelZ||0)<.6&&!(bot.behaviorPlan?.speed>0.8),
+            role:isFoBombMode()?foBotPlan.orders.get(bot.id)?.role:null});
           const bestEnemy = bot.visibleEnemy;
           const currentTarget = bestEnemy ? bestEnemy.id : null;
           if (currentTarget && currentTarget !== previousTarget) recordBotMetric(bot,'sightings');
@@ -12595,10 +12665,11 @@
             if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned) {
               bot.fireTimer -= dt;
             }
-            if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0) {
-              const botWeaponId = bot.classId === 'assault' ? 'hk416'
+            const botWeaponId=botAmmoWeapon(bot,bot.classId === 'assault' ? 'hk416'
                 : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
-                : (bot.classId === 'sniper' ? (distToEnemy < 11 ? 'glock18c' : 'mrad') : 'minimi');
+                : (bot.classId === 'sniper' ? (distToEnemy < 11 ? 'glock18c' : 'mrad') : 'minimi'));
+            if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0 &&
+                botTrySpendRound(bot,botWeaponId)) {
               const bw = WEAPONS[botWeaponId];
               bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && botWeaponId === 'mrad' ? 1.35 : 2.1);
               if(bot.contactOpportunity)bot.contactOpportunity.fired=true;
@@ -12692,12 +12763,12 @@
                   isBotFireLaneClear(bot, visibleEnemyDrone.pos)) {
                 bot.fireTimer -= dt;
               }
+              const botWeaponId=botAmmoWeapon(bot,bot.classId === 'assault' ? 'hk416'
+                  : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
+                  : (bot.classId === 'sniper' ? 'glock18c' : 'minimi'));
               if (bot.fireTimer <= 0 &&
                   isBotAimAligned(bot, visibleEnemyDrone.pos) &&
-                  isBotFireLaneClear(bot, visibleEnemyDrone.pos)) {
-                const botWeaponId = bot.classId === 'assault' ? 'hk416'
-                  : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
-                  : (bot.classId === 'sniper' ? 'glock18c' : 'minimi');
+                  isBotFireLaneClear(bot, visibleEnemyDrone.pos)&&botTrySpendRound(bot,botWeaponId)) {
                 const bw = WEAPONS[botWeaponId];
                 bot.fireTimer = (60 / bw.rpm) * 2.2;
                 bot.muzzleTimer = 0.055;
@@ -12741,11 +12812,12 @@
                     isBotFireLaneClear(bot, coverOpp.targetEye)) {
                   bot.suppressFireTimer -= dt;
                 }
+                const supWeaponId=botAmmoWeapon(bot,bot.classId === 'heavy' ? 'minimi'
+                    : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
+                    : bot.classId==='sniper'?'mrad':'hk416');
                 if (bot.suppressFireTimer <= 0 &&
                     isBotAimAligned(bot, coverOpp.targetEye) &&
-                    isBotFireLaneClear(bot, coverOpp.targetEye)) {
-                  const supWeaponId = bot.classId === 'heavy' ? 'minimi'
-                    : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7' : 'hk416';
+                    isBotFireLaneClear(bot, coverOpp.targetEye)&&botTrySpendRound(bot,supWeaponId)) {
                   const sw = WEAPONS[supWeaponId];
                   bot.suppressFireTimer = (60 / sw.rpm) * 2.5 + Math.random() * 0.08;
                   bot.muzzleTimer = 0.055;
