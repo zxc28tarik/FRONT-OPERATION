@@ -86,7 +86,7 @@ function runBotAiV32Regression(html) {
     'getLiveEntitySnapshot','evaluateCandidatePerception','scoreEnemyCandidate',
     'computeReactionDelay','isEntityStillAlive','clearDeadTargetMemory',
     'reportTeamVisualSighting','getSharedTeamSighting','botAiClockSec','getBotSkillProfile','resetBotAimTracking',
-    perceptionSrc + '\nreturn updateBotPerception;')(
+    'const isCoverSafeForNewVisibleTarget=()=>false;\n' + perceptionSrc + '\nreturn updateBotPerception;')(
     THREE,Object.values(actors),{team:'blue',alive:false},0.12,new Vec3(),
     (id) => {
       const a = actors[id];
@@ -132,7 +132,7 @@ function runBotAiV32Regression(html) {
     'getLiveEntitySnapshot','evaluateCandidatePerception','scoreEnemyCandidate',
     'computeReactionDelay','isEntityStillAlive','clearDeadTargetMemory',
     'reportTeamVisualSighting','getSharedTeamSighting','botAiClockSec','getBotSkillProfile','resetBotAimTracking',
-    perceptionSrc + '\nreturn updateBotPerception;')(
+    'const isCoverSafeForNewVisibleTarget=()=>false;\n' + perceptionSrc + '\nreturn updateBotPerception;')(
     THREE,[],human,0.12,new Vec3(),
     (id) => id === 'player' ? {id:'player',pos:human.pos,eye:human.eye,isPlayer:true} : null,
     (_b,_eye,cand) => ({dist:Math.hypot(cand.pos.x,cand.pos.z),angleRad:0,inPrimaryCone:true}),

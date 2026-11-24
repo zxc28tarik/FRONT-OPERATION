@@ -1,11 +1,12 @@
-name: V46 accelerated 600s bot engine stress
+name: V47 accelerated 600s bot engine stress
 on:
   push:
     branches:
-      - ai/v46-target-cover-consistency
+      - ai/v47-cover-lifecycle-reliability
     paths:
       - .github/workflows/bot-ai-stress.yml
       - scripts/browser-bot-ai-stress.mjs
+      - scripts/compare-bot-cover-stress.mjs
       - index.html
   workflow_dispatch:
 jobs:
@@ -14,6 +15,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -21,13 +24,21 @@ jobs:
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
-      - name: Run 600 simulated seconds of real game bot logic
-        run: node scripts/browser-bot-ai-stress.mjs
+      - name: Compare identical-seed bot matches with and without V47 cover policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show ccdcea335908b060506fb2aa4d8f5e58adf0678d:index.html > /tmp/front-operation-v47-control.html
+          for seed in 471001 471002 471003; do
+            FRONT_OPERATION_GAME_FILE=/tmp/front-operation-v47-control.html FRONT_OPERATION_SEED=$seed FRONT_OPERATION_VARIANT=baseline node scripts/browser-bot-ai-stress.mjs
+            FRONT_OPERATION_GAME_FILE=index.html FRONT_OPERATION_SEED=$seed FRONT_OPERATION_VARIANT=candidate node scripts/browser-bot-ai-stress.mjs
+          done
+          node scripts/compare-bot-cover-stress.mjs 471001 471002 471003
       - name: Upload 600s engine statistics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: front-operation-bot-v46-600s
+          name: front-operation-bot-v47-600s
           path: test-artifacts/front-operation-bot-stress/
           if-no-files-found: warn
           retention-days: 14

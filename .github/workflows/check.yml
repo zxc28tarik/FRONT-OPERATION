@@ -50,3 +50,12 @@ jobs:
         run: node tests/bot_ai_v45_regression.cjs
       - name: Run BOT AI V46 target-cover consistency metrics regression
         run: node tests/bot_ai_v46_regression.cjs
+
+      - name: Run BOT AI V47 cover lifecycle regression
+        run: node tests/bot_ai_v47_regression.cjs
+
+      - name: Run BOT AI V47 cover commitment and danger escape regression
+        run: node tests/bot_ai_v47_cover_commit_regression.cjs
+
+      - name: Run BOT AI V47 safe-cover target reacquisition regression
+        run: node tests/bot_ai_v47_target_cover_regression.cjs
