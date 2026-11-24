@@ -11606,6 +11606,29 @@
         bot.pathIndex=0;
         return next();
       }
+      // V81: local detours must not poison unrelated graph nodes.
+      function botRecoveryWaypoint(leg,local){
+        if(local||!leg||!Number.isInteger(leg.index))return undefined;
+        const id=leg.path?.[leg.index];
+        return Number.isInteger(id)&&NAV_NODES[id]===leg.node?id:undefined;
+      }
+      function botRecoveryGoal(bot,kind,missionGoal){
+        const valid=id=>Number.isInteger(id)&&NAV_NODES[id]?id:-1;
+        if(kind==='MISSION')return valid(missionGoal);
+        if(kind==='FLANK')return valid(bot.teamFlankGoalNode);
+        if(kind==='COVER'||kind==='RETREAT')return valid(bot.coverNode);
+        if(kind==='SUPPORT'){
+          const patient=valid(bot.supportGoalNode);
+          return patient>=0?patient:valid(bot.rallyGoalNode);
+        }
+        if(kind==='INVESTIGATE'){
+          if(botOwnsSoundRoute(bot,kind))return valid(botSoundRouteGoal(bot));
+          if(bot.lastKnownEnemyPos&&bot.investigateTimer>0&&!bot.visibleEnemy)
+            return valid(bot.investigateGoalNode>=0?bot.investigateGoalNode:findNearestNavNode(bot.lastKnownEnemyPos));
+          return -1;
+        }
+        return kind==='ADVANCE'?valid(bot.goalNode):-1;
+      }
       function getBotActiveRoute(bot,kind){
         const owner=kind||bot.behaviorPlan?.kind||bot.behavior?.kind;
         if(owner==='MISSION')return {path:bot.foObjectivePath||[],index:bot.foObjectiveIndex||0,key:'foObjectiveIndex'};
@@ -13488,9 +13511,7 @@
               const local=resolveBotLocalMovement(selectedPlan,{yield:true});
               moveTargetPos=local.target;moveSpeed=local.speed;bot.behaviorPlan=local;
               if (bot.passageWaitTimer >= 1.6 && bot.passageRepathCooldown <= 0) {
-                const goal = foMissionOrder ? foMissionOrder.goal : soundRoute?botSoundRouteGoal(bot): selectedPlan.kind==='FLANK'?bot.teamFlankGoalNode:bot.coverNode >= 0 ? bot.coverNode :
-                  (bot.supportGoalNode >= 0 ? bot.supportGoalNode :
-                  (bot.rallyGoalNode >= 0 ? bot.rallyGoalNode : bot.goalNode));
+                const goal=botRecoveryGoal(bot,selectedPlan.kind,foMissionOrder?.goal);
                 const occupied = bots.find((b) => b.id === passage.blockerId);
                 if (occupied && goal >= 0 && goal < NAV_NODES.length) {
                   const avoidNode = findNearestNavNode(occupied.pos);
@@ -13600,11 +13621,7 @@
               if (movedDist < 0.55) {
                 bot.stuckFailures++;
                 recordBotMetric(bot, 'stuckRecoveries');
-                let obstructedWp = bot.teamFlankGoalNode >= 0
-                  ? bot.teamFlankRoute[bot.teamFlankPathIndex]
-                  : (bot.path && bot.path[bot.pathIndex]);
-                if(foMissionOrder)obstructedWp=bot.foObjectivePath?.[bot.foObjectiveIndex];
-                else if(soundRoute)obstructedWp=bot.hearingRoute?.[bot.hearingRouteIndex];
+                const obstructedWp=botRecoveryWaypoint(motionLeg,bot.behaviorPlan.local);
                 recordBotStuckHotspot(bot, obstructedWp);
                 recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec,{
                   trigger:forwardProgress===null?'displacement':'waypoint_progress',
@@ -13619,15 +13636,11 @@
 
                 // Preserve the tactical objective: seek a different route
                 // before requesting a new random assignment.
-                const goal = foMissionOrder ? foMissionOrder.goal : soundRoute?botSoundRouteGoal(bot): bot.teamFlankGoalNode >= 0 ? bot.teamFlankGoalNode :
-                  (bot.coverNode !== -1 ? bot.coverNode :
-                  (bot.supportGoalNode !== -1 ? bot.supportGoalNode :
-                  (bot.lastKnownEnemyPos && bot.investigateTimer > 0 && !bot.visibleEnemy
-                    ? findNearestNavNode(bot.lastKnownEnemyPos) : bot.goalNode)));
+                const goal=botRecoveryGoal(bot,selectedPlan.kind,foMissionOrder?.goal);
                 if (goal >= 0 && goal < NAV_NODES.length) {
                   const recovered = findPathAStar(findNearestNavNode(bot.pos, true), goal, bot.blockedNode);
                   if(foMissionOrder){bot.foObjectivePath=recovered.length===1&&!foBotSegmentClear(bot.pos,NAV_NODES[goal])?[]:recovered;bot.foObjectiveIndex=0;bot.foObjectiveRepath=.65;}
-                  else if (bot.teamFlankGoalNode >= 0) {
+                  else if (selectedPlan.kind==='FLANK') {
                     bot.teamFlankRoute = recovered;
                     bot.teamFlankPathIndex = 0;
                   } else if(soundRoute){

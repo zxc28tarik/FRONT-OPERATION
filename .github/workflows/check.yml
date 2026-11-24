@@ -170,3 +170,6 @@ jobs:
 
       - name: Run V80 retreat route regression
         run: node tests/bot_ai_v80_retreat_route_regression.cjs
+
+      - name: Run V81 recovery ownership regression
+        run: node tests/bot_ai_v81_recovery_regression.cjs
