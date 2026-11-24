@@ -727,7 +727,7 @@
         <div class="hud-glass rounded-xl p-1.5 relative">
           <canvas id="radar-canvas" width="136" height="136" class="rounded-lg block bg-slate-950/90"></canvas>
           <div class="mono text-[10px] text-slate-400 text-center mt-1 tracking-wider font-semibold">
-            MARIEN • CQC
+            <span id="fo-radar-map">MARIEN • CQC</span>
           </div>
         </div>
         <div id="zone-indicator" class="hud-glass rounded-lg px-2.5 py-1 mono text-[10px] font-bold tracking-wider text-slate-300">
@@ -746,7 +746,8 @@
         </div>
 
         <div class="flex flex-col items-center border-x border-slate-700/70 px-3 sm:px-4">
-          <div class="mono text-[10px] text-amber-400 font-bold tracking-widest">HEDEF: 50</div>
+          <div id="fo-score-rule" class="mono text-[10px] text-amber-400 font-bold tracking-widest">HEDEF: 50</div>
+          <div id="fo-bomb-status" class="hidden mono text-[10px] text-slate-300 text-center" aria-live="polite"></div>
           <div id="match-timer" class="mono text-base sm:text-lg font-extrabold text-slate-100 leading-tight">10:00</div>
 
         </div>
@@ -939,7 +940,7 @@
       <div class="mono text-xs font-bold text-rose-400 tracking-widest uppercase mb-1">ELİMİNE EDİLDİN</div>
       <div id="killer-info" class="text-base font-extrabold text-white mb-3">Vuran: N.I.U. Askeri</div>
       <div class="mono text-2xl font-black text-amber-400 mb-2" id="respawn-countdown">3.0</div>
-      <div class="text-xs text-slate-300">Sınıf değiştirmek için <span class="mono font-bold text-amber-300">[1-5]</span> veya <span class="mono font-bold text-amber-300">[B]</span> tuşuna bas</div>
+      <div id="fo-death-hint" class="text-xs text-slate-300">Sınıf değiştirmek için <span class="mono font-bold text-amber-300">[1-5]</span> veya <span class="mono font-bold text-amber-300">[B]</span> tuşuna bas</div>
     </div>
   </div>
 
@@ -948,8 +949,15 @@
     <div class="fo-menu-panel my-auto" role="region" aria-label="Sınıf seçimi">
       <div class="fo-menu-header">
         <h1 id="menu-title">SINIF SEÇİMİ</h1>
-        <span class="fo-map-caption">MARIEN • 6V6</span>
+        <span class="fo-map-caption" id="fo-map-caption">MARIEN • 6V6</span>
       </div>
+      <label id="fo-mode-picker" style="display:flex;align-items:center;gap:12px;margin:12px 0;color:#aebcbe;font-size:12px;font-weight:600;">
+        OYUN MODU
+        <select id="fo-game-mode" aria-label="Oyun modu" style="flex:1;background:#18232a;color:#e5e9e7;border:1px solid #46565b;border-radius:6px;padding:9px;font:inherit;">
+          <option value="deathmatch">Ölüm maçı • Marien</option>
+          <option value="bomb">Bomba • Depo 17</option>
+        </select>
+      </label>
       <p id="menu-subtitle" class="fo-menu-status hidden">Sınıfını seç, çatışmaya katıl.</p>
       <div id="match-result-badge" class="hidden fo-match-result">
         <span>MAÇ SONUCU</span>
@@ -3604,6 +3612,123 @@
         mapEnvironmentMeshes.push(dustParticles);
       }
 
+
+      // DEPOT 17: isolated second arena. Marien assets, colliders and nav
+      // graph are captured on startup and restored without reconstruction.
+      const FO_MAPS = {};
+      let foActiveMap = 'deathmatch';
+      function captureFoMap(before) {
+        return {objects:scene.children.filter(m=>!before.has(m)),
+          meshes:mapEnvironmentMeshes.slice(),colliders:mapColliders.slice(),
+          ramps:mapRamps.slice(),dust:dustParticles,
+          nodes:NAV_NODES.map(n=>({...n})),edges:NAV_EDGES.map(e=>e.slice())};
+      }
+      function installFoGraph(nodes,edges) {
+        NAV_NODES.splice(0,NAV_NODES.length,...nodes.map(n=>({...n})));
+        NAV_EDGES.splice(0,NAV_EDGES.length,...edges.map(e=>e.slice()));
+        NAV_ADJ.splice(0,NAV_ADJ.length,...NAV_NODES.map(()=>[]));
+        for(const [a,b] of NAV_EDGES) {
+          const p=NAV_NODES[a],q=NAV_NODES[b];
+          const cost=Math.hypot(p.x-q.x,p.z-q.z,(p.y-q.y)*1.4);
+          NAV_ADJ[a].push({to:b,cost});NAV_ADJ[b].push({to:a,cost});
+        }
+        validateGroundNavEdges();
+      }
+      const FO_BOMB_SITES = [
+        {id:'A',x:-16,z:-28,node:36,guards:[31,35,37,41]},
+        {id:'B',x:16,z:-28,node:38,guards:[33,37,39,43]}
+      ];
+      function depotGraph() {
+        const nodes=[],edges=[],xs=[-32,-16,0,16,32],zs=[50,39,28,17,6,-6,-17,-28,-39,-50];
+        for(let row=0;row<zs.length;row++)for(let col=0;col<xs.length;col++){
+          const i=row*5+col;
+          const tag=row===0?'blue_spawn':row===9?'red_spawn':
+            i===36?'bomb_a':i===38?'bomb_b':
+            col===0?'west':col===4?'east':'mid';
+          nodes.push({x:xs[col],y:0,z:zs[row],tag});
+          if(col>0)edges.push([i-1,i]);
+          if(row>0)edges.push([i-5,i]);
+        }
+        return {nodes,edges};
+      }
+      function buildDepot17Map() {
+        const concrete=makeProceduralTextureSet('concrete_weathered',3,2);
+        const asphalt=makeProceduralTextureSet('asphalt',12,18);
+        const steel=makeProceduralTextureSet('steel',2,2);
+        const makeMat=(t,color)=>new THREE.MeshStandardMaterial({map:t.map,bumpMap:t.bumpMap,
+          bumpScale:0.04,color,roughness:.84,metalness:.13});
+        const wall=makeMat(concrete,0xaaa79f),floor=makeMat(asphalt,0xa0a4a6),
+          metal=makeMat(steel,0x76858a);
+        const crate=new THREE.MeshStandardMaterial({color:0x776858,roughness:.87});
+        const blue=new THREE.MeshStandardMaterial({color:0x446875,roughness:.8});
+        const orange=new THREE.MeshStandardMaterial({color:0x9e7750,roughness:.8});
+        const trim=new THREE.MeshStandardMaterial({color:0x343c3e,roughness:.7,metalness:.5});
+        const ground=addDecoMesh(new THREE.PlaneGeometry(86,126),floor,0,0,0,-Math.PI/2);
+        ground.receiveShadow=true;
+        // Outer perimeter and two offset spawn gate screens.
+        for(const x of [-40.3,40.3])addSolidBox(x,2.7,0,1.6,5.4,124,wall);
+        for(const z of [-61.5,61.5])addSolidBox(0,2.7,z,82,5.4,1.2,wall);
+        for(const z of [-44.5,44.5]){
+          for(const x of [-24,24])addSolidBox(x,1.75,z,9,3.5,2.4,z>0?blue:orange);
+        }
+        // Open roof industrial halls. Two flanking corridors and a central
+        // courtyard have offset physical blocks; navigation is validated.
+        for(const z of [-11.5,11.5]){
+          for(const x of [-24,24]){
+            addSolidBox(x,2.2,z,8.5,4.4,6.2,wall);
+            addDecoMesh(new THREE.BoxGeometry(9,.18,6.6),metal,x,4.48,z);
+            for(const dx of [-3.2,3.2])addDecoMesh(new THREE.BoxGeometry(.2,2.7,.15),trim,x+dx,2,z+3.18);
+          }
+        }
+        // Long loading screens between paths; gaps keep multiple crossings.
+        for(const z of [-22.5,22.5])addSolidBox(0,1.5,z,7,3,3.1,metal);
+        for(const x of [-8,8])addSolidBox(x,1.15,0,4.3,2.3,7,crate);
+        for(const x of [-24,24])for(const z of [-33.5,33.5]){
+          addSolidBox(x,1.25,z,4.8,2.5,4.2,x<0?crate:metal);
+          for(const dx of [-1.9,1.9])addDecoMesh(new THREE.BoxGeometry(.11,2.5,4.3),trim,x+dx,1.25,z);
+        }
+        // Site A and B: recognizable contrasting industrial yards with
+        // open center circles and waist-high flanking physical cover.
+        for(const site of FO_BOMB_SITES){
+          const accent=site.id==='A'?0xd4aa63:0x77aab0;
+          const ring=new THREE.MeshBasicMaterial({color:accent,transparent:true,opacity:.75,side:THREE.DoubleSide});
+          addDecoMesh(new THREE.RingGeometry(3.5,3.68,48),ring,site.x,.025,site.z,-Math.PI/2);
+          for(const dx of [-5.5,5.5])addSolidBox(site.x+dx,0.72,site.z-3,2.7,1.44,1.5,site.id==='A'?orange:blue);
+          const signBefore=new Set(scene.children);
+          createCorridorSign('BÖLGE '+site.id,'#192329',site.id==='A'?'#d4aa63':'#77aab0',site.x,2.8,site.z-6,0);
+          for(const o of scene.children)if(!signBefore.has(o))mapEnvironmentMeshes.push(o);
+        }
+        // Sparse environment finish, no obstruction of the traversable lanes.
+        for(const z of [-39,-17,6,28,39]){
+          for(const x of [-37,37]){
+            addDecoMesh(new THREE.BoxGeometry(.13,.04,2.8),trim,x,.025,z);
+            addDecoMesh(new THREE.BoxGeometry(.3,4.7,.3),metal,x,2.35,z);
+            addDecoMesh(new THREE.BoxGeometry(.7,.18,.65),new THREE.MeshBasicMaterial({color:0xe3d7bc}),x,4.75,z);
+          }
+        }
+        dustParticles=null;
+        const graph=depotGraph();installFoGraph(graph.nodes,graph.edges);
+      }
+      function selectFoMap(mode) {
+        if(mode===foActiveMap)return;
+        const previous=FO_MAPS[foActiveMap];
+        if(!previous)throw Error('Current map snapshot missing');
+        previous.objects.forEach(o=>scene.remove(o));
+        mapEnvironmentMeshes.length=mapColliders.length=mapRamps.length=0;
+        dustParticles=null;
+        if(!FO_MAPS[mode]){
+          const before=new Set(scene.children);
+          buildDepot17Map();FO_MAPS[mode]=captureFoMap(before);
+        } else {
+          const next=FO_MAPS[mode];
+          next.objects.forEach(o=>scene.add(o));
+          mapEnvironmentMeshes.push(...next.meshes);mapColliders.push(...next.colliders);
+          mapRamps.push(...next.ramps);dustParticles=next.dust;
+          installFoGraph(next.nodes,next.edges);
+        }
+        foActiveMap=mode;
+      }
+
       // =========================================================================
       // 6. FIRST-PERSON 3D WEAPON VIEWMODELS & TACTICAL GLOVED HANDS (1A + 2D)
       // =========================================================================
@@ -5360,11 +5485,128 @@
       const matchState = {
         started: false,
         ended: false,
+        mode: 'deathmatch',
         scoreBlue: 0,
         scoreRed: 0,
         timeRemaining: MATCH_DURATION_SEC,
         killStreak: 0
       };
+
+
+      // Fictional game objective: one life per match, two capture sites.
+      const FO_BOMB_RULES=Object.freeze({roundSeconds:150,plantSeconds:3,defuseSeconds:4,plantedSeconds:35,radius:3.5});
+      const foBomb={phase:'unplanted',site:null,actor:null,progress:0,seconds:0,reason:''};
+      function isFoBombMode(){return matchState.mode==='bomb';}
+      function resetFoBomb(){
+        Object.assign(foBomb,{phase:'unplanted',site:null,actor:null,progress:0,seconds:0,reason:''});
+      }
+      function foBombInside(actor,site){
+        return !!(actor&&actor.alive&&site&&actor.pos&&Math.abs(actor.pos.y)<1.5&&
+          Math.hypot(actor.pos.x-site.x,actor.pos.z-site.z)<=FO_BOMB_RULES.radius);
+      }
+      // Pure objective state transition; no wall clock, RNG or weapon logic.
+      function stepFoBomb(state,dt,remaining,blue,red,eligible) {
+        if(state.phase==='ended')return null;
+        const planted=state.phase==='planted';
+        if(planted){
+          state.seconds=Math.max(0,state.seconds-dt);
+          if(state.seconds<=0)return {winner:'blue',reason:'Bomba patladı'};
+          if(red===0)return {winner:'blue',reason:'Savunan takım elendi'};
+        }else{
+          if(blue===0)return {winner:'red',reason:'Saldıran takım elendi'};
+          if(red===0)return {winner:'blue',reason:'Savunan takım elendi'};
+          if(remaining<=0)return {winner:'red',reason:'Süre doldu'};
+        }
+        if(!eligible){state.actor=null;state.progress=0;return null;}
+        if(state.actor!==eligible.id||state.actionSite!==eligible.site.id){
+          state.actor=eligible.id;state.actionSite=eligible.site.id;state.progress=0;
+        }
+        state.progress+=dt;
+        if(state.progress>=(planted?FO_BOMB_RULES.defuseSeconds:FO_BOMB_RULES.plantSeconds)){
+          if(planted)return {winner:'red',reason:'Bomba etkisizleştirildi'};
+          state.phase='planted';state.site=eligible.site;
+          state.seconds=FO_BOMB_RULES.plantedSeconds;state.actor=null;state.progress=0;
+        }
+        return null;
+      }
+      function foBombActors(){
+        return [{id:'player',team:'blue',alive:player.alive,pos:player.pos,
+          player:true},...bots];
+      }
+      function foBombCanInteract(actor,site){
+        if(!foBombInside(actor,site))return false;
+        if(actor.player)return !droneSystem.isPlayerControlling()&&!player.reloading&&
+          !mouseDownLeft&&!player.rollTimer&&Math.hypot(player.vel.x,player.vel.z)<1.3;
+        return !actor.visibleEnemy&&!actor.activeDroneId&&!(actor.unstuckTimer>0);
+      }
+      function updateFoBomb(dt){
+        if(!isFoBombMode()||matchState.ended)return;
+        const actors=foBombActors(),planted=foBomb.phase==='planted';
+        const team=planted?'red':'blue';
+        const sites=planted?[foBomb.site]:FO_BOMB_SITES;
+        const eligible=[];
+        for(const a of actors)if(a.team===team)for(const site of sites)
+          if(foBombCanInteract(a,site))eligible.push({id:a.id,site});
+        const chosen=eligible.find(e=>e.id===foBomb.actor&&e.site.id===foBomb.actionSite)||eligible[0]||null;
+        const blue=actors.filter(a=>a.team==='blue'&&a.alive).length,
+          red=actors.filter(a=>a.team==='red'&&a.alive).length;
+        const result=stepFoBomb(foBomb,dt,matchState.timeRemaining,blue,red,chosen);
+        const status=document.getElementById('fo-bomb-status');
+        const active=foBomb.phase==='planted';
+        status.textContent=blue+' / '+red+' CANLI • '+(active
+          ?'BOMBA '+foBomb.site.id+' '+Math.ceil(foBomb.seconds)+' sn'
+          :foBomb.actor?'KURULUYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%':'A / B • KUR');
+        if(active&&foBomb.actor)status.textContent+=' • ÇÖZÜLÜYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.defuseSeconds*100))+'%';
+        if(result){foBomb.phase='ended';foBomb.reason=result.reason;endMatch(result.winner);}
+      }
+      function getFoBombBotOrder(bot,dt){
+        if(!isFoBombMode()||!bot.alive||bot.visibleEnemy||bot.activeDroneId||
+            bot.unstuckTimer>0)return null;
+        const planted=foBomb.phase==='planted';
+        const idx=Math.max(0,Number(bot.id.split('_')[1])||0);
+        const site=planted?foBomb.site:FO_BOMB_SITES[idx%2];
+        if(!site)return null;
+        let goal=site.node;
+        if(planted){
+          if(bot.team==='blue')goal=site.guards[idx%site.guards.length];
+          else {
+            const nearest=bots.filter(b=>b.alive&&b.team==='red')
+              .sort((a,b)=>Math.hypot(a.pos.x-site.x,a.pos.z-site.z)-Math.hypot(b.pos.x-site.x,b.pos.z-site.z))[0];
+            if(nearest!==bot&&foBomb.actor!==bot.id)goal=site.guards[idx%site.guards.length];
+          }
+        }else if(bot.team==='red')goal=site.guards[idx%site.guards.length];
+        else {
+          const leader=bots.filter(b=>b.alive&&b.team==='blue'&&
+            (Number(b.id.split('_')[1])||0)%2===idx%2)
+            .sort((a,b)=>Math.hypot(a.pos.x-site.x,a.pos.z-site.z)-Math.hypot(b.pos.x-site.x,b.pos.z-site.z))[0];
+          if(leader!==bot&&foBomb.actor!==bot.id)goal=site.guards[idx%site.guards.length];
+        }
+        const dest=NAV_NODES[goal];
+        if(!dest)return null;
+        if(Math.hypot(dest.x-bot.pos.x,dest.z-bot.pos.z)<1.5)
+          return {target:null,speed:0};
+        bot.foObjectiveRepath=Math.max(0,(bot.foObjectiveRepath||0)-dt);
+        if(bot.foObjectiveGoal!==goal||!bot.foObjectivePath||bot.foObjectiveRepath<=0){
+          bot.foObjectivePath=findPathAStar(findNearestNavNode(bot.pos,true),goal,bot.blockedNode);
+          bot.foObjectiveIndex=0;bot.foObjectiveGoal=goal;bot.foObjectiveRepath=1.2;
+        }
+        const route=bot.foObjectivePath||[];
+        while(route[bot.foObjectiveIndex]!==undefined){
+          const n=NAV_NODES[route[bot.foObjectiveIndex]];
+          if(Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)>1.25)
+            return {target:new THREE.Vector3(n.x,n.y,n.z),speed:4.2};
+          bot.foObjectiveIndex++;
+        }
+        return {target:null,speed:0};
+      }
+      function refreshFoModeUi(){
+        const mode=matchState.mode;
+        const bomb=mode==='bomb';
+        document.getElementById('fo-radar-map').textContent=bomb?'DEPO 17 • BOMBA':'MARIEN • CQC';
+        document.getElementById('fo-score-rule').textContent=bomb?'TEK CAN':'HEDEF: 50';
+        document.getElementById('fo-bomb-status').classList.toggle('hidden',!bomb);
+        document.getElementById('fo-death-hint').textContent=bomb?'Bu maçta yeniden doğuş yok. Takımının sonucunu bekle.':'Sınıf değiştirmek için [1-5] veya [B] tuşuna bas';
+      }
 
       const player = {
         name: 'SEN (OYUNCU)',
@@ -8859,6 +9101,8 @@ function buildSquadLeadership() {
         document.getElementById('score-blue').textContent = matchState.scoreBlue;
         document.getElementById('score-red').textContent = matchState.scoreRed;
 
+        // Bomb match victories are evaluated by the independent objective.
+        if (matchState.mode === 'bomb') return;
         if (matchState.scoreBlue >= MATCH_TARGET_SCORE) {
           endMatch('blue');
         } else if (matchState.scoreRed >= MATCH_TARGET_SCORE) {
@@ -8894,6 +9138,11 @@ function buildSquadLeadership() {
           resTxt.className = 'text-lg font-black text-amber-400';
         }
 
+        if (matchState.mode==='bomb') {
+          resTxt.textContent += ' • '+foBomb.reason;
+          document.getElementById('respawn-overlay').classList.add('hidden');
+        }
+        document.getElementById('fo-mode-picker').style.display='flex';
         titleEl.textContent = 'MAÇ TAMAMLANDI';
         subEl.textContent = `Senin skorun: ${player.kills} eleme / ${player.deaths} ölüm • Yeni maç için sınıfını seç.`;
         subEl.classList.remove('hidden');
@@ -9925,6 +10174,10 @@ function buildSquadLeadership() {
           }
           camera.position.set(player.pos.x, player.pos.y + 0.72, player.pos.z);
           camera.rotation.set(-0.22, player.yaw, 0.14);
+          if (matchState.mode==='bomb') {
+            document.getElementById('respawn-countdown').textContent='TEK CAN';
+            return;
+          }
           player.respawnTimer -= dt;
           document.getElementById('respawn-countdown').textContent = Math.max(0, player.respawnTimer).toFixed(1);
           if (player.respawnTimer <= 0) {
@@ -10837,6 +11090,7 @@ function buildSquadLeadership() {
 
           if (!bot.alive) {
             observeBotCoverLifecycle(bot,nowSec);
+            if (matchState.mode==='bomb') continue;
             bot.respawnTimer -= dt;
             if (bot.respawnTimer <= 0) {
               respawnBot(bot);
@@ -11573,6 +11827,15 @@ function buildSquadLeadership() {
             }
           }
 
+          // Objective orders apply only in the new mode, after combat AI.
+          if (matchState.mode==='bomb'&&!bestEnemy&&bot.hp>=28) {
+            const order=getFoBombBotOrder(bot,dt);
+            if(order){
+              moveTargetPos=order.target;moveSpeed=order.speed;
+              bot.coverNode=-1;bot.coverPhase='NONE';
+              if(moveTargetPos)desiredUpperYaw=Math.atan2(moveTargetPos.x-bot.pos.x,moveTargetPos.z-bot.pos.z);
+            }
+          }
           // Complete a short walkable lateral sidestep before retrying A*.
           if (bot.unstuckTarget && bot.unstuckTimer > 0) {
             bot.unstuckTimer = Math.max(0, bot.unstuckTimer - dt);
@@ -12225,6 +12488,13 @@ function buildSquadLeadership() {
           rctx.fillRect(rx, rz, rw, rd);
         }
 
+        if (matchState.mode==='bomb') for(const site of FO_BOMB_SITES){
+          const x=(site.x-refPos.x)*scale,z=(site.z-refPos.z)*scale;
+          if(Math.hypot(x,z)<cx-8){
+            rctx.fillStyle=foBomb.site===site?'#e4b873':'#b4c5c5';
+            rctx.font='bold 11px monospace';rctx.fillText(site.id,x-3,z+4);
+          }
+        }
         if (isDroneView && player.alive) {
           const px = (player.pos.x - refPos.x) * scale;
           const pz = (player.pos.z - refPos.z) * scale;
@@ -12371,7 +12641,7 @@ function buildSquadLeadership() {
         }
       }
       function openClassMenu() {
-        if (!matchState.started || matchState.ended) return;
+        if (!matchState.started || matchState.ended || matchState.mode==='bomb') return;
         gamePaused = true;
         scoreboardReturnToPause = false;
         resetPausedInputs();
@@ -12474,7 +12744,14 @@ function buildSquadLeadership() {
       });
       updateClassMenuPreview();
 
+      const foModeSelect=document.getElementById('fo-game-mode');
+      foModeSelect.addEventListener('change',()=>{
+        document.getElementById('fo-map-caption').textContent=foModeSelect.value==='bomb'?'DEPO 17 • 6V6':'MARIEN • 6V6';
+      });
       document.getElementById('btn-deploy').addEventListener('click', (e) => {
+        if(matchState.started&&!matchState.ended&&matchState.mode==='bomb'){
+          resumeFromPause();return;
+        }
         if (e && e.currentTarget && typeof e.currentTarget.blur === 'function') {
           e.currentTarget.blur();
         }
@@ -12484,12 +12761,15 @@ function buildSquadLeadership() {
         document.getElementById('pause-overlay').classList.add('hidden');
         document.getElementById('scoreboard-overlay').classList.add('hidden');
         document.getElementById('menu-subtitle').classList.add('hidden');
-        const isNewMatch = matchState.ended;
+        const selectedMode=foModeSelect.value==='bomb'?'bomb':'deathmatch';
+        const isNewMatch = matchState.ended || (!matchState.started && selectedMode==='bomb');
         if (isNewMatch) {
           matchState.ended = false;
           matchState.scoreBlue = 0;
           matchState.scoreRed = 0;
-          matchState.timeRemaining = MATCH_DURATION_SEC;
+          matchState.mode=selectedMode;
+          matchState.timeRemaining = selectedMode==='bomb'?FO_BOMB_RULES.roundSeconds:MATCH_DURATION_SEC;
+          resetFoBomb();
           matchState.killStreak = 0;
           player.kills = 0;
           player.deaths = 0;
@@ -12500,9 +12780,12 @@ function buildSquadLeadership() {
           document.getElementById('low-hp-warning').classList.add('hidden');
           clearAllMatchEntities();
           droneSystem.resetAll();
+          selectFoMap(selectedMode);
           initBots();
         }
         matchState.started = true;
+        refreshFoModeUi();
+        document.getElementById('fo-mode-picker').style.display='none';
         if (isNewMatch || !player.alive) {
           player.classId = selectedMenuClass;
           respawnPlayer();
@@ -12569,6 +12852,7 @@ function buildSquadLeadership() {
         }
 
         if (e.code === 'KeyB' && matchState.started && !matchState.ended && !e.repeat) {
+          if(matchState.mode==='bomb'){keys[e.code]=false;return;}
           if (menuHidden) openClassMenu();
           else {
             initPlayerLoadout(selectedMenuClass);
@@ -12864,6 +13148,7 @@ function buildSquadLeadership() {
         if (player.grounded) { player.vel.y = 7.4; player.grounded = false; }
       });
       document.getElementById('btn-touch-class').addEventListener('click', () => {
+        if(matchState.mode==='bomb'&&matchState.started&&!matchState.ended)return;
         droneSystem.onOperatorInterrupted('player');
         document.getElementById('menu-overlay').classList.remove('hidden');
       });
@@ -12900,7 +13185,7 @@ function buildSquadLeadership() {
           const secs = Math.floor(matchState.timeRemaining % 60);
           document.getElementById('match-timer').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-          if (matchState.timeRemaining <= 0) {
+          if (matchState.timeRemaining <= 0 && matchState.mode!=='bomb') {
             const winner = matchState.scoreBlue > matchState.scoreRed ? 'blue' : (matchState.scoreRed > matchState.scoreBlue ? 'red' : 'draw');
             endMatch(winner);
           }
@@ -12909,6 +13194,7 @@ function buildSquadLeadership() {
           droneSystem.update(dt);
           updateBots(dt);
           updateEntitiesAndFX(dt);
+          updateFoBomb(dt);
 
           hudSyncTimer += dt;
           if (hudSyncTimer >= 0.12) {
@@ -12922,8 +13208,11 @@ function buildSquadLeadership() {
       }
 
       window.onload = function () {
+        const foMapBefore=new Set(scene.children);
         buildMarienCQCMap();
         validateGroundNavEdges();
+        FO_MAPS.deathmatch=captureFoMap(foMapBefore);
+        refreshFoModeUi();
         droneSystem.grantLifeCharge('player');
         initPlayerLoadout('assault');
         initBots();
