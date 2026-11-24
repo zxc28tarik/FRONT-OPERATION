@@ -42,3 +42,6 @@ jobs:
 
       - name: Run BOT AI V43 stalled-bot intent diagnostics regression
         run: node tests/bot_ai_v43_regression.cjs
+
+      - name: Run BOT AI V44 medic path clearance regression
+        run: node tests/bot_ai_v44_regression.cjs
