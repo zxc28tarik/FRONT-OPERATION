@@ -949,7 +949,7 @@
     <div class="fo-menu-panel my-auto" role="region" aria-label="Sınıf seçimi">
       <div class="fo-menu-header">
         <h1 id="menu-title">SINIF SEÇİMİ</h1>
-        <span class="fo-map-caption" id="fo-map-caption">MARIEN • 6V6</span>
+        <span class="fo-map-caption">MARIEN • 6V6</span>
       </div>
       <label id="fo-mode-picker" style="display:flex;align-items:center;gap:12px;margin:12px 0;color:#aebcbe;font-size:12px;font-weight:600;">
         OYUN MODU
@@ -5605,7 +5605,8 @@
         document.getElementById('fo-radar-map').textContent=bomb?'DEPO 17 • BOMBA':'MARIEN • CQC';
         document.getElementById('fo-score-rule').textContent=bomb?'TEK CAN':'HEDEF: 50';
         document.getElementById('fo-bomb-status').classList.toggle('hidden',!bomb);
-        document.getElementById('fo-death-hint').textContent=bomb?'Bu maçta yeniden doğuş yok. Takımının sonucunu bekle.':'Sınıf değiştirmek için [1-5] veya [B] tuşuna bas';
+        const hint=document.getElementById('fo-death-hint');
+        hint.innerHTML=bomb?'Bu maçta yeniden doğuş yok. Takımının sonucunu bekle.':'Sınıf değiştirmek için <span class="mono font-bold text-amber-300">[1-5]</span> veya <span class="mono font-bold text-amber-300">[B]</span> tuşuna bas';
       }
 
       const player = {
@@ -12455,6 +12456,10 @@ function buildSquadLeadership() {
         else if (player.pos.x < -18) zoneText = 'BATI HATTI • ENDÜSTRİYEL DEPO';
         else if (player.pos.x > 18) zoneText = 'DOĞU HATTI • AÇIK AVLU';
         else if (player.pos.y > 2.2) zoneText = '2. KAT • KESKİN NİŞANCI BALKONU';
+        if(matchState.mode==='bomb'){
+          const site=FO_BOMB_SITES.find(p=>foBombInside(player,p));
+          zoneText=site?'BOMBA BÖLGESİ '+site.id:(player.pos.z>39?'DERBARAN ÜSSÜ':player.pos.z<-39?'N.I.U. ÜSSÜ':'DEPO 17');
+        }
         document.getElementById('zone-indicator').textContent = zoneText;
       }
 
@@ -12746,7 +12751,7 @@ function buildSquadLeadership() {
 
       const foModeSelect=document.getElementById('fo-game-mode');
       foModeSelect.addEventListener('change',()=>{
-        document.getElementById('fo-map-caption').textContent=foModeSelect.value==='bomb'?'DEPO 17 • 6V6':'MARIEN • 6V6';
+        document.querySelector('.fo-map-caption').textContent=foModeSelect.value==='bomb'?'DEPO 17 • 6V6':'MARIEN • 6V6';
       });
       document.getElementById('btn-deploy').addEventListener('click', (e) => {
         if(matchState.started&&!matchState.ended&&matchState.mode==='bomb'){
@@ -13181,8 +13186,9 @@ function buildSquadLeadership() {
         if (matchState.started && !matchState.ended && !gamePaused) {
           recordBotFrameTiming(rawDt);
           matchState.timeRemaining = Math.max(0, matchState.timeRemaining - dt);
-          const mins = Math.floor(matchState.timeRemaining / 60);
-          const secs = Math.floor(matchState.timeRemaining % 60);
+          const displayedTime=matchState.mode==='bomb'&&foBomb.phase==='planted'?foBomb.seconds:matchState.timeRemaining;
+          const mins = Math.floor(displayedTime / 60);
+          const secs = Math.floor(displayedTime % 60);
           document.getElementById('match-timer').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
           if (matchState.timeRemaining <= 0 && matchState.mode!=='bomb') {
