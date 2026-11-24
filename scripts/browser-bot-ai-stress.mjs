@@ -37,9 +37,13 @@ try {
   const engine=await page.evaluate(() => window.__frontOperationAiQaAdvance(600));
   const wallTimeMs=Date.now()-start;
   const stats=engine?.report;
+  const nav=await page.evaluate(()=>window.__frontOperationAiQaSnapshot()?.navValidation);
   if(!stats||engine.simulatedSec!==600||stats.seconds<595)
     throw Error('600s bot engine clock not observed: '+
       JSON.stringify({sim:engine?.simulatedSec,clock:stats?.seconds}));
+  if(!nav||nav.checked<60||nav.reachableNodes!==50||nav.blockedEdges.length<4||
+      nav.blockedEdges.some(s=>typeof s!=='string'))
+    throw Error('V42 physical navigation pruning QA not observed: '+JSON.stringify(nav));
   const difficulties=['normal','hard','expert'];
   const byDifficulty=Object.fromEntries(difficulties.map(key=>{
     const s=stats.difficulty[key]||{};
@@ -78,6 +82,7 @@ try {
     simulatedSec:engine.simulatedSec,
     wallTimeMs,
     scoreRestarts:engine.scoreRestarts,
+    navValidation:nav,
     samples:stats.samples,
     botShots:totalShots,
     botHits:totalHits,
@@ -95,11 +100,11 @@ try {
         deaths:row.deaths,stuckRecoveries:row.stuckRecoveries}])),
     pageErrors:errors
   };
-  console.log('PASS V40 accelerated 600s real bot logic stress: '+
+  console.log('PASS V42 accelerated 600s real bot logic stress: '+
     JSON.stringify(result));
 } catch(e) {
   result={...result,error:String(e),pageErrors:errors};
-  console.error('FAIL V40 accelerated bot stress: '+String(e));
+  console.error('FAIL V42 accelerated bot stress: '+String(e));
   process.exitCode=1;
 } finally {
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(result,null,2));
