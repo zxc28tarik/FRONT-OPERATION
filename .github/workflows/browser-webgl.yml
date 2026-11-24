@@ -17,6 +17,7 @@ on:
       - ai/v44-medic-walkable-support
       - ai/v45-reachable-nav-origin
       - ai/v46-target-cover-consistency
+      - ai/v47-cover-lifecycle-reliability
   workflow_dispatch:
 
 jobs:
