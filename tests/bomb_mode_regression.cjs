@@ -38,7 +38,7 @@ ok(g.nodes[36].x===a.x&&g.nodes[36].z===a.z&&g.nodes[38].x===b.x&&g.nodes[38].z=
 ok(html.includes("if (matchState.mode==='bomb') continue;")&&html.includes("document.getElementById('respawn-countdown').textContent='TEK CAN';"),'Bot and player no-respawn gates');
 ok(html.includes('if (matchState.mode === \'bomb\') return;'),'Bomb victory not deathmatch kill target');
 ok(html.includes('FO_MAPS.deathmatch=captureFoMap(foMapBefore)')&&html.includes('installFoGraph(next.nodes,next.edges)'),'Original world/nav snapshot restored');
-ok(html.includes('updateFoBomb(dt);')&&html.includes('getFoBombBotOrder(bot,dt);'),'Game loop and bot objective integration');
+ok(html.includes('updateFoBomb(dt);')&&html.includes('foMissionOrder=getFoBombBotOrder(bot,dt)'),'Game loop and bot objective integration');
 // Evaluate the actual Tersane builder using a minimal Three.js adapter.
 // Collect every solid, run the same ground clearance as the game and
 // prove the four entrances are physical openings rather than visual labels.
