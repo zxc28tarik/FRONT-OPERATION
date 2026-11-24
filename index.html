@@ -11481,6 +11481,25 @@
         return speed*Math.max(.55,factor);
       }
 
+      // V65: smooth following is preferable to repeatedly dodging a moving
+      // teammate. Only use actual forward movement on a compatible route.
+      function botFriendlyFollowSpeed(bot,ally,fx,fz,along,speed){
+        const next=getBotPassageDestination(ally);
+        if(!next||along<1.2||Math.abs(ally.pos.y-bot.pos.y)>.35)return null;
+        const dx=next.x-ally.pos.x,dz=next.z-ally.pos.z,d=Math.hypot(dx,dz);
+        if(d<1.2||(dx*fx+dz*fz)/d<.8)return null;
+        const vx=ally.moveVelX||0,vz=ally.moveVelZ||0;
+        const forward=vx*fx+vz*fz;
+        if(forward<1.2||Math.abs(vx*fz-vz*fx)>forward*.5)return null;
+        // Do not queue behind a soldier on the opposite side of a wall.
+        for(const t of [.25,.5,.75,1]){
+          if(!isPositionWalkable(bot.pos.x+(ally.pos.x-bot.pos.x)*t,
+            bot.pos.y,bot.pos.z+(ally.pos.z-bot.pos.z)*t))return null;
+        }
+        // Desired following distance 2.25 m; close slowly rather than
+        // overtaking into the next soldier. At very small gaps use old yield.
+        return Math.min(speed,Math.max(1.0,forward+(along-2.25)*1.8));
+      }
       function inspectBotPassage(bot, destination, speed) {
         if (!destination || speed <= 2.2) return null;
         const vx = destination.x - bot.pos.x, vz = destination.z - bot.pos.z;
@@ -11513,6 +11532,8 @@
           assess({ id: 'player', team: player.team, alive: true, pos: player.pos, path: null });
         }
         if (!blocker) return null;
+        const followSpeed=botFriendlyFollowSpeed(bot,blocker,fx,fz,blockerDistance,speed);
+        if(followSpeed!==null)return {mode:'follow',blockerId:blocker.id,point:null,speed:followSpeed};
 
         const sideX = fz, sideZ = -fx;
         const first = bot.strafeDir === -1 ? -1 : 1;
@@ -13058,7 +13079,12 @@
           }
           if (selectedPlan.route && !bot.passageStepTarget && !bot.unstuckTarget && moveTargetPos && moveSpeed > 2.2 && (!bestEnemy || bot.coverPhase==='MOVE_TO_COVER' || bot.teamFlankGoalNode>=0)) {
             const passage = inspectBotPassage(bot, moveTargetPos, moveSpeed);
-            if (passage && passage.mode === 'sidestep') {
+            if (passage && passage.mode === 'follow') {
+              // Keep route, waypoint and behavior owner; only regulate speed.
+              moveSpeed=Math.min(moveSpeed,passage.speed);
+              bot.passageWaitTimer=0;
+              bot.behaviorPlan={...bot.behaviorPlan,speed:moveSpeed};
+            } else if (passage && passage.mode === 'sidestep') {
               bot.passageStepTarget = passage.point;
               bot.passageStepTimer = 0.9;
               bot.passageWaitTimer = 0;

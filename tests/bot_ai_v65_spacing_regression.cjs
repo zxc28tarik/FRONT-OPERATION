@@ -1,0 +1,27 @@
+'use strict';
+const fs=require('node:fs'),html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
+const a=html.indexOf('      // V57: distinguish the active route'),b=html.indexOf('      function selectBotRallyWaypoint(',a);
+class Vector3{constructor(x=0,y=0,z=0){Object.assign(this,{x,y,z})}}
+const nodes=[{x:0,y:0,z:10},{x:0,y:0,z:-10}];
+const self={id:'a',team:'blue',alive:true,pos:new Vector3(),strafeDir:1};
+const ally={id:'b',team:'blue',alive:true,pos:new Vector3(0,0,2),moveVelX:0,moveVelZ:3,behaviorPlan:{route:true,speed:3,target:nodes[0]}};
+const bots=[self,ally],player={alive:false};let walk=()=>true;
+const api=new Function('THREE','NAV_NODES','bots','player','isPositionWalkable',html.slice(a,b)+'\nreturn {passage:inspectBotPassage,follow:botFriendlyFollowSpeed};')({Vector3},nodes,bots,player,(...x)=>walk(...x));
+let n=0;const ok=(v,s)=>{if(!v)throw Error('V65 '+s);n++};
+const f=(gap=2,speed=5)=>api.follow(self,ally,0,1,gap,speed);
+ok(f()<3&&f()>1,'Follower brakes inside desired gap');
+ok(f(2.25)===3,'Matches leader velocity at desired gap');
+ok(f(3)>3&&f(3,3.2)===3.2,'Closes large gap without exceeding planned speed');
+ok(f(1.1)===null,'Very close contact uses existing avoidance');
+let result=api.passage(self,nodes[0],5);
+ok(result.mode==='follow'&&result.point===null,'Moving ally triggers follow, not lateral detour');
+ok(self.pos.z===0&&self.pos.x===0,'Decision does not teleport');
+ally.moveVelZ=0;ok(f()===null&&api.passage(self,nodes[0],5).mode==='sidestep','Stationary ally uses existing avoidance');
+ally.moveVelZ=3;ally.behaviorPlan.target=nodes[1];ok(f()===null,'Opposing route not followed');
+ally.behaviorPlan.target=nodes[0];ally.pos.y=1;ok(f()===null,'Different elevation not followed');
+ally.pos.y=0;walk=()=>false;ok(f()===null&&api.passage(self,nodes[0],5).mode==='yield','Blocked geometry falls back to yield');
+walk=()=>true;ally.moveVelX=3;ok(f()===null,'Sideways movement not followed');
+ally.moveVelX=0;ally.behaviorPlan.route=false;ok(f()===null,'Stationary plan does not inherit stale route');
+ally.behaviorPlan.route=true;ally.team='red';ok(api.passage(self,nodes[0],5)===null,'Enemy does not trigger following');
+ok(html.includes("if (passage && passage.mode === 'follow')")&&html.includes('moveSpeed=Math.min(moveSpeed,passage.speed);'),'Live loop applies cap');
+console.log('BOT AI V65 SPACING PASS ('+n+' checks)');
