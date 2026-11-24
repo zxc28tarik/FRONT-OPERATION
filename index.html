@@ -6011,14 +6011,33 @@
                   .sort((a,b)=>a.d-b.d);
                 if(extra.length)candidates.push(extra[0].i);
               }
-              const goal=prev&&prev.site===site&&candidates.includes(prev.goal)?prev.goal:
-                candidates.sort((a,b)=>Math.hypot(bot.pos.x-NAV_NODES[a].x,bot.pos.z-NAV_NODES[a].z)-
-                  Math.hypot(bot.pos.x-NAV_NODES[b].x,bot.pos.z-NAV_NODES[b].z))[0]??site.guards[Number(bot.id.split('_')[1])%site.guards.length];
+              const role=team==='red'?(planted?'RETAKE':'GUARD'):(planted?'HOLD':'ESCORT');
+              const goal=prev&&prev.site===site&&prev.role===role&&candidates.includes(prev.goal)?prev.goal:
+                candidates.sort((a,b)=>foClassGuardCost(bot,site,NAV_NODES[a],role)-
+                  foClassGuardCost(bot,site,NAV_NODES[b],role)||a-b)[0]??site.guards[Number(bot.id.split('_')[1])%site.guards.length];
               used.add(goal);
-              foBotPlan.orders.set(bot.id,{site,role:team==='red'?(planted?'RETAKE':'GUARD'):(planted?'HOLD':'ESCORT'),goal});
+              foBotPlan.orders.set(bot.id,{site,role,goal});
             }
           }
         }
+      }
+      // V69: bounded class preferences for existing game objective nodes.
+      // Travel and availability remain dominant; no new geometry or knowledge.
+      function foClassOperatorBias(bot){
+        if(bot.classId==='engineer')return -3;
+        if(bot.classId==='sniper')return 4;
+        if(bot.classId==='heavy')return 2;
+        return 0;
+      }
+      function foClassGuardCost(bot,site,node,role){
+        const travel=Math.hypot(bot.pos.x-node.x,bot.pos.z-node.z);
+        const range=Math.hypot(node.x-site.x,node.z-site.z);
+        const ideal=bot.classId==='sniper'?19:bot.classId==='heavy'?13:
+          bot.classId==='assault'?9:bot.classId==='medic'?7:bot.classId==='engineer'?6:null;
+        if(ideal===null)return travel;
+        const moving=role==='ESCORT'||role==='RETAKE';
+        const preferred=ideal-(moving?2:0);
+        return travel+Math.min(6,Math.abs(range-preferred)*(moving?.25:.45));
       }
       function foSiteTravelCost(group,site){
         return group.reduce((sum,b)=>sum+Math.hypot(b.pos.x-site.x,b.pos.z-site.z),0);
@@ -6031,7 +6050,7 @@
         const pool=available.length?available:group;
         const old=pool.find(b=>b.id===previous);
         if(old&&!old.visibleEnemy)return old;
-        const cost=b=>foSiteTravelCost([b],site)+(b.visibleEnemy?30:0)+(b.hp<28?12:0)+(b.activeDroneId?60:0);
+        const cost=b=>foSiteTravelCost([b],site)+(b.visibleEnemy?30:0)+(b.hp<28?12:0)+(b.activeDroneId?60:0)+foClassOperatorBias(b);
         return pool.slice().sort((a,b)=>cost(a)-cost(b)||String(a.id).localeCompare(String(b.id)))[0];
       }
       function foReportedSitePressure(intel,sites,now){
