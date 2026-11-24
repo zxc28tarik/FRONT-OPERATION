@@ -7,7 +7,7 @@ const seeds=process.argv.slice(2).map(Number);
 if(seeds.length<2||seeds.some(x=>!Number.isInteger(x)||x<=0))
   throw Error('Usage: node compare-bot-cover-stress.mjs <seed1> <seed2> [seed3...]');
 const basePath=path.resolve('test-artifacts/front-operation-bot-stress');
-const fields=['selections','arrivals','abandons','reassignments',
+const fields=['selections','arrivals','abandons','reassignments','retainedTargets',
   'stalledApproaches','orphanSeconds','approachSeconds','holdSeconds'];
 const rows=[];
 for(const seed of seeds){
