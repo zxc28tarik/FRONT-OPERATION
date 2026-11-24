@@ -5961,7 +5961,7 @@
         return true;
       }
       function getFoBombBotOrder(bot,dt){
-        if(!isFoBombMode()||!bot.alive||bot.visibleEnemy||bot.activeDroneId||bot.unstuckTimer>0)return null;
+        if(!isFoBombMode()||!bot.alive||bot.visibleEnemy||bot.activeDroneId)return null;
         const assigned=foBotPlan.orders.get(bot.id);
         if(!assigned)return null;
         const planted=foBomb.phase==='planted',idx=Math.max(0,Number(bot.id.split('_')[1])||0);
@@ -8535,7 +8535,9 @@ function buildSquadLeadership() {
         window.__frontOperationAiQaSnapshot = () => ({
           members: bots.map(b => ({
             id: b.id, team: b.team, classId: b.classId,
-            role: b.teamRole, difficulty: b.difficulty
+            role: b.teamRole, difficulty: b.difficulty,
+            behavior:b.behavior?.kind||null,lookOwner:b.behaviorPlan?.lookOwner||null,
+            behaviorTransitions:b.behavior?.transitions||0,localMovement:b.behaviorPlan?.local||null
           })),
           started: matchState.started,
           playerAlive: player.alive,
@@ -8956,6 +8958,7 @@ function buildSquadLeadership() {
         bot.hearingLastNoiseId = 0;
         bot.telemetryTargetId = null;
         bot.lastDirectContactAt = -Infinity;
+        bot.behavior=null;bot.behaviorPlan=null;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -11578,6 +11581,45 @@ function buildSquadLeadership() {
         return null;
       }
 
+      // V54: single authoritative movement and look owner. Legacy planners
+      // produce proposals; only this controller selects the plan consumed by physics.
+      const BOT_BEHAVIOR_PRIORITY=Object.freeze({
+        ADVANCE:10, HOLD:20, SUPPORT:30, INVESTIGATE:40, MISSION:50,
+        CONTACT_HOLD:60, ENGAGE:70, FLANK:75, COVER:80, RETREAT:90, DRONE:100
+      });
+      function selectBotBehaviorPlan(bot,proposals,nowSec){
+        let chosen=null;
+        for(const p of proposals){
+          if(!p||!Object.prototype.hasOwnProperty.call(BOT_BEHAVIOR_PRIORITY,p.kind))continue;
+          if(!chosen||BOT_BEHAVIOR_PRIORITY[p.kind]>BOT_BEHAVIOR_PRIORITY[chosen.kind])chosen=p;
+        }
+        chosen=chosen||{kind:'HOLD',target:null,speed:0,crouch:0,yaw:bot.legYaw};
+        const target=chosen.target&&[chosen.target.x,chosen.target.y,chosen.target.z].every(Number.isFinite)?chosen.target:null;
+        const speed=target&&Number.isFinite(chosen.speed)?Math.max(0,chosen.speed):0;
+        const route=!!target&&speed>0&&['ADVANCE','SUPPORT','INVESTIGATE','MISSION','FLANK','COVER','RETREAT'].includes(chosen.kind)&&chosen.route!==false;
+        const old=bot.behavior;
+        if(!old||old.kind!==chosen.kind){
+          bot.behavior={kind:chosen.kind,enteredAt:nowSec,transitions:(old?.transitions||0)+1};
+          bot.unstuckTarget=null;bot.unstuckTimer=0;
+          bot.passageStepTarget=null;bot.passageStepTimer=0;bot.passageWaitTimer=0;
+          bot.stuckTimer=0;
+          if(bot.lastCheckPos&&bot.pos)bot.lastCheckPos.copy(bot.pos);
+        }
+        return {kind:chosen.kind,target:speed>0?target:null,speed,
+          crouch:Number.isFinite(chosen.crouch)?Math.max(0,Math.min(1,chosen.crouch)):0,
+          yaw:Number.isFinite(chosen.yaw)?chosen.yaw:bot.legYaw,
+          lookOwner:chosen.lookOwner||chosen.kind,route,legacyState:chosen.legacyState||null};
+      }
+      function resolveBotLocalMovement(plan,override){
+        // Local recovery may steer an active route but may never wake a hold,
+        // change stance, steal aim, or start movement in a stationary fight.
+        if(!plan.route||!override)return plan;
+        if(override.yield)return {...plan,target:null,speed:0,local:'YIELD'};
+        const p=override.target;
+        if(!p||![p.x,p.y,p.z].every(Number.isFinite)||!Number.isFinite(override.speed))return plan;
+        return {...plan,target:p,speed:Math.max(0,override.speed),local:override.kind||'RECOVER'};
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -11643,6 +11685,7 @@ function buildSquadLeadership() {
           if (activeBotDrone) {
             bot.moveVelX = 0;
             bot.moveVelZ = 0;
+            bot.behaviorPlan=selectBotBehaviorPlan(bot,[{kind:'DRONE',speed:0,crouch:1,yaw:bot.legYaw}],nowSec);
             observeBotCoverLifecycle(bot,nowSec);
             bot.combatStrafeGoal = null;
             bot.crouchAmt += (1.0 - bot.crouchAmt) * Math.min(1, dt * 10);
@@ -11711,8 +11754,10 @@ function buildSquadLeadership() {
           let desiredUpperYaw = bot.legYaw;
           let foPriorityCombat=false;
           let foMissionOrder=null;
+          let behaviorHint='ADVANCE',lookOwner='ROUTE';
 
           if (bestEnemy) {
+            behaviorHint='ENGAGE';lookOwner='VISIBLE_TARGET';
             bot.supportGoalNode = -1;
             bot.rallyGoalNode = -1;
             const distToEnemy = Math.hypot(bestEnemy.pos.x - bot.pos.x, bestEnemy.pos.z - bot.pos.z);
@@ -11728,6 +11773,7 @@ function buildSquadLeadership() {
             }
 
             if (isWounded || isSniperTooClose) {
+              behaviorHint='RETREAT';
               bot.teamFlankGoalNode = -1;
               bot.teamFlankRoute = [];
               bot.combatStrafeGoal = null;
@@ -11800,6 +11846,7 @@ function buildSquadLeadership() {
               }
 
               if (bot.coverNode !== -1 && distToEnemy >= 7.0) {
+                behaviorHint='COVER';
                 bot.combatStrafeGoal = null;
                 const cn = NAV_NODES[bot.coverNode];
                 const dCover = Math.hypot(cn.x - bot.pos.x, cn.z - bot.pos.z);
@@ -11884,6 +11931,7 @@ function buildSquadLeadership() {
               if (previousFlank < 0 && bot.teamFlankGoalNode >= 0)
                 recordBotMetric(bot,'flankStarts');
               if (flankWp) {
+                behaviorHint='FLANK';
                 bot.coverNode = -1;
                 bot.coverPhase = 'NONE';
                 moveTargetPos = flankWp;
@@ -12012,6 +12060,7 @@ function buildSquadLeadership() {
             }
 
             if (visibleEnemyDrone) {
+              behaviorHint='ENGAGE';lookOwner='DRONE_TARGET';
               foPriorityCombat=true;
               setBotState(bot, 'ENGAGE', 0.7);
               const dDist = botEyeNoTarget.distanceTo(visibleEnemyDrone.pos);
@@ -12056,6 +12105,7 @@ function buildSquadLeadership() {
                    getTeamPinningOpportunity(bot, botEyeNoTarget, nowSec))
                 : null;
               if (coverOpp) {
+                behaviorHint='ENGAGE';lookOwner='SUPPORT_TARGET';
                 foPriorityCombat=true;
                 setBotState(bot, 'SUPPORT_ALLY', 0.85);
                 bot.suppressTargetPos = coverOpp.threatPos;
@@ -12098,6 +12148,7 @@ function buildSquadLeadership() {
                   );
                 }
               } else if ((bot.state === 'TAKE_COVER' || bot.state === 'RETREAT') && bot.coverNode !== -1 && bot.investigateTimer > 1.2) {
+                behaviorHint=isWounded?'RETREAT':'COVER';lookOwner='LAST_CONTACT';
                 const cn = NAV_NODES[bot.coverNode];
                 const dCover = Math.hypot(cn.x - bot.pos.x, cn.z - bot.pos.z);
                 bot.investigateTimer -= dt;
@@ -12147,12 +12198,14 @@ function buildSquadLeadership() {
                   desiredUpperYaw = Math.atan2(activeThreatPos.x - bot.pos.x, activeThreatPos.z - bot.pos.z);
                 }
               } else if (freshLostContact) {
+                behaviorHint='CONTACT_HOLD';lookOwner='LAST_CONTACT';
                 // Briefly hold the last observed angle before chasing or returning to the objective.
                 bot.investigateTimer=Math.max(0,bot.investigateTimer-dt);
                 setBotState(bot,'INVESTIGATE',.75,true);
                 desiredUpperYaw=Math.atan2(bot.lastKnownEnemyPos.x-bot.pos.x,bot.lastKnownEnemyPos.z-bot.pos.z);
                 moveSpeed=0;targetCrouch=.2;foPriorityCombat=true;
-              } else if (isFoBombMode() && bot.hp>=28 && bot.unstuckTimer<=0 && (foMissionOrder=getFoBombBotOrder(bot,dt))) {
+              } else if (isFoBombMode() && bot.hp>=28 && (foMissionOrder=getFoBombBotOrder(bot,dt))) {
+                behaviorHint='ADVANCE';
                 // Objective mode owns quiet movement; avoid running legacy patrol and medic routes underneath it.
                 bot.coverNode=-1;
                 bot.coverPhase='NONE';
@@ -12175,6 +12228,7 @@ function buildSquadLeadership() {
                 bot.supportAllyId = nextPatientId;
                 if (!injuredAlly) bot.supportGoalNode = -1;
                 if (injuredAlly) {
+                  behaviorHint='SUPPORT';
                   setBotState(bot, 'SUPPORT_ALLY', 0.9);
                   const allyEye = new THREE.Vector3(
                     injuredAlly.pos.x, injuredAlly.pos.y + 1.0, injuredAlly.pos.z
@@ -12220,6 +12274,7 @@ function buildSquadLeadership() {
                     deployMedkit(bot.pos.clone(), bot.team);
                   }
                 } else if (bot.lastKnownEnemyPos && bot.investigateTimer > 0) {
+                  behaviorHint='INVESTIGATE';lookOwner='LAST_CONTACT';
                   setBotState(bot, 'INVESTIGATE', 0.9);
                   bot.investigateTimer -= dt;
 
@@ -12281,6 +12336,7 @@ function buildSquadLeadership() {
                     assignBotTacticalGoal(bot);
                   }
                 } else if (bot.hearingPos && bot.hearingTimer > 0) {
+                  behaviorHint='INVESTIGATE';lookOwner='SOUND';
                   // Investigating sound is NOT visual contact: no damage,
                   // perfect target information or grenades at an unseen enemy.
                   bot.hearingTimer = Math.max(0, bot.hearingTimer - dt);
@@ -12315,6 +12371,7 @@ function buildSquadLeadership() {
                   if (!isSquadLeader && rallyPt && bot.classId !== 'sniper' && bot.classId !== 'engineer') {
                     const dRally = bot.pos.distanceTo(rallyPt);
                     if (dRally > 6.5 && dRally < 28 && Math.abs(rallyPt.y - bot.pos.y) < 1.5) {
+                      behaviorHint='SUPPORT';
                       setBotState(bot, 'SUPPORT_ALLY', 0.8);
                       const fwdSign = bot.team === 'blue' ? -1 : 1;
                       const roleOffsetX = bot.classId === 'medic' ? 0 : (bot.classId === 'heavy' ? -2.8 : 2.8);
@@ -12330,6 +12387,7 @@ function buildSquadLeadership() {
                   }
 
                   if (!moveTargetPos && moveSpeed > 0) {
+                    behaviorHint='ADVANCE';
                     bot.rallyGoalNode = -1;
                     setBotState(bot, 'ADVANCE', 0.7);
                     if (!bot.path || bot.pathIndex >= bot.path.length) {
@@ -12340,6 +12398,7 @@ function buildSquadLeadership() {
                         arrivedNode.tag === 'mid_cover'
                       );
                       if (arrivedNode && (arrivedNode.tag.startsWith('sniper') || arrivedNode.tag.endsWith('door') || isEngineerHoldNode)) {
+                        behaviorHint='HOLD';lookOwner='GUARD_SCAN';
                         setBotState(bot, 'DEFEND_HOLD', 1.2);
                         bot.stateTimer += dt;
                         // 4B + V25: Drone Operator BOT deploys its 1-per-life 110 HP drone from safe hold
@@ -12372,6 +12431,7 @@ function buildSquadLeadership() {
                 }
 
                 if (bot.alertPos && bot.alertTimer > 0) {
+                  lookOwner='ALERT';
                   desiredUpperYaw = Math.atan2(bot.alertPos.x - bot.pos.x, bot.alertPos.z - bot.pos.z);
                 } else if (bot.state === 'INVESTIGATE' && bot.lastKnownEnemyPos) {
                   desiredUpperYaw = Math.atan2(bot.lastKnownEnemyPos.x - bot.pos.x, bot.lastKnownEnemyPos.z - bot.pos.z);
@@ -12385,23 +12445,32 @@ function buildSquadLeadership() {
           // Mission movement never erases an active firefight, cover retreat,
           // drone engagement or fresh local contact. On a quiet objective
           // route the mission owns movement, while hearing can steer the head.
+          const proposals=[{kind:behaviorHint,target:moveTargetPos,speed:moveSpeed,crouch:targetCrouch,yaw:desiredUpperYaw,lookOwner,
+            route:!(bot.coverPhase==='CROUCH_HOLD'||bot.coverPhase==='PEEK_FIRE')}];
           if(isFoBombMode()&&!bestEnemy&&!foPriorityCombat&&bot.hp>=28&&
              !(bot.coverNode>=0&&bot.coverPhase!=='NONE'&&bot.investigateTimer>2.7)&&
              !(bot.state==='RETREAT'&&bot.investigateTimer>1.2)){
             foMissionOrder=foMissionOrder||getFoBombBotOrder(bot,dt);
             if(foMissionOrder){
-              moveTargetPos=foMissionOrder.target;moveSpeed=foMissionOrder.speed;
-              targetCrouch=foMissionOrder.crouch||0;
-              if(Number.isFinite(foMissionOrder.yaw))desiredUpperYaw=foMissionOrder.yaw;
-              else if(moveTargetPos)desiredUpperYaw=Math.atan2(moveTargetPos.x-bot.pos.x,moveTargetPos.z-bot.pos.z);
+              const mission={kind:'MISSION',target:foMissionOrder.target,speed:foMissionOrder.speed,crouch:foMissionOrder.crouch||0,yaw:desiredUpperYaw,lookOwner:'MISSION_ROUTE'};
+              if(Number.isFinite(foMissionOrder.yaw))mission.yaw=foMissionOrder.yaw;
+              else if(mission.target)mission.yaw=Math.atan2(mission.target.x-bot.pos.x,mission.target.z-bot.pos.z);
               const contact=bot.hearingPos&&bot.hearingTimer>0?bot.hearingPos:
                 (bot.lastKnownEnemyPos&&bot.investigateTimer>3.5?bot.lastKnownEnemyPos:null);
               if(contact&&Math.hypot(contact.x-bot.pos.x,contact.z-bot.pos.z)<22){
-                desiredUpperYaw=Math.atan2(contact.x-bot.pos.x,contact.z-bot.pos.z);
-                moveSpeed=Math.min(moveSpeed,2.5);
+                mission.yaw=Math.atan2(contact.x-bot.pos.x,contact.z-bot.pos.z);
+                mission.speed=Math.min(mission.speed,2.5);mission.lookOwner='MISSION_CONTACT';
               }
+              proposals.push(mission);
             }
           }
+          const selectedPlan=selectBotBehaviorPlan(bot,proposals,nowSec);
+          bot.behaviorPlan=selectedPlan;
+          if(selectedPlan.kind!=='MISSION')foMissionOrder=null;
+          moveTargetPos=selectedPlan.target;moveSpeed=selectedPlan.speed;
+          targetCrouch=selectedPlan.crouch;desiredUpperYaw=selectedPlan.yaw;
+          const legacyState=({ADVANCE:'ADVANCE',HOLD:'DEFEND_HOLD',SUPPORT:'SUPPORT_ALLY',INVESTIGATE:'INVESTIGATE',CONTACT_HOLD:'INVESTIGATE',ENGAGE:'ENGAGE',FLANK:'ENGAGE',COVER:'TAKE_COVER',RETREAT:'RETREAT',MISSION:moveSpeed>0?'ADVANCE':'DEFEND_HOLD'})[selectedPlan.kind];
+          if(legacyState&&bot.state!==legacyState)setBotState(bot,legacyState,.5,true);
           // New contact cancels obsolete navigation detours, but not an active escape from cover.
           if(bestEnemy && bot.coverPhase!=='MOVE_TO_COVER' && bot.telemetryTargetId!==previousTarget){
             bot.unstuckTarget=null;bot.unstuckTimer=0;
@@ -12409,6 +12478,7 @@ function buildSquadLeadership() {
           }
           // Complete a short walkable lateral sidestep before retrying A*.
           if(freshLostContact){bot.unstuckTarget=null;bot.unstuckTimer=0;bot.passageStepTarget=null;bot.passageStepTimer=0;}
+          if(!selectedPlan.route){bot.unstuckTarget=null;bot.unstuckTimer=0;bot.passageStepTarget=null;bot.passageStepTimer=0;bot.passageWaitTimer=0;}
           if (bot.unstuckTarget && bot.unstuckTimer > 0) {
             bot.unstuckTimer = Math.max(0, bot.unstuckTimer - dt);
             const remaining = Math.hypot(
@@ -12416,8 +12486,8 @@ function buildSquadLeadership() {
               bot.unstuckTarget.z - bot.pos.z
             );
             if (remaining > 0.32 && bot.unstuckTimer > 0) {
-              moveTargetPos = bot.unstuckTarget;
-              moveSpeed = Math.max(3.8, moveSpeed);
+              const local=resolveBotLocalMovement(selectedPlan,{target:bot.unstuckTarget,speed:Math.max(3.8,moveSpeed),kind:'UNSTUCK'});
+              moveTargetPos=local.target;moveSpeed=local.speed;bot.behaviorPlan=local;
             } else {
               bot.unstuckTarget = null;
               bot.unstuckTimer = 0;
@@ -12432,26 +12502,26 @@ function buildSquadLeadership() {
             if (Math.hypot(bot.passageStepTarget.x - bot.pos.x,
                            bot.passageStepTarget.z - bot.pos.z) > 0.35 &&
                 bot.passageStepTimer > 0) {
-              moveTargetPos = bot.passageStepTarget;
-              moveSpeed = Math.max(moveSpeed, 3.0);
+              const local=resolveBotLocalMovement(selectedPlan,{target:bot.passageStepTarget,speed:Math.max(moveSpeed,3.0),kind:'SIDESTEP'});
+              moveTargetPos=local.target;moveSpeed=local.speed;bot.behaviorPlan=local;
             } else {
               bot.passageStepTarget = null;
               bot.passageStepTimer = 0;
             }
           }
-          if (!bot.passageStepTarget && moveTargetPos && moveSpeed > 2.2 && (!bestEnemy || bot.coverPhase==='MOVE_TO_COVER' || bot.teamFlankGoalNode>=0)) {
+          if (selectedPlan.route && !bot.passageStepTarget && !bot.unstuckTarget && moveTargetPos && moveSpeed > 2.2 && (!bestEnemy || bot.coverPhase==='MOVE_TO_COVER' || bot.teamFlankGoalNode>=0)) {
             const passage = inspectBotPassage(bot, moveTargetPos, moveSpeed);
             if (passage && passage.mode === 'sidestep') {
               bot.passageStepTarget = passage.point;
               bot.passageStepTimer = 0.9;
               bot.passageWaitTimer = 0;
-              moveTargetPos = passage.point;
-              moveSpeed = Math.max(moveSpeed, 3.0);
+              const local=resolveBotLocalMovement(selectedPlan,{target:passage.point,speed:Math.max(moveSpeed,3.0),kind:'SIDESTEP'});
+              moveTargetPos=local.target;moveSpeed=local.speed;bot.behaviorPlan=local;
             } else if (passage && passage.mode === 'yield') {
               passageHolding = true;
               bot.passageWaitTimer += dt;
-              moveTargetPos = null;
-              moveSpeed = 0;
+              const local=resolveBotLocalMovement(selectedPlan,{yield:true});
+              moveTargetPos=local.target;moveSpeed=local.speed;bot.behaviorPlan=local;
               if (bot.passageWaitTimer >= 1.6 && bot.passageRepathCooldown <= 0) {
                 const goal = foMissionOrder ? foMissionOrder.goal : bot.coverNode >= 0 ? bot.coverNode :
                   (bot.supportGoalNode >= 0 ? bot.supportGoalNode :
@@ -12478,7 +12548,7 @@ function buildSquadLeadership() {
           if(moveTargetPos&&!bestEnemy&&moveSpeed>2.2){
             moveSpeed=limitBotCornerSpeed(bot,moveTargetPos,moveSpeed);
           }
-          const hasRouteIntent = moveTargetPos && moveSpeed > 2.2 &&
+          const hasRouteIntent = selectedPlan.route && moveTargetPos && moveSpeed > 2.2 &&
             Math.hypot(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z) > 1.55;
           let moveX = 0;
           let moveZ = 0;
