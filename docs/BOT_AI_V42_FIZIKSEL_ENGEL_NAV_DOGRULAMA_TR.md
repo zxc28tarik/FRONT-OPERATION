@@ -47,3 +47,17 @@ Bu seçim, görsel bariyerleri kaldırmak veya botların duvar içinden geçmesi
 - V42 dal: https://github.com/zxc28tarik/FRONT-OPERATION/tree/ai/v42-collider-aware-nav-edges
 
 `main` dalına birleştirme izinsiz yapılmaz.
+
+## 24 Kasım 2026 — gerçek V42 stres tekrarları
+
+İlk doğrulanmış üç bağımsız V42 600 simüle saniyelik Chromium oyun motoru koşusunda:
+
+| Çalıştırma | Sıkışma kurtarma | Öne çıkan düğüm | A* filtreleme |
+|---|---:|---|---|
+| [45370473412](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45370473412) | **54** | 11 ve 32: 5'er | 16 fiziksel engelli kenar elendi |
+| [45370596634](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45370596634) | **56** | 9: 14 | 16 kenar; 50/50 düğüm erişilebilir |
+| [45370619688](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45370619688) | **149** | 9: 110 (108 kırmızı Sıhhiye) | 16 kenar; 50/50 düğüm erişilebilir |
+
+Üç koşu da başarılı ve V41'in 191 kurtarmasından düşüktür; fakat 54-149 arası fark yüksek. V42'nin her maçta %71,7 iyileşme garantilediği **iddia edilemez**. 149 olaylı koşunun **113'ü yalnız kırmızı Sıhhiye botunda (red_1)** gerçekleşti; araştırılması gereken kalan odak budur. Bu bilgi olmadan bot hızını veya nişan dengelerini değiştirmek doğru olmaz.
+
+Ölçümler *farklı rastgele maçlar* olduğundan kontrollü sabit tohumlu A/B denemesi değildir; gelecekte aynı başlangıç koşullarıyla tekrarlanabilir örnekler hazırlanmalıdır.
