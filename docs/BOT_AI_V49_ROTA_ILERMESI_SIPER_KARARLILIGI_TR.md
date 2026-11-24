@@ -47,3 +47,27 @@ V48 A* üzerinde kalan gerçek siper mesafesini `routeLastProgressAt` ile kaydet
 **Değerlendirme:** Atama başına varış oranı %51,8→%52,8 artsa da toplam gerçek varış −%7 ve fiziksel sıkışma kurtarması +%12 yükseldi. Bu nedenle ikinci ayarı da son onay olarak işaretlemiyoruz.
 
 **Üçüncü ayar:** V49 rota-koruma istisnası fiziksel bir sıkışma/yandan kaçış hâlinde çalışmayacak. `stuckFailures>0`, aktif `unstuckTimer` veya süresi dolmamış `blockedNodeTimer` bulunan botlar mevcut güvenli taktik yeniden seçim yoluna döner. Bu sürüme dört ilave deterministik kontrol eklendi (**toplam 640 bot regresyonu**). Üçüncü ayarın stres ve WebGL sonuçları, kendi CI koşusundan ayrı doğrulanmalıdır.
+
+
+## Üçüncü (son) V49 stres sonucu
+
+**PASS:** [Chromium A/B #45384436891](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45384436891). Kontrol V48 `625b79c00cad85be1716af1b3d834b72836ef9df`; V49, aynı seed'lerde fiziksel sıkışma istisnası da içeren sürüm `30ffd77fd853dea465569e11f121d41e07382f3c`.
+
+| Ölçüm (3×600 simüle saniye) | V48 | V49 üçüncü ayar | Fark |
+|---|---:|---:|---:|
+| Doğrudan siper yeniden atama | 1.039 | **769** | −270 (−%26,0) |
+| Fiziksel sıkışma kurtarması | 116 | **103** | −13 (−%11,2) |
+| Yaklaşmada altı saniyelik rota duraksaması | 29 | **17** | −12 (−%41,4) |
+| Siper seçimi | 3.826 | 3.500 | −326 |
+| Gerçek siper varışı | 1.980 | 1.818 | −162 (−%8,2) |
+| Varış / siper seçimi | %51,8 | %51,9 | +0,2 yüzde puan |
+| Siper tutma (bot-saniye) | 1.078 | 1.019 | −59 (−%5,5) |
+| Atış | 6.779 | 6.848 | +69 |
+| İsabet | 965 | **1.042** | +77 (+%8,0) |
+| Siper için A* kurtarma | 17 | 10 | −7 |
+
+**Yorum:** Sıkışma, uzun rota durağanlığı ve yeniden atamalarda net düşüş ile isabette artış var. Bunun yanında toplam varış ve siperde geçirilen süre azaldı. Bu iki metrikte V48'e göre üstünlük iddia edilmiyor. Varış/seçim oranı yaklaşık aynı kaldı; toplam varış azalmasının önemli kısmı daha az siper görevi seçilmesiyle ilişkili olabilir, nedensel kanıt değildir.
+
+**Koruma testleri:** 640/640 bot regresyonu ve 12/12 onaylı kaynak koruması PASS ([CI](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45384449171)). V49 oyun kodunu içeren Chromium/WebGL 6v6 kabulü PASS ([WebGL](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45384443157)). Tüm sayılar hızlandırılmış bot motoru testi içindir; canlı insan oturumu yoktur.
+
+**Durum:** V49 taslak PR #11. `main` dalına birleştirme yapılmadı. İleriki aşamada gerçek siper kullanımı / gerçek varış sayısı korunurken çatışma verimliliğini artırma ele alınmalıdır.
