@@ -12463,7 +12463,7 @@
       function botHeavyGustavReady(bot,enemy,now,distance){
         const c=bot.gustavContact;
         return bot.classId==='heavy'&&!bot.gustavUsedThisLife&&!!enemy&&!!c&&
-          c.id===enemy.id&&now===c.lastSeen&&now-c.started>=3.5&&c.rounds>=6&&
+          c.id===enemy.id&&now===c.lastSeen&&now-c.started>=1.5&&c.rounds>=3&&
           distance>=11&&distance<=38;
       }
       function recordBotHeavyGustavRound(bot,enemy){
@@ -12490,6 +12490,18 @@
            bot.teamFlankGoalNode>=0||!clearLane||contact.fired)return false;
         const elapsed=now-contact.started;
         return elapsed>=0&&elapsed<1.55;
+      }
+      // V83: weapon recovery elapses in real game time, independently of aim.
+      function tickBotFireCooldown(bot,dt){
+        bot.fireTimer=Math.max(0,(Number.isFinite(bot.fireTimer)?bot.fireTimer:0)-Math.max(0,dt));
+      }
+      // Preserve an exposed, clear opening shot while aiming or slowing down.
+      // Never override wounded retreat, close sniper retreat or an existing cover.
+      function botOpeningFirePriority(bot,enemy,now,clearLane,wounded,tooClose,pressure){
+        const c=bot.contactOpportunity;
+        return !!(enemy&&c&&c.id===enemy.id&&!c.fired&&clearLane&&!wounded&&!tooClose&&
+          bot.coverNode<0&&now>=c.started&&now-c.started<2.5&&
+          (!pressure||bot.teamFlankGoalNode<0));
       }
       function botShouldSeekTacticalCover(bot,enemy,dist,clearLane,now){
         if(!enemy)return false;
@@ -12637,6 +12649,7 @@
             continue;
           }
 
+          tickBotFireCooldown(bot,dt);
           if (bot.abilityCooldown > 0) bot.abilityCooldown = Math.max(0, bot.abilityCooldown - dt);
           if (bot.stateLockTimer > 0) bot.stateLockTimer = Math.max(0, bot.stateLockTimer - dt);
           if (bot.coverSearchCooldown > 0) bot.coverSearchCooldown = Math.max(0, bot.coverSearchCooldown - dt);
@@ -12754,7 +12767,12 @@
             const botWeaponId=botAmmoWeapon(bot,botPreferredInfantryWeapon(bot,distToEnemy));
             const isSniperTooClose = bot.classId === 'sniper' && distToEnemy < 11.5;
             const initialFireLane=isBotFireLaneClear(bot,bestEnemy.eye);
-            const holdContact=botShouldHoldContact(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
+            const pressure=botObservedPressure(bot,bestEnemy,distToEnemy);
+            const openingPriority=botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
+            if(openingPriority&&bot.teamFlankGoalNode>=0&&!pressure){
+              bot.teamFlankGoalNode=-1;bot.teamFlankRoute=[];bot.teamFlankPathIndex=0;
+            }
+            const holdContact=openingPriority||botShouldHoldContact(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
             if (!isWounded && !isSniperTooClose && distToEnemy > 8) {
               refreshBotCoverForMovingEnemy(bot, activeThreatPos, dt);
             }
@@ -12887,7 +12905,7 @@
 
             // A single squad flanker can approach the same observed enemy
             // from another navigable lane, without overruling emergency retreat.
-            if (!isWounded && !isSniperTooClose && bot.coverNode < 0 && distToEnemy > 14 && !holdContact) {
+            if (!isWounded && !isSniperTooClose && bot.coverNode < 0 && distToEnemy > 14 && !holdContact && (!initialFireLane || pressure || bot.teamFlankGoalNode>=0)) {
               const previousFlank = bot.teamFlankGoalNode;
               const flankWp = getTeamFlankWaypoint(bot, nowSec);
               if (previousFlank < 0 && bot.teamFlankGoalNode >= 0)
@@ -12960,9 +12978,6 @@
             } else {
               bot.fireLaneBlockTimer = 0;
               bot.fireLaneRecoveryGoal = null;
-            }
-            if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned) {
-              bot.fireTimer -= dt;
             }
             if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0 &&
                 botTrySpendRound(bot,botWeaponId)) {
@@ -13057,10 +13072,6 @@
               moveSpeed = 1.8;
 
               // Drones use the same aim and ally-line rules as infantry.
-              if (isBotAimAligned(bot, visibleEnemyDrone.pos) &&
-                  isBotFireLaneClear(bot, visibleEnemyDrone.pos)) {
-                bot.fireTimer -= dt;
-              }
               const botWeaponId=botAmmoWeapon(bot,bot.classId === 'assault' ? 'hk416'
                   : (bot.classId === 'medic' || bot.classId === 'engineer') ? 'mp7'
                   : (bot.classId === 'sniper' ? 'glock18c' : 'minimi'));
