@@ -23,8 +23,8 @@ V47 son 3×600 simüle saniyelik eşleştirilmiş testte siper seçim kararsızl
 
 ## Test kapsamı
 
-- `tests/bot_ai_v48_regression.cjs`: 27 deterministik kontrol: duvar çevresinde kuş uçuşu uzaklığın artmasına rağmen A* ilerleme ölçülmesi; gerçek yaklaşma; başka düğüme A* yol doğrulaması; görünür düşman ve kanat emri güvenlik kapıları; alternatif yoksa normal çatışmaya dönme; cooldown; onaylı V20 seçici imzası.
-- V32–V47: **583 önceki kontrol**, toplam **610** bot regresyonu.
+- `tests/bot_ai_v48_regression.cjs`: 28 deterministik kontrol: duvar çevresinde kuş uçuşu uzaklığın artmasına rağmen A* ilerleme ölçülmesi; gerçek yaklaşma; başka düğüme A* yol doğrulaması; görünür düşman ve kanat emri güvenlik kapıları; alternatif yoksa normal çatışmaya dönme; cooldown; onaylı V20 seçici imzası.
+- V32–V47: **583 önceki kontrol**, toplam **611** bot regresyonu.
 - `scripts/check-best-components.mjs`: 12 onaylı bileşen için kesin kaynak eşleştirmeleri.
 - Gerçek Chromium/WebGL 6v6 oyuna giriş kabulü.
 - `scripts/browser-bot-ai-stress.mjs` ve `scripts/compare-bot-cover-stress.mjs` kullanılarak **471001, 471002, 471003** aynı başlangıç tohumlarında V47 bazına karşı V48 adayı koşulur. Kontrol commit'i `5356db87317340a02e88ef65db7ee6c73e7581a8`'dir. Karşılaştırma ayrı tarayıcı oturumlarında gerçek `updateBots` ile simüle saniyeyi çalıştırır.
@@ -66,3 +66,10 @@ Bu nedenle son kaynak kodunda:
 - Gereksiz yeniden seçim yaratmamak için fiziksel sıkışma kapısı en az **bir gerçek kurtarma olayı + 4,2 saniye A* ilerlemesi kaybı** ister. Değişiklikler yalnızca `coverPhase=MOVE_TO_COVER` ve gerçek görünür düşman varken uygulanır.
 
 Böylece V47'nin karar hissiyatı ile V48'in daha doğru fiziksel teşhis sistemi birbirine karışmaz. Bu revizyonun sonuçları ayrıca aynı üç başlangıç tohumu üzerinden değerlendirilir; 3,6 saniyelik ilk kötü ayarın sonuçları yeni sürüm için geçerli sayılmaz.
+
+
+## Gecikmeli kurtarma ve eşit başlangıçlı karşılaştırma
+
+İlk tutarlı üç-tohumlu A/B koşusunda ([#45381718407](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45381718407)), maçların başlatılması ve 600 saniyelik hızlandırma aynı tarayıcı çağrısına alındı; PRNG yeni maç başlamadan hemen önce aynı tohumdan sıfırlandı. Baseline ve adayda *atış, isabet, siper seçimi, varış ve sıkışma sayıları tamamen eşit*, yalnız `coverStalledApproaches` **42→26** çıktı. Bu, yeni A* teşhisinin oyunun davranışını bozmadığını, fakat kurtarma koşulunun hiç tetiklenmediğini kanıtlıyor.
+
+Bunun üzerine **iki kademeli acil kurtarma** eklendi: (1) 4,2 saniye gerçek A* ilerleme kaybı ve en az bir fiziksel sıkışma; **veya** (2) fiziksel sıkışma sayacı olmasa bile aynı siper hedefi için **7,2 saniyelik uzun ve kesintisiz gerçek rota ilerleme kaybı**. Yakın taktik duraksamalar ve kanat emirleri korunur. Testin son sürümdeki davranışı doğrulaması ayrıca gereklidir; gecikmeli kurtarmanın daha iyi olduğu henüz varsayılmaz. Çift hedefli bu sınır için 28. deterministik V48 kontrolü eklenmiştir.
