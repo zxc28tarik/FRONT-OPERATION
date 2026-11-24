@@ -170,7 +170,7 @@ try {
     return { events: sounds.length, kinds: sounds.map(e => e.kind) };
   });
 
-  await test('V40 real 6v6 bot metrics integrity', async () => {
+  await test('V46 real 6v6 bot metrics integrity (V40 retained)', async () => {
     // Headless software WebGL varies strongly in frame throughput.
     // Wait for actual AI samples instead of assuming wall-clock 1.25s.
     await page.waitForFunction(() => {
@@ -182,7 +182,7 @@ try {
     const stats = await page.evaluate(() =>
       window.__frontOperationAiQaSnapshot?.()?.botMetrics);
     if (!stats) throw Error('V40 live telemetry snapshot missing');
-    if (stats.version !== 40 || stats.samples < 1 ||
+    if (stats.version !== 46 || stats.samples < 1 ||
         stats.teams.blue.spawns !== 5 || stats.teams.red.spawns !== 6) {
       throw Error('V40 match counters did not initialize correctly: ' +
         JSON.stringify(stats).slice(0, 800));

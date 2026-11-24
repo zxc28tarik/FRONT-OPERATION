@@ -41,7 +41,7 @@ function runBotAiV35Regression(html){
  ok(del[0]>del[1]&&del[1]>del[2]&&del[2]>0.1,'Reaction time scales on identical threats');
  const aimSrc=between('          const bestEnemy = bot.visibleEnemy;','          if (!bestEnemy) {');
  const tick=new Function('bot','dt','getBotSkillProfile','isBotAimAligned',
-  'const updateBotAimTracking = (_bot, enemy) => enemy ? enemy.eye : null;\nconst previouslyHeard = false;\nconst recordBotMetric = () => {};\n'+aimSrc+'\nreturn {ready:isAimSettled,reacted:isReactionReady,elapsed:bot.aimSettleTimer};');
+  'const updateBotAimTracking = (_bot, enemy) => enemy ? enemy.eye : null;\nconst previouslyHeard = false;\nconst previousTarget = null;\nconst recordBotMetric = () => {};\nconst recordBotTargetTransition = () => {};\n'+aimSrc+'\nreturn {ready:isAimSettled,reacted:isReactionReady,elapsed:bot.aimSettleTimer};');
  for(const difficulty of ['normal','hard','expert']){
   const bot={difficulty,visibleEnemy:{eye:{x:0,y:1,z:12}},
    reactionTimer:0.6,reactionRequired:0.1,aimSettleTimer:0};

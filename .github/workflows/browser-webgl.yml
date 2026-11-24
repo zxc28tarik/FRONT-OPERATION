@@ -16,6 +16,7 @@ on:
       - ai/v43-stuck-context-diagnostics
       - ai/v44-medic-walkable-support
       - ai/v45-reachable-nav-origin
+      - ai/v46-target-cover-consistency
   workflow_dispatch:
 
 jobs:
