@@ -9322,7 +9322,7 @@
         bot.state = 'ADVANCE';
         bot.assignedLane = bot.squadId;
         bot.burstCount = 0;
-        bot.ammoState={};bot.botReload=null;bot.lastAmmoWeapon=null;bot.foObjectiveDelay=null;
+        bot.ammoState={};bot.botReload=null;bot.lastAmmoWeapon=null;bot.foObjectiveDelay=null;bot.retreatRouteRetry=null;
         bot.stuckTimer = 0;
         bot.stuckFailures = 0;
         bot.blockedNode = -1;
@@ -11573,6 +11573,39 @@
         bot.hearingRoute=route.length>1&&route[route.length-1]===goal?route:[];
         bot.hearingRouteIndex=0;
       }
+      // V80: retreat only follows a path attached to the current cover goal.
+      function botRetreatWaypoint(bot,now,walk,nearest,search){
+        const goal=bot.coverNode,dest=NAV_NODES[goal];
+        if(!dest)return null;
+        const valid=()=>Array.isArray(bot.path)&&bot.path.length>0&&bot.path.at(-1)===goal;
+        const next=()=>{
+          if(!valid())return null;
+          while(bot.pathIndex<bot.path.length){
+            const p=NAV_NODES[bot.path[bot.pathIndex]];
+            if(!p){bot.path=[];bot.pathIndex=0;return null;}
+            if(Math.hypot(p.x-bot.pos.x,p.z-bot.pos.z)>=1.35||Math.abs(p.y-bot.pos.y)>=1.5){
+              if(bot.path.length===1&&!walk(bot.pos,p))return null;
+              return p;
+            }
+            bot.pathIndex++;
+          }
+          return null;
+        };
+        let target=next();
+        if(target)return target;
+        if(walk(bot.pos,dest)){
+          if(!valid()){bot.path=[];bot.pathIndex=0;}
+          return dest;
+        }
+        const retry=bot.retreatRouteRetry;
+        if(retry&&retry.goal===goal&&now<retry.until)return null;
+        bot.retreatRouteRetry={goal,until:now+.8};
+        const start=nearest(bot.pos,true),route=search(start,goal,bot.blockedNode);
+        bot.path=Array.isArray(route)&&route.length>0&&route[0]===start&&route.at(-1)===goal&&
+          (route.length>1||walk(bot.pos,dest))?route:[];
+        bot.pathIndex=0;
+        return next();
+      }
       function getBotActiveRoute(bot,kind){
         const owner=kind||bot.behaviorPlan?.kind||bot.behavior?.kind;
         if(owner==='MISSION')return {path:bot.foObjectivePath||[],index:bot.foObjectiveIndex||0,key:'foObjectiveIndex'};
@@ -12707,7 +12740,7 @@
               if (bot.coverNode !== -1) {
                 const cn = NAV_NODES[bot.coverNode];
                 const dCover = Math.hypot(cn.x - bot.pos.x, cn.z - bot.pos.z);
-                if (dCover < 1.35 && Math.abs(cn.y - bot.pos.y) < 1.2) {
+                if (dCover < 1.35 && Math.abs(cn.y - bot.pos.y) < 1.2 && isBotDirectWalkingLineClear(bot.pos,cn)) {
                   bot.coverPhase = 'CROUCH_HOLD';
                   moveSpeed = 0;
                   targetCrouch = 1;
@@ -12717,15 +12750,9 @@
                   }
                 } else {
                   moveSpeed = bot.classId === 'heavy' ? 4.8 : 5.7;
-                  if (bot.path && bot.path[bot.pathIndex] !== undefined) {
-                    const wp = NAV_NODES[bot.path[bot.pathIndex]];
-                    moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
-                    if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) < 1.35 && Math.abs(wp.y - bot.pos.y) < 1.5) {
-                      bot.pathIndex++;
-                    }
-                  } else {
-                    moveTargetPos = new THREE.Vector3(cn.x, cn.y, cn.z);
-                  }
+                  const wp=botRetreatWaypoint(bot,nowSec,isBotDirectWalkingLineClear,findNearestNavNode,findPathAStar);
+                  moveTargetPos=wp?new THREE.Vector3(wp.x,wp.y,wp.z):null;
+                  if(!wp)moveSpeed=0;
                 }
               } else {
                 const awayX = bot.pos.x - bestEnemy.pos.x;
@@ -13066,7 +13093,7 @@
                 const dCover = Math.hypot(cn.x - bot.pos.x, cn.z - bot.pos.z);
                 bot.investigateTimer -= dt;
 
-                if (dCover < 1.45 && Math.abs(cn.y - bot.pos.y) < 1.2) {
+                if (dCover < 1.45 && Math.abs(cn.y - bot.pos.y) < 1.2 && (!isWounded||isBotDirectWalkingLineClear(bot.pos,cn))) {
                   if (isWounded) {
                     moveSpeed = 0;
                     targetCrouch = 1;
@@ -13079,14 +13106,20 @@
                   }
                 } else {
                   moveSpeed = isWounded ? 5.6 : 4.8;
-                  if (bot.path && bot.path[bot.pathIndex] !== undefined) {
-                    const wp = NAV_NODES[bot.path[bot.pathIndex]];
-                    moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
-                    if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) < 1.35 && Math.abs(wp.y - bot.pos.y) < 1.5) {
-                      bot.pathIndex++;
+                  if(isWounded){
+                    const wp=botRetreatWaypoint(bot,nowSec,isBotDirectWalkingLineClear,findNearestNavNode,findPathAStar);
+                    moveTargetPos=wp?new THREE.Vector3(wp.x,wp.y,wp.z):null;
+                    if(!wp)moveSpeed=0;
+                  }else{
+                    if (bot.path && bot.path[bot.pathIndex] !== undefined) {
+                      const wp = NAV_NODES[bot.path[bot.pathIndex]];
+                      moveTargetPos = new THREE.Vector3(wp.x, wp.y, wp.z);
+                      if (Math.hypot(wp.x - bot.pos.x, wp.z - bot.pos.z) < 1.35 && Math.abs(wp.y - bot.pos.y) < 1.5) {
+                        bot.pathIndex++;
+                      }
+                    } else {
+                      moveTargetPos = new THREE.Vector3(cn.x, cn.y, cn.z);
                     }
-                  } else {
-                    moveTargetPos = new THREE.Vector3(cn.x, cn.y, cn.z);
                   }
                 }
 
