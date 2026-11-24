@@ -47,7 +47,7 @@ function runBotAiV34Regression(html) {
   const api = new Function(
     'THREE','NAV_NODES','bots','player','isPositionWalkable','hasLineOfSight',
     'findNearestNavNode','findPathAStar','findBestCoverNode',
-    helpers + '\nreturn {inspectBotPassage,selectBotRallyWaypoint,refreshBotCoverForMovingEnemy};'
+    'const botAiClockSec=4;\n' + helpers + '\nreturn {inspectBotPassage,selectBotRallyWaypoint,refreshBotCoverForMovingEnemy};'
   )(
     { Vector3 }, nodes, bots, player,
     (...args) => walk(...args), (...args) => visible(...args),
