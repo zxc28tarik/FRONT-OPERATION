@@ -11662,9 +11662,9 @@ function buildSquadLeadership() {
           const previouslyHeard = !!(bot.hearingPos && bot.hearingTimer > 0);
           updateBotPerception(bot, dt, targetClaimCounts);
           considerBotHeardNoise(bot, nowSec, dt);
+          if(bot.visibleEnemy)bot.lastDirectContactAt=nowSec;
+          const freshLostContact=!bot.visibleEnemy&&!!bot.lastKnownEnemyPos&&Number.isFinite(bot.lastDirectContactAt)&&nowSec-bot.lastDirectContactAt<.75;
           const bestEnemy = bot.visibleEnemy;
-          if(bestEnemy)bot.lastDirectContactAt=nowSec;
-          const freshLostContact=!bestEnemy&&!!bot.lastKnownEnemyPos&&Number.isFinite(bot.lastDirectContactAt)&&nowSec-bot.lastDirectContactAt<.75;
           const currentTarget = bestEnemy ? bestEnemy.id : null;
           if (currentTarget && currentTarget !== previousTarget) recordBotMetric(bot,'sightings');
           recordBotTargetTransition(bot, previousTarget, currentTarget);
