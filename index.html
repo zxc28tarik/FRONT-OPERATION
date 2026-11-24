@@ -8540,7 +8540,8 @@ function buildSquadLeadership() {
             behaviorTransitions:b.behavior?.transitions||0,localMovement:b.behaviorPlan?.local||null,
             activeLookOwner:b.lookControl?.owner||null,lookTransitions:b.lookControl?.transitions||0,
             lookYawVelocity:b.lookYawVelocity||0,locomotionMode:b.locomotionMode||'HOLD',
-            locomotionSpeed:b.locomotionSpeed||0,dodgeMode:b.dodgeMode||'HOLD'
+            locomotionSpeed:b.locomotionSpeed||0,dodgeMode:b.dodgeMode||'HOLD',
+            routeOwner:b.behaviorPlan?.route?b.behaviorPlan.kind:null,routeProgress:b.routeProgress?.best??null
           })),
           started: matchState.started,
           playerAlive: player.alive,
@@ -8964,6 +8965,7 @@ function buildSquadLeadership() {
         bot.behavior=null;bot.behaviorPlan=null;
         bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
         bot.locomotionMode='HOLD';bot.dodgeMode='HOLD';bot.locomotionSpeed=0;
+        bot.routeProgress=null;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -11193,6 +11195,64 @@ function buildSquadLeadership() {
 
       // V34: Make friendly corridor negotiation deterministic. An infantryman
       // behind an ally yields; head-on encounters use stable ID precedence.
+      // V57: distinguish the active route from stale routes owned by other behaviors.
+      function getBotActiveRoute(bot,kind){
+        const owner=kind||bot.behaviorPlan?.kind||bot.behavior?.kind;
+        if(owner==='MISSION')return {path:bot.foObjectivePath||[],index:bot.foObjectiveIndex||0,key:'foObjectiveIndex'};
+        if(owner==='FLANK')return {path:bot.teamFlankRoute||[],index:bot.teamFlankPathIndex||0,key:'teamFlankPathIndex'};
+        return {path:bot.path||[],index:bot.pathIndex||0,key:'pathIndex'};
+      }
+      function getBotRouteLeg(bot,target,kind){
+        if(!target)return null;
+        const route=getBotActiveRoute(bot,kind);
+        for(const index of [route.index,route.index-1]){
+          const node=NAV_NODES[route.path[index]];
+          if(node&&Math.abs(node.y-target.y)<.2&&Math.hypot(node.x-target.x,node.z-target.z)<.2)
+            return {...route,index,node,next:NAV_NODES[route.path[index+1]]||null};
+        }
+        return null;
+      }
+      function getBotPassageDestination(bot){
+        const plan=bot.behaviorPlan;
+        // A stationary objective, guard, or fighter has no travel direction.
+        if(plan)return plan.route&&plan.speed>0?plan.target:null;
+        const route=getBotActiveRoute(bot);
+        return NAV_NODES[route.path[route.index]]||null;
+      }
+      function botRouteProgress(bot,target,dt,localRecovery){
+        if(!target){bot.routeProgress=null;return null;}
+        const d=Math.hypot(target.x-bot.pos.x,target.z-bot.pos.z);
+        const p=bot.routeProgress;
+        if(!p||Math.abs(p.y-target.y)>.35||Math.hypot(p.x-target.x,p.z-target.z)>.65||p.local!==!!localRecovery){
+          bot.routeProgress={x:target.x,y:target.y,z:target.z,d,best:d,elapsed:0,local:!!localRecovery};
+          return null;
+        }
+        p.elapsed+=dt;p.best=Math.min(p.best,d);
+        if(p.elapsed<1.1)return null;
+        const progress=p.d-p.best;
+        bot.routeProgress={x:target.x,y:target.y,z:target.z,d,best:d,elapsed:0,local:!!localRecovery};
+        return progress;
+      }
+      function chooseBotRouteLookahead(bot,leg){
+        if(!leg||!leg.next||Math.abs(leg.node.y-leg.next.y)>.30||Math.abs(bot.pos.y-leg.next.y)>.35)return null;
+        if(Math.hypot(leg.node.x-bot.pos.x,leg.node.z-bot.pos.z)>2.1)return null;
+        const dx=leg.next.x-bot.pos.x,dz=leg.next.z-bot.pos.z;
+        if(Math.hypot(dx,dz)>12)return null;
+        // Only bypass a near waypoint if body clearance remains valid.
+        const samples=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.22));
+        for(let i=1;i<=samples;i++)if(!isPositionWalkable(bot.pos.x+dx*i/samples,bot.pos.y,bot.pos.z+dz*i/samples))return null;
+        return leg.next;
+      }
+      function botRouteCornerLimit(bot,leg,speed){
+        if(!leg||!leg.next)return speed;
+        const ax=leg.node.x-bot.pos.x,az=leg.node.z-bot.pos.z,bx=leg.next.x-leg.node.x,bz=leg.next.z-leg.node.z;
+        const a=Math.hypot(ax,az),b=Math.hypot(bx,bz);
+        if(a<.2||a>4||b<.2)return speed;
+        const dot=Math.max(-1,Math.min(1,(ax*bx+az*bz)/(a*b)));
+        const factor=1-(1-dot)*.30*(1-a/4);
+        return speed*Math.max(.55,factor);
+      }
+
       function inspectBotPassage(bot, destination, speed) {
         if (!destination || speed <= 2.2) return null;
         const vx = destination.x - bot.pos.x, vz = destination.z - bot.pos.z;
@@ -11208,7 +11268,7 @@ function buildSquadLeadership() {
           const lateral = Math.abs(ax * fz - az * fx);
           if (along <= 0.35 || along >= 3.1 || lateral > 1.05) return;
           // If both soldiers are facing each other, only one yields.
-          const nextNode = ally.path && NAV_NODES[ally.path[ally.pathIndex]];
+          const nextNode = getBotPassageDestination(ally);
           if (nextNode) {
             const odx = nextNode.x - ally.pos.x, odz = nextNode.z - ally.pos.z;
             const olen = Math.hypot(odx, odz);
@@ -11615,7 +11675,7 @@ function buildSquadLeadership() {
           bot.behavior={kind:chosen.kind,enteredAt:nowSec,transitions:(old?.transitions||0)+1};
           bot.unstuckTarget=null;bot.unstuckTimer=0;
           bot.passageStepTarget=null;bot.passageStepTimer=0;bot.passageWaitTimer=0;
-          bot.stuckTimer=0;
+          bot.stuckTimer=0;bot.routeProgress=null;
           if(bot.lastCheckPos&&bot.pos)bot.lastCheckPos.copy(bot.pos);
         }
         return {kind:chosen.kind,target:speed>0?target:null,speed,
@@ -12398,7 +12458,8 @@ function buildSquadLeadership() {
                   if (!hasLineOfSight(routeFrom, routeTo) || !isBotDirectWalkingLineClear(bot.pos,investigationPos)) {
                     const investigationGoal = findNearestNavNode(investigationPos);
                     if (bot.investigateGoalNode !== investigationGoal ||
-                        !bot.path || bot.pathIndex >= bot.path.length) {
+                        ((!bot.path || bot.pathIndex >= bot.path.length) && (bot.investigateRetryAt||0)<=nowSec)) {
+                      bot.investigateRetryAt=nowSec+.8;
                       bot.path = findPathAStar(
                         findNearestNavNode(bot.pos, true), investigationGoal, bot.blockedNode
                       );
@@ -12611,6 +12672,15 @@ function buildSquadLeadership() {
             }
           }
 
+          // A route follower can skip a nearby corner only after checking body clearance.
+          let routeLeg=selectedPlan.route&&!bot.unstuckTarget&&!bot.passageStepTarget?getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind):null;
+          const ahead=chooseBotRouteLookahead(bot,routeLeg);
+          if(ahead){
+            bot[routeLeg.key]=Math.max(bot[routeLeg.key]||0,routeLeg.index+1);
+            moveTargetPos=new THREE.Vector3(ahead.x,ahead.y,ahead.z);
+            routeLeg=getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind);
+            bot.behaviorPlan={...selectedPlan,target:moveTargetPos};
+          }
           // Negotiation occurs after tactical routing and before physics.
           // An intentional yield is not a navigation failure (no stuck timer).
           let passageHolding = false;
@@ -12640,7 +12710,7 @@ function buildSquadLeadership() {
               const local=resolveBotLocalMovement(selectedPlan,{yield:true});
               moveTargetPos=local.target;moveSpeed=local.speed;bot.behaviorPlan=local;
               if (bot.passageWaitTimer >= 1.6 && bot.passageRepathCooldown <= 0) {
-                const goal = foMissionOrder ? foMissionOrder.goal : bot.coverNode >= 0 ? bot.coverNode :
+                const goal = foMissionOrder ? foMissionOrder.goal : selectedPlan.kind==='FLANK'?bot.teamFlankGoalNode:bot.coverNode >= 0 ? bot.coverNode :
                   (bot.supportGoalNode >= 0 ? bot.supportGoalNode :
                   (bot.rallyGoalNode >= 0 ? bot.rallyGoalNode : bot.goalNode));
                 const occupied = bots.find((b) => b.id === passage.blockerId);
@@ -12649,8 +12719,9 @@ function buildSquadLeadership() {
                   if (avoidNode !== goal) {
                     const alternative = findPathAStar(findNearestNavNode(bot.pos, true), goal, avoidNode);
                     if (alternative.length > 1 && alternative[alternative.length - 1] === goal &&
-                        alternative.some((node, index) => node !== (bot.path || [])[index])) {
+                        alternative.some((node, index) => node !== getBotActiveRoute(bot,selectedPlan.kind).path[index])) {
                       if(foMissionOrder){bot.foObjectivePath=alternative;bot.foObjectiveIndex=0;bot.foObjectiveRepath=.65;}
+                      else if(selectedPlan.kind==='FLANK'){bot.teamFlankRoute=alternative;bot.teamFlankPathIndex=0;}
                       else {bot.path = alternative;bot.pathIndex = 0;}
                     }
                   }
@@ -12664,12 +12735,13 @@ function buildSquadLeadership() {
           // Turn-aware approach: brake before abrupt route changes, without slowing straight movement.
           if(moveTargetPos&&!bestEnemy&&moveSpeed>2.2){
             moveSpeed=limitBotCornerSpeed(bot,moveTargetPos,moveSpeed);
+            if(!bot.behaviorPlan.local)moveSpeed=botRouteCornerLimit(bot,getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind),moveSpeed);
           }
           const locomotion=resolveBotLocomotion(bot,selectedPlan,moveTargetPos,moveSpeed,targetCrouch,desiredUpperYaw);
           bot.locomotionMode=locomotion.mode;moveSpeed=locomotion.speed;
           const holding=locomotion.mode==='HOLD';
-          const hasRouteIntent = selectedPlan.route && moveTargetPos && moveSpeed > 2.2 &&
-            Math.hypot(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z) > 1.55;
+          const hasRouteIntent = selectedPlan.route && moveTargetPos && moveSpeed > .8 &&
+            Math.hypot(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z) > .55;
           let moveX = 0;
           let moveZ = 0;
           if (moveTargetPos && moveSpeed > 0) {
@@ -12706,10 +12778,9 @@ function buildSquadLeadership() {
 
           const beforeMoveX = bot.pos.x;
           const beforeMoveZ = bot.pos.z;
-          const navIdx = foMissionOrder ? bot.foObjectivePath?.[bot.foObjectiveIndex] : bot.path && bot.path[bot.pathIndex];
-          const navNode = navIdx === undefined ? null : NAV_NODES[navIdx];
-          const isIntermediateWaypoint = !!(navNode && moveTargetPos &&
-            (foMissionOrder ? bot.foObjectiveIndex < bot.foObjectivePath.length-1 : bot.pathIndex < bot.path.length - 1) &&
+          const motionLeg=selectedPlan.route&&!bot.behaviorPlan.local?getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind):null;
+          const navNode=motionLeg?.node;
+          const isIntermediateWaypoint = !!(navNode && moveTargetPos && motionLeg.next &&
             Math.hypot(navNode.x - moveTargetPos.x, navNode.z - moveTargetPos.z) < 0.2);
           // Limit combined overlap nudges, so a crowd cannot push a stationary soldier into a run.
           if(holding){const push=Math.hypot(moveX,moveZ);if(push>.65){moveX*=.65/push;moveZ*=.65/push;}}
@@ -12737,11 +12808,14 @@ function buildSquadLeadership() {
           }
 
           if (hasRouteIntent) {
+            const forwardProgress=botRouteProgress(bot,moveTargetPos,dt,!!bot.behaviorPlan.local);
             bot.stuckTimer += dt;
             if (bot.stuckTimer >= 1.1) {
-              const movedDist = Math.hypot(
+              const actualMoved = Math.hypot(
                 bot.pos.x - bot.lastCheckPos.x, bot.pos.z - bot.lastCheckPos.z
               );
+              // A soldier circling the same waypoint is stuck even when feet are moving.
+              const movedDist=forwardProgress===null?actualMoved:Math.min(actualMoved,forwardProgress*2);
               bot.lastCheckPos.copy(bot.pos);
               bot.stuckTimer = 0;
               if (movedDist < 0.55) {
@@ -12767,7 +12841,7 @@ function buildSquadLeadership() {
                     ? findNearestNavNode(bot.lastKnownEnemyPos) : bot.goalNode)));
                 if (goal >= 0 && goal < NAV_NODES.length) {
                   const recovered = findPathAStar(findNearestNavNode(bot.pos, true), goal, bot.blockedNode);
-                  if(foMissionOrder){bot.foObjectivePath=recovered;bot.foObjectiveIndex=0;bot.foObjectiveRepath=.65;}
+                  if(foMissionOrder){bot.foObjectivePath=recovered.length===1&&!foBotSegmentClear(bot.pos,NAV_NODES[goal])?[]:recovered;bot.foObjectiveIndex=0;bot.foObjectiveRepath=.65;}
                   else if (bot.teamFlankGoalNode >= 0) {
                     bot.teamFlankRoute = recovered;
                     bot.teamFlankPathIndex = 0;
@@ -12800,7 +12874,7 @@ function buildSquadLeadership() {
               }
             }
           } else {
-            bot.stuckTimer = 0;
+            bot.stuckTimer = 0;bot.routeProgress=null;
             bot.lastCheckPos.copy(bot.pos);
           }
 
