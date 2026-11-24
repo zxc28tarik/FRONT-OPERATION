@@ -45,3 +45,6 @@ jobs:
 
       - name: Run BOT AI V44 medic path clearance regression
         run: node tests/bot_ai_v44_regression.cjs
+
+      - name: Run BOT AI V45 reachable A-star origin regression
+        run: node tests/bot_ai_v45_regression.cjs
