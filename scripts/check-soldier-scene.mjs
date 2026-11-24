@@ -91,12 +91,12 @@ for (const team of ['blue', 'red']) {
       // V26/V26B adds production-quality layers on top of V25+V11.
       // Exact deltas protect against removing these approved details.
       ['root', 2],
-      ['upperBody', role === 'medic' ? 15 : 14],
-      ['head', 9],
-      ['leftHip', 2],
-      ['rightHip', 2],
-      ['leftKnee', 2],
-      ['rightKnee', 2],
+      ['upperBody', role === 'medic' ? 16 : 15],
+      ['head', 10],
+      ['leftHip', 3],
+      ['rightHip', 3],
+      ['leftKnee', 3],
+      ['rightKnee', 3],
       ['weaponPivot', role === 'sniper' ? 5 : 7]
     ]) {
       assert.equal(model[part].children.length - baseline[part].children.length, difference,
@@ -106,6 +106,11 @@ for (const team of ['blue', 'red']) {
     assert.ok(model.rightHip.children.at(-1).position.x > 0, 'right cargo pocket outside thigh');
     assert.ok(model.head.children.length > baseline.head.children.length,
       'V26 helmet enhancements remain attached to original V25 head pivot');
+    for(const [part,name] of [['head','head'],['upperBody','carrier'],['leftHip','trouser'],['rightHip','trouser'],['leftKnee','boot'],['rightKnee','boot']]){
+      const group=model[part].children.find(p=>p.name==='v99_'+name);
+      assert.ok(group&&group.children.length>=3,team+'/'+role+' V99 detail '+part);
+      assert.ok(group.children.every(p=>p.parent===group&&!p.castShadow),'V99 details remain visual only');
+    }
     for (const field of required) assert.ok(model[field], `${team}/${role} missing ${field}`);
     assert.equal(model.head.parent, model.upperBody, 'headGroup attached to chest');
     assert.ok(model.head.children.length >= 7, 'helmet/goggles/NVG are attached to headGroup');
@@ -142,5 +147,5 @@ assert.equal(actualMuzzle.y, 1.26);
 assert.equal(fakeRoot.position.y, -0.16);
 assert.equal(fakeRoot.updated, true);
 assert.equal(getMuzzle(null, new Vector3(0, 1.45, 0)).y, 1.45);
-console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B details, head and muzzle hierarchy');
+console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99 details, head and muzzle hierarchy');
 console.log('PASS: visible BOT muzzle world position and fallback');

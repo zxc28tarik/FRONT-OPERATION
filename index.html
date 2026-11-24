@@ -5721,6 +5721,103 @@
           sling.position.set(-0.055, -0.023, mainLen * 0.13);
           weapon.add(sling);
         }
+        // V99: sculpted cloth, head protection and layered equipment, using the approved rig.
+        // Shared geometries/materials, no new hit volumes or weapon/animation pivots.
+        if(!G.v99){
+          const material=(color,roughness=.9,metalness=0)=>new THREE.MeshStandardMaterial({color,roughness,metalness});
+          G.v99={
+            sphere:new THREE.SphereGeometry(1,12,8),
+            box:new THREE.BoxGeometry(1,1,1),
+            cylinder:new THREE.CylinderGeometry(1,1,1,12),
+            taper:new THREE.CylinderGeometry(.88,1,1,12),
+            clothBlue:material(0x425366),clothRed:material(0x634547),
+            seamBlue:material(0x253442),seamRed:material(0x3d292d),
+            mask:material(0x303438),maskEdge:material(0x43474a),
+            rubber:material(0x191e23,.97),strap:material(0x464740,.98),
+            hard:material(0x414a50,.68,.16),stitch:material(0x817868,.93),
+            lens:material(0x314957,.29,.34),lensEdge:material(0x64747b,.42,.35),
+            olive:material(0x4b5141),med:material(0xa04742)
+          };
+        }
+        const D=G.v99,cloth=team==='blue'?D.clothBlue:D.clothRed,seam=team==='blue'?D.seamBlue:D.seamRed;
+        const detail=(parent,name)=>{
+          const g=new THREE.Group();g.name='v99_'+name;parent.add(g);return g;
+        };
+        const part=(parent,geo,mat,x,y,z,w,h,d,rx=0,ry=0,rz=0)=>{
+          const m=createLimbMesh(geo,mat,false);m.position.set(x,y,z);m.scale.set(w,h,d);m.rotation.set(rx,ry,rz);parent.add(m);return m;
+        };
+        const ell=(g,m,x,y,z,w,h,d,rx=0,ry=0,rz=0)=>part(g,D.sphere,m,x,y,z,w,h,d,rx,ry,rz);
+        const block=(g,m,x,y,z,w,h,d,rx=0,ry=0,rz=0)=>part(g,D.box,m,x,y,z,w,h,d,rx,ry,rz);
+        const tube=(g,m,x,y,z,w,h,d,rx=0,ry=0,rz=0)=>part(g,D.cylinder,m,x,y,z,w,h,d,rx,ry,rz);
+        const face=detail(model.head,'head');
+        // Rounded balaclava front, nose bridge and cheek volume replace the blocky silhouette visually.
+        const mask=classId==='sniper'?D.olive:D.mask;
+        ell(face,mask,0,-.045,.075,.077,.060,.047);
+        ell(face,D.maskEdge,0,-.018,.112,.024,.028,.021,-.12);
+        for(const s of [-1,1]){
+          ell(face,mask,s*.053,-.028,.085,.033,.043,.029,0,s*.25);
+          block(face,D.rubber,s*.047,-.003,.133,.078,.042,.012,0,-s*.13);
+          ell(face,D.lens,s*.047,.010,.142,.038,.019,.009,0,-s*.12);
+          block(face,D.lensEdge,s*.047,.024,.148,.054,.004,.004,0,-s*.12);
+          block(face,D.strap,s*.103,-.037,.061,.012,.072,.018,0,0,-s*.26);
+          ell(face,D.hard,s*.132,.002,-.011,.013,.033,.035);
+          block(face,D.hard,s*.120,.053,-.024,.018,.013,.078);
+        }
+        block(face,D.rubber,0,-.067,.117,.045,.006,.005);
+        // Helmet cover seams, front bracket, rear retention panel.
+        ell(face,D.hard,0,.100,-.011,.101,.037,.102);
+        block(face,D.strap,0,.122,-.018,.021,.009,.131);
+        block(face,D.hard,0,.069,.122,.052,.035,.017);
+        block(face,D.strap,0,.034,-.129,.069,.045,.015);
+        const rig=detail(model.upperBody,'carrier');
+        // Rounded edges and tapered textile volumes soften the existing rectangular chest.
+        for(const s of [-1,1]){
+          ell(rig,cloth,s*.156,.312,-.012,.053,.131,.107,0,0,-s*.12);
+          ell(rig,D.hard,s*.122,.429,.023,.043,.026,.106,0,0,s*.15);
+          block(rig,D.strap,s*.122,.386,.147,.038,.115,.017);
+          block(rig,D.hard,s*.122,.391,.160,.041,.028,.011);
+          ell(rig,D.strap,s*.169,.242,.002,.015,.074,.088);
+          // Sleeve elbow folds follow the existing weapon-holding torso.
+          const sx=s<0?-.18:.21,sz=s<0?.13:.09;
+          ell(rig,cloth,sx,.306,sz,.058,.035,.062,-.5,0,s*.13);
+        }
+        for(const px of [-.095,0,.095]){
+          ell(rig,D.strap,px,.252,.181,.037,.027,.021);
+          block(rig,D.hard,px,.214,.184,.015,.049,.009);
+          block(rig,D.stitch,px,.187,.181,.046,.004,.006);
+        }
+        block(rig,D.strap,0,.320,.178,.128,.009,.012);
+        block(rig,D.hard,0,.321,.187,.024,.017,.009);
+        // Class-specific pack outlines; preserve medical sign, launcher and original weapons.
+        if(classId==='medic'){
+          for(const s of [-1,1])block(rig,D.med,s*.111,.29,-.252,.023,.27,.019);
+          block(rig,D.strap,0,.152,-.254,.20,.020,.018);
+        }else if(classId==='engineer'){
+          for(const s of [-1,1])block(rig,D.strap,s*.090,.28,-.258,.030,.26,.015);
+          block(rig,D.hard,0,.398,-.254,.11,.025,.023);
+        }else if(classId==='heavy'){
+          for(const s of [-1,1])ell(rig,D.hard,s*.232,.398,.086,.069,.071,.022);
+          block(rig,D.strap,0,.19,-.280,.23,.038,.017);
+        }else if(classId==='sniper'){
+          for(const s of [-1,1])for(let j=0;j<3;j++)
+            block(rig,j%2?D.strap:D.olive,s*(.105+j*.032),.40-j*.038,-.078,.053,.018,.106,0,s*.36,s*.16);
+        }else{
+          block(rig,D.strap,0,.265,-.161,.24,.10,.030);
+          block(rig,D.hard,0,.265,-.181,.044,.038,.014);
+        }
+        for(const [hip,knee,s] of [[model.leftHip,model.leftKnee,-1],[model.rightHip,model.rightKnee,1]]){
+          const leg=detail(hip,'trouser');leg.position.x=s*.004;
+          ell(leg,cloth,s*.005,-.14,.015,.076,.092,.061);
+          ell(leg,seam,0,-.27,.030,.058,.018,.043,-.14);
+          block(leg,D.strap,s*.083,-.16,.012,.013,.026,.095);
+          const boot=detail(knee,'boot');
+          ell(boot,D.hard,0,-.013,.073,.048,.059,.025);
+          block(boot,D.strap,0,-.052,.067,.093,.012,.021);
+          ell(boot,cloth,0,-.17,.012,.059,.074,.048);
+          block(boot,D.rubber,0,-.414,.143,.106,.022,.077);
+          for(const z of [-.037,.02,.078,.136])block(boot,D.rubber,0,-.448,z,.112,.009,.026);
+          for(const z of [.045,.078,.111])block(boot,D.strap,0,-.365,z,.065,.008,.012,-.16);
+        }
         return model;
       }
       function createEnhancedBotSoldierMesh(team, classId) {
