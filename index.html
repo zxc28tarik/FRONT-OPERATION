@@ -3638,6 +3638,12 @@
         {id:'A',x:-16,z:-28,node:36,guards:[31,35,37,41]},
         {id:'B',x:16,z:-28,node:38,guards:[33,37,39,43]}
       ];
+      const FO_TERSANE_ROUTES=[
+        {id:'west',name:'KAPALI DEPO',x:-32,entry:10,exit:15},
+        {id:'alley',name:'BATI SOKAGI',x:-16,entry:11,exit:16},
+        {id:'service',name:'SERVIS KORIDORU',x:0,entry:12,exit:17},
+        {id:'loading',name:'YUKLEME HATTI',x:32,entry:14,exit:19}
+      ];
       function depotGraph() {
         const nodes=[],edges=[],xs=[-32,-16,0,16,32],zs=[50,39,28,17,6,-6,-17,-28,-39,-50];
         for(let row=0;row<zs.length;row++)for(let col=0;col<xs.length;col++){
@@ -3762,6 +3768,55 @@
           deco(x,2.5,z,.16,5,.16,trim);
           deco(x,5,z,.6,.18,.45,light);
         }
+        // Four real openings across the dividing wall, not four painted arrows.
+        // The continuous wall segments meet the perimeter; only these four
+        // openings connect the southern deployment yard to the forward sector.
+        const gateZ=21;
+        for(const [lo,hi] of [[-40,-35.3],[-28.7,-19.3],[-12.7,-3.3],[3.3,28.7],[35.3,40]]){
+          box((lo+hi)/2,gateZ,hi-lo,1.2,4.6,darkWall);
+          deco((lo+hi)/2,4.66,gateZ,hi-lo+.08,.16,1.36,metal);
+        }
+        for(const route of FO_TERSANE_ROUTES){
+          const x=route.x;
+          for(const dx of [-3.32,3.32])deco(x+dx,2.3,gateZ,.2,4.6,1.48,trim);
+          // Open headroom under a lintel with a physical collision volume.
+          addSolidBox(x,4.32,gateZ,6.6,.56,1.25,metal,true,true,true);
+          sign(route.name,x,4.05,gateZ+.69,0,'#a5b3ad');
+        }
+        // Long enclosed west storage hall. Two side doors connect the
+        // neighboring lane without exposing the entire building.
+        slab(-32,20,11,34,darkFloor);
+        box(-38,20,1,34,5.1,wall);
+        for(const [z,len] of [[6,6],[19,10],[32,6]])box(-27.8,z,1,len,5.1,wall);
+        for(const z of [3,37]){
+          for(const x of [-36.5,-28.2])box(x,z,3.0,1.0,5.1,wall);
+          deco(-32,4.74,z,6.4,.3,1.2,metal);
+        }
+        roof(-32.8,20,12.7,35.5,5.1);
+        for(const z of [7,14,27,34]){
+          deco(-32.8,4.9,z,11,.19,.26,trim);
+          deco(-32.8,4.72,z,4.2,.10,.20,light);
+        }
+        for(const z of [10,30]){
+          box(-35.3,z,2.2,3.4,1.35,crate);
+          deco(-35.3,1.44,z,2.35,.16,3.6,trim);
+        }
+        sign('DEPO',-32,4.2,37.65,0,'#a6b5ae');
+        // Additional enclosed equipment room on the eastern approach.
+        // Short roof and two end doorways; the east route remains traversable.
+        slab(32,-5,10,17,darkFloor);
+        for(const x of [27.5,37.5])box(x,-5,.8,17,4.6,wall);
+        for(const z of [-13.5,3.5]){
+          for(const x of [28.4,36.6])box(x,z,2.5,.9,4.6,wall);
+          deco(32,4.25,z,5.6,.27,1.1,metal);
+        }
+        roof(32.5,-5,11.5,18.2,4.6);
+        for(const z of [-10,-3,1]){
+          deco(32.5,4.37,z,9.7,.18,.2,trim);
+          deco(32.5,4.2,z,3.8,.11,.16,light);
+        }
+        box(35,-7,2.1,2.5,1.15,crate);
+        sign('EKIPMAN',32,3.5,4.1,0,'#9eaaa8');
         // Objective markers stay purely game-specific and visually restrained.
         for(const site of FO_BOMB_SITES){
           const accent=site.id==='A'?0xd4aa63:0x77aab0;
@@ -5650,6 +5705,13 @@
             (Number(b.id.split('_')[1])||0)%2===idx%2)
             .sort((a,b)=>Math.hypot(a.pos.x-site.x,a.pos.z-site.z)-Math.hypot(b.pos.x-site.x,b.pos.z-site.z))[0];
           if(leader!==bot&&foBomb.actor!==bot.id)goal=site.guards[idx%site.guards.length];
+        }
+        // Route distribution belongs only to the bomb mode. An attacker
+        // crosses its assigned gateway once, then resumes its objective.
+        if(!planted&&bot.team==='blue'&&bot.pos.z>19&&!bot.foGatePassed){
+          const route=FO_TERSANE_ROUTES[idx%FO_TERSANE_ROUTES.length];
+          if(bot.pos.z<22&&Math.abs(bot.pos.x-route.x)<3.2)bot.foGatePassed=true;
+          else goal=route.exit;
         }
         const dest=NAV_NODES[goal];
         if(!dest)return null;
