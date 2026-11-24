@@ -1,0 +1,39 @@
+name: V74 held-out objective diagnostics
+on:
+  push:
+    branches: [ai/v74-objective-diagnostics]
+    paths:
+      - .github/workflows/bot-ai-v74.yml
+      - scripts/browser-bomb-full-round.mjs
+      - index.html
+  workflow_dispatch:
+jobs:
+  diagnostics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [831017, 831031, 831047]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Read-only game-state diagnostics for held-out rounds
+        env:
+          FRONT_OPERATION_SEED: ${{ matrix.seed }}
+          FRONT_OPERATION_DIAGNOSTIC: '1'
+          FRONT_OPERATION_VARIANT: candidate
+        run: node scripts/browser-bomb-full-round.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v74-diagnostic-${{ matrix.seed }}
+          path: test-artifacts/
+          retention-days: 14
