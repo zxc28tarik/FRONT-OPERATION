@@ -6708,6 +6708,7 @@
         version: 40, seconds: 0, carry: 0, samples: 0,
         difficulty: {}, classes: {}, teams: {}, actors: {},
         stuckNodes: {},
+        stuckContexts: [], stuckEventCounts: {},
         spread: {blue:{sum:0,observations:0,closePairs:0},
                  red:{sum:0,observations:0,closePairs:0}},
         recent: [],
@@ -6730,6 +6731,8 @@
           BOT_METRICS.spread[team] = {sum:0,observations:0,closePairs:0};
         BOT_METRICS.recent.length = 0;
         BOT_METRICS.stuckNodes = {};
+        BOT_METRICS.stuckContexts = [];
+        BOT_METRICS.stuckEventCounts = {};
         BOT_METRICS.frame = { count: 0, sumMs: 0, maxMs: 0, slowFrames: 0 };
       }
       function recordBotMetric(bot, field) {
@@ -6756,6 +6759,51 @@
         row.total++;
         row.classes[bot.classId]=(row.classes[bot.classId]||0)+1;
         row.teams[bot.team]=(row.teams[bot.team]||0)+1;
+      }
+      // V43 QA: Capture *actual movement intent* on a stalled tick rather
+      // than assuming bot.path[pathIndex] was the movement target. In-memory,
+      // bounded and only exported via the existing localhost QA snapshot.
+      function recordBotStuckContext(bot, actualTarget, routeNode, atSec) {
+        if (!bot) return;
+        const counts = BOT_METRICS.stuckEventCounts;
+        const seen = counts[bot.id] = (counts[bot.id] || 0) + 1;
+        // Save first incidents and every fourth repeat, not every frozen frame.
+        if (seen > 4 && seen % 4 !== 0) return;
+        let probeClear = null, probeDistance = 0, remaining = 0;
+        if (actualTarget && Number.isFinite(actualTarget.x) && Number.isFinite(actualTarget.z)) {
+          const dx = actualTarget.x - bot.pos.x;
+          const dz = actualTarget.z - bot.pos.z;
+          remaining = Math.hypot(dx, dz);
+          probeDistance = Math.min(8, remaining);
+          const steps = Math.max(1, Math.ceil(probeDistance / 0.25));
+          probeClear = true;
+          for (let j = 1; j <= steps; j++) {
+            const f = (j / steps) * (probeDistance / Math.max(0.001, remaining));
+            if (!isPositionWalkable(bot.pos.x + dx * f, bot.pos.y, bot.pos.z + dz * f)) {
+              probeClear = false;
+              break;
+            }
+          }
+        }
+        const round = v => Math.round(v * 100) / 100;
+        BOT_METRICS.stuckContexts.push({
+          at: round(atSec), bot: bot.id, classId: bot.classId,
+          team: bot.team, state: bot.state, coverPhase: bot.coverPhase,
+          waypoint: Number.isInteger(routeNode) ? routeNode : null,
+          goal: bot.goalNode, supportGoal: bot.supportGoalNode,
+          rallyGoal: bot.rallyGoalNode, coverNode: bot.coverNode,
+          pathIndex: bot.pathIndex, pathLength: bot.path ? bot.path.length : 0,
+          canSeeEnemy: !!bot.visibleEnemy,
+          heard: !!bot.hearingPos,
+          recovering: !!bot.unstuckTarget,
+          yielding: !!bot.passageStepTarget,
+          position: { x: round(bot.pos.x), z: round(bot.pos.z) },
+          target: actualTarget
+            ? { x: round(actualTarget.x), z: round(actualTarget.z) } : null,
+          remaining: round(remaining),
+          probeDistance: round(probeDistance), probeClear
+        });
+        if (BOT_METRICS.stuckContexts.length > 100) BOT_METRICS.stuckContexts.shift();
       }
       function recordBotShot(bot, hit, drone = false) {
         recordBotMetric(bot,drone?'droneShots':'shots');
@@ -11291,6 +11339,7 @@ function buildSquadLeadership() {
                   ? bot.teamFlankRoute[bot.teamFlankPathIndex]
                   : (bot.path && bot.path[bot.pathIndex]);
                 recordBotStuckHotspot(bot, obstructedWp);
+                recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec);
                 if (obstructedWp !== undefined) {
                   bot.blockedNode = obstructedWp;
                   bot.blockedNodeTimer = 4.5;

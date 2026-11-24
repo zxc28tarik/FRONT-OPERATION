@@ -39,3 +39,6 @@ jobs:
 
       - name: Run BOT AI V42 real-collider route validation regression
         run: node tests/bot_ai_v42_regression.cjs
+
+      - name: Run BOT AI V43 stalled-bot intent diagnostics regression
+        run: node tests/bot_ai_v43_regression.cjs

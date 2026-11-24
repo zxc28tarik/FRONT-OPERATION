@@ -74,6 +74,8 @@ try {
     if(metrics.hits>metrics.shots || (metrics.accuracy!==null &&
       (metrics.accuracy<0||metrics.accuracy>1)))
       throw Error('Invalid skill hit ratio');
+  if((stats.stuckContexts||[]).length>100)
+    throw Error('V43 stalled-bot context ring exceeded cap');
   if(errors.length)throw Error('Uncaught browser game errors: '+errors.slice(0,5).join(' | '));
   result={
     status:'PASS',
@@ -83,6 +85,7 @@ try {
     wallTimeMs,
     scoreRestarts:engine.scoreRestarts,
     navValidation:nav,
+    stuckContextSamples:stats.stuckContexts||[],
     samples:stats.samples,
     botShots:totalShots,
     botHits:totalHits,
@@ -100,11 +103,11 @@ try {
         deaths:row.deaths,stuckRecoveries:row.stuckRecoveries}])),
     pageErrors:errors
   };
-  console.log('PASS V42 accelerated 600s real bot logic stress: '+
+  console.log('PASS V43 accelerated 600s real bot logic stress: '+
     JSON.stringify(result));
 } catch(e) {
   result={...result,error:String(e),pageErrors:errors};
-  console.error('FAIL V42 accelerated bot stress: '+String(e));
+  console.error('FAIL V43 accelerated bot stress: '+String(e));
   process.exitCode=1;
 } finally {
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(result,null,2));
