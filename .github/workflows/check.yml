@@ -80,3 +80,6 @@ jobs:
 
       - name: Run BOT AI V57 navigation regression
         run: node tests/bot_ai_v57_regression.cjs
+
+      - name: Run BOT AI V58 map awareness regression
+        run: node tests/bot_ai_v58_regression.cjs
