@@ -6704,12 +6704,13 @@
         'targetAcquisitions','targetSwitches','targetLosses',
         'coverApproachSeconds','coverHoldSeconds','movingSeconds',
         'coverAssignments','coverArrivals','coverAbandons','coverReassignments',
-        'coverStalledApproaches','coverOrphanSeconds','coverRetentions'
+        'coverStalledApproaches','coverOrphanSeconds','coverRetentions',
+        'coverRouteRejected','coverAlternativeSelected','coverStallReroutes','coverStallFallbacks'
       ];
       const newBotMetricBucket = () =>
         Object.fromEntries(BOT_METRIC_FIELDS.map(field => [field, 0]));
       const BOT_METRICS = {
-        version: 47, seconds: 0, carry: 0, samples: 0,
+        version: 48, seconds: 0, carry: 0, samples: 0,
         difficulty: {}, classes: {}, teams: {}, actors: {},
         stuckNodes: {},
         stuckContexts: [], stuckEventCounts: {},
@@ -6770,6 +6771,27 @@
       // V47: Observe actual cover-node selection, arrival, and abandonment.
       // Events are bounded, available only through localhost QA, and never
       // mutate cover choices or player-visible behavior.
+      // V48: Euclidean proximity can INCREASE while the bot makes actual
+      // progress around a wall. Measure the remaining A* waypoint distance.
+      function getBotCoverRemainingDistance(bot, node) {
+        const dest=NAV_NODES[node];
+        if (!dest) return Infinity;
+        const direct=Math.hypot(dest.x-bot.pos.x,dest.z-bot.pos.z);
+        const route=bot.path, idx=bot.pathIndex;
+        if (!Array.isArray(route) || !route.length ||
+            route[route.length-1]!==node || !Number.isInteger(idx) ||
+            idx<0 || idx>=route.length) return direct;
+        const next=NAV_NODES[route[idx]];
+        if (!next) return direct;
+        let remaining=Math.hypot(next.x-bot.pos.x,next.z-bot.pos.z,
+          (next.y-bot.pos.y)*1.4);
+        for (let i=idx+1;i<route.length;i++) {
+          const a=NAV_NODES[route[i-1]], b=NAV_NODES[route[i]];
+          if (!a || !b) return direct;
+          remaining+=Math.hypot(b.x-a.x,b.z-a.z,(b.y-a.y)*1.4);
+        }
+        return remaining;
+      }
       function observeBotCoverLifecycle(bot, nowSec) {
         if (!bot) return;
         const previous = bot._coverAudit || {node:-1, arrived:false};
@@ -6812,7 +6834,9 @@
             if(previous.node >= 0) recordBotMetric(bot,'coverReassignments');
             const d = distanceTo(current);
             bot._coverAudit = {node:current,arrived:false,since:nowSec,
-              initialDistance:d,bestDistance:d,lastProgressAt:nowSec,stallRecorded:false};
+              initialDistance:getBotCoverRemainingDistance(bot,current),
+              bestDistance:getBotCoverRemainingDistance(bot,current),
+              lastProgressAt:nowSec,stallRecorded:false};
             event('selected', current,null,0,d);
           } else {
             bot._coverAudit = {node:-1,arrived:false};
@@ -6828,8 +6852,9 @@
           event('arrived',audit.node,null,nowSec-audit.since,d);
           return;
         }
-        if (d < audit.bestDistance-0.6) {
-          audit.bestDistance = d;
+        const progressDistance=getBotCoverRemainingDistance(bot,audit.node);
+        if (progressDistance < audit.bestDistance-0.6) {
+          audit.bestDistance = progressDistance;
           audit.lastProgressAt = nowSec;
           audit.stallRecorded = false;
         }
@@ -7305,7 +7330,7 @@
         return count;
       }
 
-      function findBestCoverNode(botPos, threatPos, bot = null) {
+      function findBestCoverNode(botPos, threatPos, bot = null, excludedNodes = null) {
         if (!threatPos) return -1;
         _coverThreatEye.set(threatPos.x, threatPos.y + 1.45, threatPos.z);
 
@@ -7335,6 +7360,7 @@
 
         for (let i = 0; i < NAV_NODES.length; i++) {
           const n = NAV_NODES[i];
+          if (excludedNodes && excludedNodes.has(i)) continue;
           if (Math.abs(n.y - botPos.y) > maxYDiff) continue;
 
           const dxBot = n.x - botPos.x;
@@ -7414,6 +7440,80 @@
           };
         }
         return bestNode;
+      }
+
+      // V48: Recovery candidate MUST be concealed, connected to the
+      // physical V42 nav graph and approachable from the actor's V45
+      // reachable start node. The currently failed cover is excluded.
+      function selectAlternativeReachableCover(bot,threatPos,avoidNode) {
+        if (!bot || !threatPos) return null;
+        const excluded=new Set(avoidNode>=0?[avoidNode]:[]);
+        const start=findNearestNavNode(bot.pos,true);
+        const origin=NAV_NODES[start];
+        if (!origin) return null;
+        if (Math.abs(bot.pos.y)<=0.65 &&
+            !isBotDirectWalkingLineClear(bot.pos,origin)) return null;
+        for(let trial=0;trial<6;trial++) {
+          const node=findBestCoverNode(bot.pos,threatPos,bot,excluded);
+          if(node<0) break;
+          const route=findPathAStar(start,node,bot.blockedNode);
+          let length=Math.hypot(bot.pos.x-origin.x,bot.pos.z-origin.z);
+          const valid=route && route.length && route[0]===start &&
+            route[route.length-1]===node;
+          if(valid) {
+            for(let j=1;j<route.length;j++) {
+              const a=NAV_NODES[route[j-1]], b=NAV_NODES[route[j]];
+              length+=Math.hypot(b.x-a.x,b.z-a.z,(b.y-a.y)*1.4);
+            }
+          }
+          const target=NAV_NODES[node];
+          const direct=Math.hypot(target.x-bot.pos.x,target.z-bot.pos.z);
+          if(valid && length<=Math.max(18,direct*2.2+8)) {
+            if(trial)recordBotMetric(bot,'coverAlternativeSelected');
+            return {
+              node,route,
+              partial:!!(bot._coverEval && bot._coverEval.isPartialCover)
+            };
+          }
+          recordBotMetric(bot,'coverRouteRejected');
+          excluded.add(node);
+        }
+        return null;
+      }
+
+      // Do not wait for the 4th full stuck recovery if an approach hasn't
+      // made meaningful route progress. A failed alternative is allowed
+      // to fall back to existing combat tactics, never a wall-clipping move.
+      function recoverBotStalledCover(bot, nowSec) {
+        const audit=bot && bot._coverAudit;
+        if (!bot || !bot.alive || !bot.visibleEnemy || !audit ||
+            bot.coverNode<0 || bot.coverNode!==audit.node || audit.arrived ||
+            bot.coverPhase!=='MOVE_TO_COVER' ||
+            nowSec-audit.since<3.6 || nowSec-audit.lastProgressAt<3.6 ||
+            (bot.coverRecoveryUntil||0)>nowSec ||
+            bot.teamFlankGoalNode>=0) return false;
+        const failed=bot.coverNode;
+        bot.coverRecoveryUntil=nowSec+3.6;
+        const alternate=selectAlternativeReachableCover(bot,bot.visibleEnemy.pos,failed);
+        if(alternate && alternate.node!==failed) {
+          bot.coverNode=alternate.node;
+          bot.coverIsPartial=alternate.partial;
+          bot.coverPhase='MOVE_TO_COVER';
+          bot.coverThreatAnchor=bot.visibleEnemy.pos.clone();
+          bot.coverCommitTimer=2.6;
+          bot.coverRelocateCooldown=3;
+          bot.path=alternate.route;
+          bot.pathIndex=0;
+          bot.stuckFailures=0;
+          recordBotMetric(bot,'coverStallReroutes');
+          return true;
+        }
+        bot.coverNode=-1;
+        bot.coverPhase='NONE';
+        bot.coverSearchCooldown=Math.max(bot.coverSearchCooldown||0,2);
+        bot.stuckFailures=0;
+        recordBotMetric(bot,'coverStallFallbacks');
+        return true;
       }
 
       function setBotState(bot, nextState, lockSec = 0.85, force = false) {
@@ -11602,6 +11702,7 @@ function buildSquadLeadership() {
           }
 
           observeBotCoverLifecycle(bot,nowSec);
+          recoverBotStalledCover(bot,nowSec);
           // Animate actual resolved movement, not attempted movement into a wall.
           const actualSpeed = Math.hypot(
             bot.pos.x - beforeMoveX, bot.pos.z - beforeMoveZ
