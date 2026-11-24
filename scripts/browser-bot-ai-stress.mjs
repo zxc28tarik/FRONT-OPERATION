@@ -141,6 +141,7 @@ try {
     coverLifecycle:{
       selections,arrivals,abandons,
       reassignments:coverCounts('coverReassignments'),
+      retainedTargets:coverCounts('coverRetentions'),
       stalledApproaches:coverCounts('coverStalledApproaches'),
       orphanSeconds:coverCounts('coverOrphanSeconds'),
       approachSeconds:coverCounts('coverApproachSeconds'),
