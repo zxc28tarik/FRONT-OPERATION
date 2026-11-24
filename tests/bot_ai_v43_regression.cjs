@@ -51,7 +51,7 @@ api.reset();
 check(api.state.stuckContexts.length===0&&
  !Object.keys(api.state.stuckEventCounts).length,
  'Match restart clears both sample buffer and context counts');
-check(html.includes('recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec);'),
+check(html.includes('recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec,{'),
  'Real collision recovery captures actual movement target rather than stale A* guess');
 check(html.includes('if (BOT_METRICS.stuckContexts.length > 100) BOT_METRICS.stuckContexts.shift();'),
  'Actual logging code enforces bounded memory usage');

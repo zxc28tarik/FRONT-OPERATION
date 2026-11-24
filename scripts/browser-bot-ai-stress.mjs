@@ -159,6 +159,11 @@ try {
         throw Error('V73 ammunition/role telemetry invariant failed');
     }
   }
+  if(stats.stuckBreakdown){
+    const expected=Object.values(stats.actors).reduce((n,b)=>n+b.stuckRecoveries,0);
+    for(const bucket of Object.values(stats.stuckBreakdown))
+      if(Object.values(bucket).reduce((n,v)=>n+v,0)!==expected)throw Error('V77 stuck breakdown count mismatch');
+  }
   result={
     status:'PASS',
     ammoAudit,
@@ -209,6 +214,7 @@ try {
       ]))
     },
     stuckContextSamples:stats.stuckContexts||[],
+    stuckBreakdown:stats.stuckBreakdown||null,
     samples:stats.samples,
     botShots:totalShots,
     botHits:totalHits,

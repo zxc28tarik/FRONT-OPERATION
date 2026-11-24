@@ -1,0 +1,71 @@
+name: V77 multi-version acceptance
+on:
+  push:
+    branches:
+      - ai/v77-isolated-movement
+    paths:
+      - .github/workflows/bot-ai-v77.yml
+      - scripts/browser-bomb-full-round.mjs
+      - scripts/browser-bot-ai-stress.mjs
+      - scripts/compare-v77-movement.mjs
+      - scripts/build-v77-variants.mjs
+      - index.html
+  workflow_dispatch:
+jobs:
+  paired:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [471001, 471002, 471003, 831017, 831031, 831047]
+        mode: [marien, bomb]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run four isolated movement policies with the same starting seed
+        shell: bash
+        env:
+          FRONT_OPERATION_SEED: ${{ matrix.seed }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          if [ "$MODE" = "marien" ]; then script=scripts/browser-bot-ai-stress.mjs; else script=scripts/browser-bomb-full-round.mjs; fi
+          node scripts/build-v77-variants.mjs
+          FRONT_OPERATION_VARIANT=candidate FRONT_OPERATION_GAME_FILE=index.html node "$script"
+          for policy in passage rally both; do
+            FRONT_OPERATION_VARIANT="$policy" FRONT_OPERATION_GAME_FILE="/tmp/front-operation-v77-$policy.html" node "$script"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v77-${{ matrix.mode }}-${{ matrix.seed }}
+          path: test-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+  comparison:
+    runs-on: ubuntu-24.04
+    needs: paired
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: v77-*
+          path: test-artifacts
+          merge-multiple: true
+      - run: node scripts/compare-v77-movement.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v77-comparison
+          path: test-artifacts/v77-comparison/
+          retention-days: 14
