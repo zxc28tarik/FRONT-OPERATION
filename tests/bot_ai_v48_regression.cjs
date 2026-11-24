@@ -73,7 +73,8 @@ const b={id:'red_4',team:'red',classId:'heavy',hp:100,
  coverRecoveryUntil:0,coverSearchCooldown:0,stuckFailures:1,
  blockedNode:-1,coverAvoidNode:-1,coverAvoidUntil:0,
  path:[0,1],pathIndex:0};
-const movingDespiteCoverDelay={...b,stuckFailures:0};
+const movingDespiteCoverDelay={...b,stuckFailures:0,
+ _coverAudit:{...b._coverAudit,routeLastProgressAt:4}};
 ok(api.recover(movingDespiteCoverDelay,8)===false,
  'Cover-goal delay alone cannot trigger recovery without a genuine physical stall');
 let choice=api.select(b,b.visibleEnemy.pos,1);
@@ -100,6 +101,13 @@ const e={...c,_coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0,routeLa
  teamFlankGoalNode:3};
 ok(api.recover(e,8)===false,
  'Emergency cover recovery does not override a coordinated flank');
+const longDeadEnd={...c,_coverAudit:{node:1,arrived:false,since:0,
+ lastProgressAt:0,routeLastProgressAt:0},stuckFailures:0,
+ coverRecoveryUntil:0,teamFlankGoalNode:-1};
+ok(api.recover(longDeadEnd,8)===true &&
+ longDeadEnd.coverNode!==1 &&
+ (ops.coverStallReroutes||0)>=2,
+ 'Seven-second route dead end can reroute without a V40 physical collision');
 const noEnemy={...c,_coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0,routeLastProgressAt:0},
  visibleEnemy:null};
 ok(api.recover(noEnemy,8)===false,
