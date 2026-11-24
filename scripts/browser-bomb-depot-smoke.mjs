@@ -17,7 +17,9 @@ const hook=`
           meshes:mapEnvironmentMeshes.length,graph:JSON.stringify(NAV_NODES),
           pos:player.pos.toArray(),spawns:bots.map(b=>({team:b.team,z:b.pos.z})),
           bounds:[foWorldX(38.5),foWorldZ(59.5)],
-          outerWalkable:isPositionWalkable(44.8,0,75),
+          outerWalkable:isPositionWalkable(89.6,0,75),
+          navCount:NAV_NODES.length,navEdges:NAV_VALIDATION.activeEdges,
+          sightBlocked:!hasLineOfSight(new THREE.Vector3(0,1.48,75),new THREE.Vector3(0,1.48,42)),
           sites:FO_BOMB_SITES.map(s=>({id:s.id,reachable:findPathAStar(2,s.node,-1).at(-1)===s.node,
             walkable:isPositionWalkable(s.x,0,s.z)}))}),
         freeze:()=>{gamePaused=true;canvas.requestPointerLock=()=>{};},
@@ -86,9 +88,9 @@ try{
  await page.locator('#fo-game-mode').selectOption('bomb');
  await page.evaluate(()=>{window.__foDepotQa.freeze();document.getElementById('btn-deploy').click();window.__foDepotQa.freeze();});
  const depot=await page.evaluate(()=>window.__foDepotQa.snapshot());
- if(depot.mode!=='bomb'||depot.nav!==50||depot.botLives.length!==11||depot.graph===original.graph||
+ if(depot.mode!=='bomb'||depot.nav!==225||depot.navCount!==225||depot.navEdges!==746||!depot.sightBlocked||depot.botLives.length!==11||depot.graph===original.graph||
      depot.sites.some(s=>!s.walkable||!s.reachable)||depot.colliders===original.colliders)throw Error('Invalid separate map '+JSON.stringify(depot));
- if(depot.bounds[0]<=53||depot.bounds[1]<=89||!depot.outerWalkable||
+ if(depot.bounds[0]<=107||depot.bounds[1]<=89||!depot.outerWalkable||
      Math.abs(depot.pos[2]-75)>.01||depot.spawns.some(b=>b.team==='blue'?b.z<74:b.z>-74))
    throw Error('Expanded arena bounds or spawn failure '+JSON.stringify(depot));
  await page.screenshot({path:path.join(output,'depot17-start.png')});
@@ -114,6 +116,6 @@ try{
      restored.graph!==original.graph||restored.nav!==50||restored.bounds[0]!==38.5||restored.bounds[1]!==59.5||restored.outerWalkable)throw Error('Marien restore mismatch');
  if(await page.evaluate(()=>document.body.classList.contains('fo-spectating')))throw Error('Spectator HUD leaked into new match');
  if(errors.length)throw Error(errors.join(' | '));
- console.log('PASS real WebGL Tersane V5: expanded bounds and spawns, separate 50-node map, both sites reachable, plant, no respawn, teammate switching, free camera, rendered aim gate, defuse, exact Marien restoration');
+ console.log('PASS real WebGL Tersane V6: double width, blocked spawn sightline, 225-node map, both sites reachable, plant, no respawn, teammate switching, free camera, rendered aim gate, defuse, exact Marien restoration');
 }catch(e){console.error('FAIL Depot17 browser: '+String(e));process.exitCode=1;}
 finally{await browser?.close();await new Promise(r=>server.close(r));}
