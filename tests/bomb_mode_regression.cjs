@@ -64,9 +64,18 @@ for(const [a,b] of liveGraph.edges){
 const reach=(start)=>{const seen=new Set([start]),todo=[start];
  while(todo.length)for(const j of links[todo.pop()])if(!seen.has(j)){seen.add(j);todo.push(j)}
  return seen;};
-ok(solids.length===116,'Tersane enlarged physical geometry built');
+// Sample clearance from head-height opaque solids over the playable interior.
+let exposed=0;
+const opaque=solids.filter(c=>c.y-c.h/2<1.48&&c.y+c.h/2>1.48);
+for(let x=-36;x<=36;x+=2)for(let z=-56;z<=56;z+=2){
+ const X=x*1.368,Z=z*.765;
+ const d=Math.min(...opaque.map(c=>Math.hypot(Math.max(0,Math.abs(X-c.x)-c.w/2),Math.max(0,Math.abs(Z-c.z)-c.d/2))));
+ if(d>4)exposed++;
+}
+ok(exposed<=180,'V89 exposed sample count <=180 (V88: 362): '+exposed);
+ok(solids.length===131,'Tersane enlarged physical geometry built');
 ok(liveGraph.nodes.every(n=>walk(n.x,n.z)),'Every Tersane nav node walkable');
-ok(reach(0).size===liveGraph.nodes.length&&liveGraph.nodes.length===196,'All Tersane nodes connected after collision filtering');
+ok(reach(0).size===liveGraph.nodes.length&&liveGraph.nodes.length===208,'All Tersane nodes connected after collision filtering');
 let intervals=0,previous=false;
 for(let i=0;i<=1053;i++){const clear=walk(-52.668+i*.1,16.065);if(clear&&!previous)intervals++;previous=clear;}
 ok(intervals===4,'Exactly four physical dividing-wall openings');
@@ -94,7 +103,7 @@ ok(html.includes("b.alive&&b.team===player.team"),'Follow target is live teammat
 ok(html.includes("updateFoSpectator(dt);")&&html.includes("stopFoSpectator();"),'Spectator frame and reset integrated');
 ok(Math.abs(g.nodes[0].x-g.nodes[4].x-(-87.552))<.001,'V88 spawn width reduced by 40 percent from V87');
 ok(g.nodes[0].z-g.nodes[45].z===76.5,'V88 spawn separation reduced to 76.5');
-ok(links.reduce((sum,l)=>sum+l.length,0)/2===657,'657 validated navigation edges');
+ok(links.reduce((sum,l)=>sum+l.length,0)/2===653,'653 validated navigation edges');
 const bounds=new Function('mode',html.slice(gstart,html.indexOf('      const FO_BOMB_SITES',gstart))+
  '\nconst foActiveMap=mode;return [foWorldX(38.5),foWorldZ(59.5)];');
 ok(Math.abs(bounds('bomb')[0]-52.668)<.001&&Math.abs(bounds('bomb')[1]-45.5175)<.001,'V88 bomb bounds reduced on both axes');
