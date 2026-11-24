@@ -5939,6 +5939,12 @@
               if(bot===operator)continue;
               const prev=previous.get(bot.id);
               const candidates=site.guards.filter(n=>!used.has(n));
+              if(!candidates.length){
+                const extra=NAV_NODES.map((n,i)=>({i,d:Math.hypot(n.x-site.x,n.z-site.z)}))
+                  .filter(n=>n.d>=5&&n.d<=24&&!used.has(n.i)&&n.i!==site.node)
+                  .sort((a,b)=>a.d-b.d);
+                if(extra.length)candidates.push(extra[0].i);
+              }
               const goal=prev&&prev.site===site&&candidates.includes(prev.goal)?prev.goal:
                 candidates.sort((a,b)=>Math.hypot(bot.pos.x-NAV_NODES[a].x,bot.pos.z-NAV_NODES[a].z)-
                   Math.hypot(bot.pos.x-NAV_NODES[b].x,bot.pos.z-NAV_NODES[b].z))[0]??site.guards[Number(bot.id.split('_')[1])%site.guards.length];
@@ -5989,6 +5995,7 @@
         // replan after role/goal change, obstruction, exhaustion or recovery.
         const needs=bot.foObjectiveGoal!==goal||!wp||
           (bot.foObjectiveRepath<=0&&!foBotSegmentClear(bot.pos,wp));
+        if(!needs&&bot.foObjectiveRepath<=0)bot.foObjectiveRepath=.65;
         if(needs){
           const from=findNearestNavNode(bot.pos,true);
           bot.foObjectivePath=findPathAStar(from,goal,bot.blockedNode);
@@ -12345,8 +12352,12 @@ function buildSquadLeadership() {
               targetCrouch=foMissionOrder.crouch||0;
               if(Number.isFinite(foMissionOrder.yaw))desiredUpperYaw=foMissionOrder.yaw;
               else if(moveTargetPos)desiredUpperYaw=Math.atan2(moveTargetPos.x-bot.pos.x,moveTargetPos.z-bot.pos.z);
-              if(bot.hearingPos&&bot.hearingTimer>0&&Math.hypot(bot.hearingPos.x-bot.pos.x,bot.hearingPos.z-bot.pos.z)<22)
-                desiredUpperYaw=Math.atan2(bot.hearingPos.x-bot.pos.x,bot.hearingPos.z-bot.pos.z);
+              const contact=bot.hearingPos&&bot.hearingTimer>0?bot.hearingPos:
+                (bot.lastKnownEnemyPos&&bot.investigateTimer>3.5?bot.lastKnownEnemyPos:null);
+              if(contact&&Math.hypot(contact.x-bot.pos.x,contact.z-bot.pos.z)<22){
+                desiredUpperYaw=Math.atan2(contact.x-bot.pos.x,contact.z-bot.pos.z);
+                moveSpeed=Math.min(moveSpeed,2.5);
+              }
             }
           }
           // Complete a short walkable lateral sidestep before retrying A*.
