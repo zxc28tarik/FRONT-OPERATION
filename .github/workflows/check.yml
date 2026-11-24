@@ -182,3 +182,6 @@ jobs:
 
       - name: Run V84 combat commitment regression
         run: node tests/bot_ai_v84_combat_commitment_regression.cjs
+
+      - name: Run V85 uninterrupted contact regression
+        run: node tests/bot_ai_v85_uninterrupted_contact_regression.cjs
