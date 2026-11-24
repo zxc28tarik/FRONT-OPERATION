@@ -119,3 +119,6 @@ jobs:
 
       - name: Run V68 ammunition regression
         run: node tests/bot_ai_v68_ammo_regression.cjs
+
+      - name: Run V69 class objective regression
+        run: node tests/bot_ai_v69_class_objectives_regression.cjs
