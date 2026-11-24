@@ -5839,9 +5839,10 @@
       const FO_BOMB_RULES=Object.freeze({roundSeconds:150,plantSeconds:3,defuseSeconds:4,plantedSeconds:35,radius:3.5});
       const foBomb={phase:'unplanted',site:null,actor:null,progress:0,seconds:0,reason:''};
       function isFoBombMode(){return matchState.mode==='bomb';}
-      const foBotPlan={key:'',next:0,orders:new Map(),operators:new Map()};
+      const foBotPlan={key:'',next:0,orders:new Map(),operators:new Map(),phase:null,focusSite:null,rotation:null};
       function resetFoBomb(){
         foBotPlan.key='';foBotPlan.next=0;foBotPlan.orders.clear();foBotPlan.operators.clear();
+        foBotPlan.phase=null;foBotPlan.focusSite=null;foBotPlan.rotation=null;
         Object.assign(foBomb,{phase:'unplanted',site:null,actor:null,actionSite:null,progress:0,seconds:0,reason:''});
         for(const site of FO_BOMB_SITES)if(site.beacon)site.beacon.visible=false;
       }
@@ -5913,32 +5914,76 @@
       // V11: bomb-specific mission roles; combat perception and difficulty
       // remain shared with Marien. Orders change on phase/death, not each frame.
       function refreshFoBotPlan(now){
-        if(!isFoBombMode())return;
+        if(!isFoBombMode()||foBomb.phase==='ended')return;
         const planted=foBomb.phase==='planted',live=bots.filter(b=>b.alive);
         const key=foBomb.phase+':'+(foBomb.site?.id||'')+':'+live.map(b=>b.id).join(',');
         if(key===foBotPlan.key&&now<foBotPlan.next)return;
+        const phaseChanged=foBotPlan.phase!==foBomb.phase;
+        if(phaseChanged){foBotPlan.focusSite=null;foBotPlan.rotation=null;}
+        foBotPlan.phase=foBomb.phase;
         foBotPlan.key=key;foBotPlan.next=now+2.5;
         const previous=new Map(foBotPlan.orders),operators=new Map(foBotPlan.operators);
         foBotPlan.orders.clear();foBotPlan.operators.clear();
         const sites=planted?[foBomb.site]:FO_BOMB_SITES;
+        const assignments=new Map();
+        for(const bot of live){
+          const prior=previous.get(bot.id);
+          const site=planted?foBomb.site:(!phaseChanged&&prior?.site||FO_BOMB_SITES[Number(bot.id.split('_')[1])%2]);
+          assignments.set(bot.id,site);
+        }
+        if(!planted){
+          const attackers=live.filter(b=>b.team==='blue');
+          // When only a small squad remains, regroup on one reachable objective.
+          // Use own locations and prior assignment only, never hidden opponents.
+          if(attackers.length>0&&attackers.length<=2){
+            const active=FO_BOMB_SITES.find(s=>s.id===foBomb.actionSite&&foBomb.actor);
+            const focus=active||FO_BOMB_SITES.find(s=>s.id===foBotPlan.focusSite)||
+              FO_BOMB_SITES.slice().sort((a,b)=>foSiteTravelCost(attackers,a)-foSiteTravelCost(attackers,b))[0];
+            foBotPlan.focusSite=focus.id;
+            for(const bot of attackers)assignments.set(bot.id,focus);
+          }
+          // A defender may reinforce a reported site, while leaving another
+          // defender on the opposite site. Reports expire on match time.
+          const defenders=live.filter(b=>b.team==='red');
+          const intel=typeof TEAM_INTEL!=='undefined'?Object.values(TEAM_INTEL.red.sightings||{}):[];
+          const pressure=foReportedSitePressure(intel,FO_BOMB_SITES,now);
+          if(defenders.length>=3){
+            const crowded=pressure[0]>pressure[1]+.5?FO_BOMB_SITES[0]:pressure[1]>pressure[0]+.5?FO_BOMB_SITES[1]:null;
+            const rotation=foBotPlan.rotation;
+            if(rotation&&(now>=rotation.until||!defenders.some(b=>b.id===rotation.id))){
+              const original=FO_BOMB_SITES.find(s=>s.id===rotation.from);
+              if(original&&assignments.has(rotation.id))assignments.set(rotation.id,original);
+              foBotPlan.rotation=null;
+            }
+            if(crowded&&!foBotPlan.rotation){
+              const other=FO_BOMB_SITES.find(s=>s!==crowded);
+              const reserves=defenders.filter(b=>assignments.get(b.id)===other);
+              if(reserves.length>=2){
+                const candidate=reserves.filter(b=>!b.visibleEnemy&&!b.activeDroneId&&b.hp>=28)
+                  .sort((a,b)=>foSiteTravelCost([a],crowded)-foSiteTravelCost([b],crowded))[0];
+                if(candidate){assignments.set(candidate.id,crowded);foBotPlan.rotation={id:candidate.id,from:other.id,until:now+5};}
+              }
+            }
+          }
+        }
+        const reserved={blue:new Set(),red:new Set()};
         for(const site of sites){
           if(!site)continue;
           for(const team of ['blue','red']){
-            const group=live.filter(b=>b.team===team&&(planted||Number(b.id.split('_')[1])%2===FO_BOMB_SITES.indexOf(site)));
+            const group=live.filter(b=>b.team===team&&assignments.get(b.id)===site);
             const acts=planted?team==='red':team==='blue';
-            const cost=b=>Math.hypot(b.pos.x-site.x,b.pos.z-site.z)+(b.hp<28?35:0)+(b.activeDroneId?40:0)+(b.visibleEnemy?12:0);
             let operator=null;
             if(acts&&group.length){
-              operator=group.find(b=>b.id===foBomb.actor)||group.find(b=>b.id===operators.get(site.id)&&b.hp>=28&&!b.activeDroneId);
-              if(!operator)operator=group.slice().sort((a,b)=>cost(a)-cost(b))[0];
+              operator=foChooseOperator(group,site,operators.get(site.id),foBomb.actor,foBomb.actionSite);
               foBotPlan.operators.set(site.id,operator.id);
               foBotPlan.orders.set(operator.id,{site,role:planted?'DEFUSE':'PLANT',goal:site.node});
+              reserved[team].add(site.node);
             }
-            const used=new Set();
+            const used=reserved[team];
             for(const bot of group){
               if(bot===operator)continue;
               const prev=previous.get(bot.id);
-              const candidates=site.guards.filter(n=>!used.has(n));
+              const candidates=site.guards.filter(n=>NAV_NODES[n]&&!used.has(n));
               if(!candidates.length){
                 const extra=NAV_NODES.map((n,i)=>({i,d:Math.hypot(n.x-site.x,n.z-site.z)}))
                   .filter(n=>n.d>=5&&n.d<=24&&!used.has(n.i)&&n.i!==site.node)
@@ -5954,6 +5999,31 @@
           }
         }
       }
+      function foSiteTravelCost(group,site){
+        return group.reduce((sum,b)=>sum+Math.hypot(b.pos.x-site.x,b.pos.z-site.z),0);
+      }
+      function foChooseOperator(group,site,previous,actor,actionSite){
+        const active=group.find(b=>b.id===actor&&actionSite===site.id);
+        if(active)return active;
+        const healthy=group.filter(b=>b.hp>=28&&!b.activeDroneId);
+        const available=healthy.length?healthy:group.filter(b=>!b.activeDroneId);
+        const pool=available.length?available:group;
+        const old=pool.find(b=>b.id===previous);
+        if(old&&!old.visibleEnemy)return old;
+        const cost=b=>foSiteTravelCost([b],site)+(b.visibleEnemy?30:0)+(b.hp<28?12:0)+(b.activeDroneId?60:0);
+        return pool.slice().sort((a,b)=>cost(a)-cost(b)||String(a.id).localeCompare(String(b.id)))[0];
+      }
+      function foReportedSitePressure(intel,sites,now){
+        return sites.map(site=>intel.reduce((sum,s)=>{
+          if(!s||!s.pos||now<s.timestamp||now-s.timestamp>2.6)return sum;
+          const d=Math.hypot(s.pos.x-site.x,s.pos.z-site.z);
+          return sum+(d<20?1:0);
+        },0));
+      }
+      function foBotMissionEligible(bot){
+        const role=foBotPlan.orders.get(bot.id)?.role;
+        return bot.hp>=28||role==='PLANT'||role==='DEFUSE';
+      }
       function foBotSegmentClear(pos,n){
         if(!n)return false;
         const dx=n.x-pos.x,dz=n.z-pos.z,count=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.35));
@@ -5961,7 +6031,7 @@
         return true;
       }
       function getFoBombBotOrder(bot,dt){
-        if(!isFoBombMode()||!bot.alive||bot.visibleEnemy||bot.activeDroneId)return null;
+        if(!isFoBombMode()||foBomb.phase==='ended'||!bot.alive||bot.visibleEnemy||bot.activeDroneId)return null;
         const assigned=foBotPlan.orders.get(bot.id);
         if(!assigned)return null;
         const planted=foBomb.phase==='planted',idx=Math.max(0,Number(bot.id.split('_')[1])||0);
@@ -5971,7 +6041,10 @@
           if(bot.pos.z>foWorldZ(32)){bot.foGatePassed=false;bot.foGateEntryReached=false;}
           if(!bot.foGatePassed){
             // Pair route choice with the side of the assigned bomb site.
-            const route=FO_TERSANE_ROUTES[assigned.site.id==='A'?(idx===0?0:1):(idx===1?2:3)];
+            const sideRoutes=assigned.site.id==='A'?FO_TERSANE_ROUTES.slice(0,2):FO_TERSANE_ROUTES.slice(2);
+            const preferred=sideRoutes[Math.floor(idx/2)%sideRoutes.length];
+            if(bot.foGateSite!==assigned.site.id){bot.foGateEntryReached=false;bot.foGateSite=assigned.site.id;}
+            const route=preferred;
             const entry=NAV_NODES[route.entry];
             if(Math.hypot(bot.pos.x-entry.x,bot.pos.z-entry.z)<1.8)bot.foGateEntryReached=true;
             goal=bot.foGateEntryReached?route.exit:route.entry;
@@ -5981,6 +6054,7 @@
         const dist=Math.hypot(dest.x-bot.pos.x,dest.z-bot.pos.z);
         const objective=(assigned.role==='PLANT'||assigned.role==='DEFUSE')&&goal===assigned.goal;
         if(dist<(objective?1.2:1.4)){
+          bot.foObjectivePath=[];bot.foObjectiveIndex=0;bot.foObjectiveGoal=goal;
           // Guards scan the approach, not the floor waypoint; designated
           // operators stop long enough to plant/defuse.
           const approachYaw=bot.team==='red'?0:Math.PI;
@@ -8596,7 +8670,8 @@
             routeOwner:b.behaviorPlan?.route?b.behaviorPlan.kind:null,routeProgress:b.routeProgress?.best??null,
             mapLook:b.lookControl?.owner?.startsWith('MAP_')?b.lookControl.owner:null,
             combatCoverPhase:b.combatCoverCycle?.phase||null,goalNode:b.goalNode,
-            squadId:b.squadId,supportAllyId:b.supportAllyId||null
+            squadId:b.squadId,supportAllyId:b.supportAllyId||null,
+            objectiveRole:foBotPlan.orders.get(b.id)?.role||null,objectiveSite:foBotPlan.orders.get(b.id)?.site?.id||null
           })),
           started: matchState.started,
           playerAlive: player.alive,
@@ -12510,7 +12585,7 @@
                 setBotState(bot,'INVESTIGATE',.75,true);
                 desiredUpperYaw=Math.atan2(bot.lastKnownEnemyPos.x-bot.pos.x,bot.lastKnownEnemyPos.z-bot.pos.z);
                 moveSpeed=0;targetCrouch=.2;foPriorityCombat=true;
-              } else if (isFoBombMode() && bot.hp>=28 && (foMissionOrder=getFoBombBotOrder(bot,dt))) {
+              } else if (isFoBombMode() && foBotMissionEligible(bot) && (foMissionOrder=getFoBombBotOrder(bot,dt))) {
                 behaviorHint='ADVANCE';
                 // Objective mode owns quiet movement; avoid running legacy patrol and medic routes underneath it.
                 bot.coverNode=-1;
@@ -12756,7 +12831,7 @@
           // route the mission owns movement, while hearing can steer the head.
           const proposals=[{kind:behaviorHint,target:moveTargetPos,speed:moveSpeed,crouch:targetCrouch,yaw:desiredUpperYaw,lookOwner,
             route:!(bot.coverPhase==='CROUCH_HOLD'||bot.coverPhase==='PEEK_FIRE')}];
-          if(isFoBombMode()&&!bestEnemy&&!foPriorityCombat&&bot.hp>=28&&
+          if(isFoBombMode()&&!bestEnemy&&!foPriorityCombat&&foBotMissionEligible(bot)&&
              !(bot.coverNode>=0&&bot.coverPhase!=='NONE'&&bot.investigateTimer>2.7)&&
              !(bot.state==='RETREAT'&&bot.investigateTimer>1.2)){
             foMissionOrder=foMissionOrder||getFoBombBotOrder(bot,dt);

@@ -28,6 +28,7 @@ on:
       - ai/v58-map-awareness
       - ai/v59-combat-discipline
       - ai/v60-team-coordination
+      - ai/v61-bomb-objectives
   workflow_dispatch:
 
 jobs:
@@ -46,7 +47,7 @@ jobs:
       - name: Run actual WebGL 6v6 match and UI acceptance
         run: node scripts/browser-webgl-smoke.mjs
       - name: Test independent Depot 17 bomb mode
-        if: github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller' || github.ref_name == 'ai/v56-locomotion' || github.ref_name == 'ai/v57-navigation' || github.ref_name == 'ai/v58-map-awareness' || github.ref_name == 'ai/v59-combat-discipline' || github.ref_name == 'ai/v60-team-coordination'
+        if: github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller' || github.ref_name == 'ai/v56-locomotion' || github.ref_name == 'ai/v57-navigation' || github.ref_name == 'ai/v58-map-awareness' || github.ref_name == 'ai/v59-combat-discipline' || github.ref_name == 'ai/v60-team-coordination' || github.ref_name == 'ai/v61-bomb-objectives'
         run: node scripts/browser-bomb-depot-smoke.mjs
       - name: Render V25 versus V25+V11 characters from three angles
         run: node scripts/character-turntable.mjs

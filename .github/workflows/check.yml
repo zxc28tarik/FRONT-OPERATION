@@ -89,3 +89,6 @@ jobs:
 
       - name: Run BOT AI V60 team coordination regression
         run: node tests/bot_ai_v60_regression.cjs
+
+      - name: Run BOT AI V61 bomb objective regression
+        run: node tests/bot_ai_v61_regression.cjs
