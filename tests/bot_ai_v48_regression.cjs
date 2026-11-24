@@ -69,9 +69,12 @@ const b={id:'red_4',team:'red',classId:'heavy',hp:100,
  coverPhase:'MOVE_TO_COVER',teamFlankGoalNode:-1,
  visibleEnemy:{id:'blue_0',pos:new V(22,0,0)},
  _coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0},
- coverRecoveryUntil:0,coverSearchCooldown:0,stuckFailures:1,
+ coverRecoveryUntil:0,coverSearchCooldown:0,stuckFailures:2,
  blockedNode:-1,coverAvoidNode:-1,coverAvoidUntil:0,
  path:[0,1],pathIndex:0};
+const movingDespiteCoverDelay={...b,stuckFailures:1};
+ok(api.recover(movingDespiteCoverDelay,8)===false,
+ 'Cover-goal delay alone cannot trigger recovery without two physical stalls');
 let choice=api.select(b,b.visibleEnemy.pos,1);
 ok(choice&&choice.node!==1&&choice.route[0]===0,
  'Alternative excludes previously failed cover and keeps genuine A-star origin');
