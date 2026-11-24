@@ -161,5 +161,5 @@ ok(plan.operators.size===1&&plan.operators.get('A').startsWith('red_'),'One defe
 const reds=fakeBots.filter(b=>b.team==='red'&&b.alive).map(b=>plan.orders.get(b.id).goal);
 ok(new Set(reds).size===reds.length,'Defusing team uses distinct positions');
 ok(html.includes('Math.hypot(actor.moveVelX||0,actor.moveVelZ||0)<1.0'),'Bots must stop before objective interaction');
-ok(html.includes('foMissionOrder ? bot.foObjectivePath?.[bot.foObjectiveIndex]'),'Stuck recovery uses active mission path');
+ok(html.includes('if(foMissionOrder)obstructedWp=bot.foObjectivePath?.[bot.foObjectiveIndex]'),'Stuck recovery uses active mission path');
 console.log('BOMB MODE PASS ('+n+' checks)');
