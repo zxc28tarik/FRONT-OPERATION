@@ -35,13 +35,13 @@ check(sample.target?.x===-5&&sample.position.x===0&&sample.probeClear===false,
 check(sample.remaining===5&&sample.probeDistance===5,
  'Probe reports intended travel range without fabricated motion');
 walkable=()=>true;
-api.stuck(bot,{x:5,y:0,z:0},9,6);
+for(let j=0;j<3;j++)api.stuck(bot,{x:5,y:0,z:0},9,6+j);
 check(api.state.stuckContexts.at(-1).probeClear===true,
  'Clear route diagnosed independently from alleged waypoint');
 for(let i=0;i<1000;i++)api.stuck(bot,{x:8,y:0,z:0},9,7+i);
 check(api.state.stuckContexts.length===100,
  'Diagnostic buffer remains bounded during recurring deadlock');
-check(api.state.stuckEventCounts.red_1===1006,
+check(api.state.stuckEventCounts.red_1===1008,
  'Repeated observations do not overflow actor event counter');
 const snapshot=api.snapshot();
 snapshot.stuckContexts[0].bot='tampered';
