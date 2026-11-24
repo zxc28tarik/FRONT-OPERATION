@@ -3817,6 +3817,104 @@
         }
         box(35,-7,2.1,2.5,1.15,crate);
         sign('EKIPMAN',32,3.5,4.1,0,'#9eaaa8');
+        // Tersane V3: finishing layer only. All small meshes either attach
+        // to existing physical surfaces, lie on the floor, or are overhead.
+        // No new cover, collider, nav node, spawn, or objective geometry.
+        const galv=mat(steel,0xa0aaa6,.55);
+        const fadedOchre=new THREE.MeshStandardMaterial({color:0xa58c54,roughness:.93});
+        const rubber=new THREE.MeshStandardMaterial({color:0x393d38,roughness:.98});
+        const seal=new THREE.MeshStandardMaterial({color:0x5a605a,roughness:.97});
+        const wear=new THREE.MeshBasicMaterial({color:0x333b37,transparent:true,opacity:.16,depthWrite:false});
+        const marking=new THREE.MeshBasicMaterial({color:0xc0ab72,transparent:true,opacity:.55,depthWrite:false});
+        const floorDetail=(x,z,w,d,m=marking)=>addDecoMesh(new THREE.PlaneGeometry(w,d),m,x,.024,z,-Math.PI/2);
+        const pipe=(x,y,z,r,len,axis,m=galv)=>{
+          const rx=axis==='z'?Math.PI/2:0,rz=axis==='x'?Math.PI/2:0;
+          return addDecoMesh(new THREE.CylinderGeometry(r,r,len,8),m,x,y,z,rx,0,rz);
+        };
+        // A hall: machine casing panels on existing cover, high wall conduit,
+        // panel joints, cable tray and roof daylight strips.
+        for(const z of [-38,-31,-24,-17]){
+          deco(-24.39,3.8,z,.045,1.62,3.35,trim);
+          deco(-24.35,3.8,z,.06,1.43,3.12,windowMat);
+          deco(-24.30,3.8,z,.06,1.43,.075,galv);
+          deco(-24.39,2.0,z,.04,1.9,.035,seal);
+        }
+        pipe(-24.26,4.66,-28,.095,25,'z');
+        for(const z of [-39,-33,-27,-21,-15])deco(-24.31,4.66,z,.34,.23,.18,trim);
+        deco(-8.1,5.16,-28,.65,.18,26,trim);
+        for(const z of [-35,-28,-21])deco(-16,6.31,z,5.2,.08,1.25,galv);
+        // Machine island face detail is flush to the existing block.
+        deco(-21,1.23,-20.43,3.65,.4,.07,trim);
+        for(const x of [-22.2,-21.6,-21,-20.4,-19.8])
+          deco(x,1.23,-20.38,.075,.27,.035,galv);
+        deco(-21,1.58,-22,4.24,.045,2.96,galv);
+        deco(-19.45,1.10,-20.38,.19,.17,.045,fadedOchre);
+        // Storage hall: low existing crate volumes gain recessed shelf-like
+        // face divisions and braces; nothing extends into the walking lane.
+        for(const z of [10,30]){
+          for(const dz of [-1.55,1.55])deco(-34.185,.7,z+dz,.04,1.35,.11,trim);
+          for(const y of [.25,.72,1.21])deco(-34.18,y,z,.05,.075,3.22,galv);
+          for(const dz of [-.95,0,.95])deco(-34.15,.72,z+dz,.04,.78,.045,seal);
+          deco(-35.3,1.55,z,1.55,.045,2.7,crate);
+        }
+        pipe(-37.37,4.26,20,.10,30,'z');
+        for(const z of [7,13,19,25,31,35]){
+          deco(-37.4,4.26,z,.34,.25,.13,trim);
+          deco(-37.43,2.3,z,.065,3.5,.035,seal);
+        }
+        // Service and equipment room: wall-mounted vents and cable trunking.
+        for(const [x,z,side] of [[-9.36,1,1],[9.36,11,-1],[28.0,-9,1],[37.0,-1,-1]]){
+          deco(x,3.22,z,.11,.64,1.65,trim);
+          for(const dz of [-.63,-.42,-.21,0,.21,.42,.63])
+            deco(x+side*.07,3.22,z+dz,.06,.46,.085,galv);
+          deco(x,3.85,z,.14,.11,2.2,galv);
+        }
+        pipe(9.1,3.95,6,.075,13,'z',trim);
+        pipe(36.8,3.96,-5,.075,14,'z',galv);
+        // Four portals: matching metal trim, kick plates and subdued caution
+        // stripes on existing wall faces, never across their open center.
+        for(const route of FO_TERSANE_ROUTES){
+          for(const side of [-1,1]){
+            const x=route.x+side*3.39;
+            deco(x,.58,21.65,.18,1.02,.06,galv);
+            for(let j=0;j<4;j++)deco(x,.17+j*.24,21.70,.17,.095,.025,
+              j%2===0?fadedOchre:trim);
+          }
+          floorDetail(route.x-2.7,23.0,.12,2.5);
+          floorDetail(route.x+2.7,23.0,.12,2.5);
+          deco(route.x,4.75,21.0,1.9,.16,.17,light);
+        }
+        // B yard: strengthen the existing crane's silhouette with diagonal
+        // braces high above movement and loading-rail markings on the floor.
+        for(const x of [10,23]){
+          deco(x,.22,-30.5,1.0,.18,1.0,trim);
+          const brace=deco(x+(x===10?.65:-.65),5.68,-30.5,.18,1.75,.18,galv);
+          if(brace.rotation)brace.rotation.z=x===10?-.75:.75;
+          deco(x,6.17,-30.5,.98,.15,.95,trim);
+        }
+        for(const x of [12,21]){
+          floorDetail(x,-28,.13,17,wear);
+          floorDetail(x+.24,-28,.065,17);
+        }
+        for(const z of [-33,-30,-27,-24]){
+          deco(24.75,1.85,z,.075,3.12,.13,trim);
+          deco(24.70,.32,z,.06,.19,.14,galv);
+        }
+        // Asphalt aging: short broken loading lines, recessed-looking drain
+        // plates and scuffs, all flush. Keep the palette muted and readable.
+        for(const [x,z] of [[-12,46],[12,46],[-20,32],[20,32],[-13,-8],[13,-8],
+          [-5,-44],[5,-44],[-31,43],[31,43]]){
+          floorDetail(x,z,.6,1.3,wear);
+          floorDetail(x+.1,z,.3,1.0,wear);
+          floorDetail(x,z,.46,.72,new THREE.MeshBasicMaterial({color:0x4d5650,transparent:true,opacity:.48,depthWrite:false}));
+          for(const off of [-.23,0,.23])floorDetail(x,z+off,.4,.045,wear);
+        }
+        // A few facade expansion joints and coping details make the port
+        // perimeter read as constructed concrete rather than a plain cube.
+        for(const z of [-48,-32,-16,0,16,32,48])for(const x of [-39.44,39.44]){
+          deco(x,2.55,z,.035,4.7,.065,seal);
+          deco(x,5.18,z,.19,.11,2.0,galv);
+        }
         // Objective markers stay purely game-specific and visually restrained.
         for(const site of FO_BOMB_SITES){
           const accent=site.id==='A'?0xd4aa63:0x77aab0;
