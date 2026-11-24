@@ -15,6 +15,6 @@ ok(Math.abs(api.cap(bot,leg,5)-3.725)<1e-9,'Default restores V65 corner cap');
 ok(api.cap(bot,leg,5,true)<3,'Historical braking test remains available');
 ok(api.ahead(bot,{...leg,next:{x:4,y:2,z:.6}})===null,'Ramp shortcut prohibited');
 ok(api.cap(bot,{node:{x:0,y:0,z:.6},next:{x:0,y:0,z:4}},5)===5,'Straight path unchanged');
-ok(html.includes('const ahead=chooseBotRouteLookahead(bot,routeLeg);')&&html.includes('moveSpeed=botRouteCornerLimit(bot,getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind),moveSpeed);'),'Live path uses default policy');
+ok(html.includes('const ahead=chooseBotRouteLookahead(bot,routeLeg,mapMomentum);')&&html.includes('moveSpeed=botRouteCornerLimit(bot,getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind),moveSpeed,mapMomentum);'),'Live path passes explicit map policy; standalone default remains V65');
 ok(html.includes('aimSettleSec: 0.34')&&html.includes('function botTrySpendRound(')&&html.includes('function foClassGuardCost('),'Other systems retained');
 console.log('BOT AI V71A ABLATION PASS ('+n+' checks)');

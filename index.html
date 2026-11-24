@@ -11549,6 +11549,10 @@
       }
       // V71A: isolate the V66 experiment; default to proven V65 policy.
       // Explicit opt-in is used only by historical regression scenarios.
+      function botMapMomentumPolicy(mode){
+        // V71E: provisional map-specific comparison; not a global quality claim.
+        return mode==='marien';
+      }
       function chooseBotRouteLookahead(bot,leg,experimentalMomentum=false){
         if(!leg||!leg.next||Math.abs(leg.node.y-leg.next.y)>.30||Math.abs(bot.pos.y-leg.next.y)>.35)return null;
         if(Math.hypot(leg.node.x-bot.pos.x,leg.node.z-bot.pos.z)>2.1)return null;
@@ -13270,7 +13274,8 @@
 
           // A route follower can skip a nearby corner only after checking body clearance.
           let routeLeg=selectedPlan.route&&!bot.unstuckTarget&&!bot.passageStepTarget?getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind):null;
-          const ahead=chooseBotRouteLookahead(bot,routeLeg);
+          const mapMomentum=botMapMomentumPolicy(isFoBombMode()?'bomb':'marien');
+          const ahead=chooseBotRouteLookahead(bot,routeLeg,mapMomentum);
           if(ahead){
             bot[routeLeg.key]=Math.max(bot[routeLeg.key]||0,routeLeg.index+1);
             moveTargetPos=new THREE.Vector3(ahead.x,ahead.y,ahead.z);
@@ -13336,7 +13341,7 @@
           // Turn-aware approach: brake before abrupt route changes, without slowing straight movement.
           if(moveTargetPos&&!bestEnemy&&moveSpeed>2.2){
             moveSpeed=limitBotCornerSpeed(bot,moveTargetPos,moveSpeed);
-            if(!bot.behaviorPlan.local)moveSpeed=botRouteCornerLimit(bot,getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind),moveSpeed);
+            if(!bot.behaviorPlan.local)moveSpeed=botRouteCornerLimit(bot,getBotRouteLeg(bot,moveTargetPos,selectedPlan.kind),moveSpeed,mapMomentum);
           }
           const locomotion=resolveBotLocomotion(bot,selectedPlan,moveTargetPos,moveSpeed,targetCrouch,desiredUpperYaw);
           bot.locomotionMode=locomotion.mode;moveSpeed=locomotion.speed;
