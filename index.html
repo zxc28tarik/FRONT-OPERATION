@@ -8542,7 +8542,8 @@ function buildSquadLeadership() {
             lookYawVelocity:b.lookYawVelocity||0,locomotionMode:b.locomotionMode||'HOLD',
             locomotionSpeed:b.locomotionSpeed||0,dodgeMode:b.dodgeMode||'HOLD',
             routeOwner:b.behaviorPlan?.route?b.behaviorPlan.kind:null,routeProgress:b.routeProgress?.best??null,
-            mapLook:b.lookControl?.owner?.startsWith('MAP_')?b.lookControl.owner:null
+            mapLook:b.lookControl?.owner?.startsWith('MAP_')?b.lookControl.owner:null,
+            combatCoverPhase:b.combatCoverCycle?.phase||null
           })),
           started: matchState.started,
           playerAlive: player.alive,
@@ -8966,7 +8967,7 @@ function buildSquadLeadership() {
         bot.behavior=null;bot.behaviorPlan=null;
         bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
         bot.locomotionMode='HOLD';bot.dodgeMode='HOLD';bot.locomotionSpeed=0;
-        bot.routeProgress=null;bot.investigateRetryAt=0;
+        bot.routeProgress=null;bot.investigateRetryAt=0;resetBotCoverCycle(bot);
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -11846,6 +11847,61 @@ function buildSquadLeadership() {
         return {owner:'MAP_CORNER',yaw:forward+delta*.65,pitch:0,speedCap:2.6};
       }
 
+      // V59: one cover cycle for visible and remembered contact. The
+      // remembered point is frozen by perception; no live hidden position is read.
+      function resetBotCoverCycle(bot){
+        bot.combatCoverCycle=null;
+      }
+      function tickBotCoverCycle(bot,anchor,threat,dt,visible,walk,see){
+        const old=bot.combatCoverCycle;
+        if(!old||old.node!==bot.coverNode||bot.coverPhase==='MOVE_TO_COVER'||bot.coverPhase==='NONE'){
+          bot.combatCoverCycle={node:bot.coverNode,phase:'RETURN',elapsed:0,peek:null};
+        }
+        const s=bot.combatCoverCycle;
+        const home={x:anchor.x,y:anchor.y,z:anchor.z};
+        const dist=p=>Math.hypot(p.x-bot.pos.x,p.z-bot.pos.z);
+        const result=(phase,target,speed,crouch,fire)=>{
+          bot.coverPhase=phase==='AIM'?'PEEK_FIRE':'CROUCH_HOLD';
+          bot.coverPhaseTimer=Math.max(0,(phase==='AIM'?1.65:.85)-s.elapsed);
+          return {target,speed,crouch,fire,phase};
+        };
+        if(s.phase==='RETURN'){
+          if(dist(home)>.38&&walk(bot.pos,home))return result('RETURN',home,2.1,1,false);
+          s.phase='HOLD';s.elapsed=0;s.peek=null;
+        }
+        if(s.phase==='HOLD'){
+          s.elapsed+=dt;
+          if(s.elapsed<.85||!threat)return result('HOLD',null,0,1,false);
+          if(bot.coverIsPartial){s.peek=home;}
+          else {
+            const dx=threat.x-home.x,dz=threat.z-home.z,len=Math.max(.01,Math.hypot(dx,dz));
+            const preferred=bot.strafeDir===-1?-1:1;
+            for(const side of [preferred,-preferred]){
+              const p={x:home.x+dz/len*side*1.15,y:home.y,z:home.z-dx/len*side*1.15};
+              if(walk(home,p)&&see({x:p.x,y:p.y+1.45,z:p.z},{x:threat.x,y:threat.y+1.45,z:threat.z})){s.peek=p;break;}
+            }
+          }
+          if(!s.peek){s.elapsed=0;return result('HOLD',null,0,1,false);}
+          s.phase='OUT';s.elapsed=0;
+        }
+        if(s.phase==='OUT'){
+          s.elapsed+=dt;
+          if(!walk(bot.pos,s.peek)||s.elapsed>1.35){s.phase='RETURN';s.elapsed=0;return result('RETURN',home,2.1,1,false);}
+          if(dist(s.peek)>.32){bot.coverPhase='PEEK_FIRE';return {target:s.peek,speed:2.2,crouch:.15,fire:false,phase:'OUT'};}
+          s.phase='AIM';s.elapsed=0;
+        }
+        s.elapsed+=dt;
+        if(s.elapsed>=(visible?1.65:.95)){s.phase='RETURN';s.elapsed=0;return result('RETURN',dist(home)>.38?home:null,2.1,1,false);}
+        return result('AIM',null,0,0,visible);
+      }
+      function botCombatFireReady(bot,kind,plannedSpeed,coverFire){
+        if(coverFire===false)return false;
+        const speed=Math.hypot(bot.moveVelX||0,bot.moveVelZ||0);
+        if(kind==='RETREAT'||kind==='FLANK')return false;
+        if(plannedSpeed>3.1||speed>3.4)return false;
+        return true;
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -11985,6 +12041,7 @@ function buildSquadLeadership() {
           let foPriorityCombat=false;
           let foMissionOrder=null;
           let behaviorHint='ADVANCE',lookOwner='ROUTE';
+          let coverFire=null;
 
           if (bestEnemy) {
             behaviorHint='ENGAGE';lookOwner='VISIBLE_TARGET';
@@ -12083,42 +12140,11 @@ function buildSquadLeadership() {
 
                 if (dCover < 1.45 && Math.abs(cn.y - bot.pos.y) < 1.2) {
                   setBotState(bot, 'TAKE_COVER', 0.95);
-                  if (bot.coverPhase === 'MOVE_TO_COVER' || bot.coverPhase === 'NONE') {
-                    bot.coverPhase = 'PEEK_FIRE';
-                    bot.coverPhaseTimer = (bot.classId === 'heavy' ? 2.1 : bot.classId === 'sniper' ? 1.35 : 1.7) + Math.random() * 0.4;
-                  }
+                  const cycle=tickBotCoverCycle(bot,cn,activeThreatPos,dt,true,
+                    isBotDirectWalkingLineClear,(a,b)=>hasLineOfSight(new THREE.Vector3(a.x,a.y,a.z),new THREE.Vector3(b.x,b.y,b.z)));
+                  moveTargetPos=cycle.target?new THREE.Vector3(cycle.target.x,cycle.target.y,cycle.target.z):null;
+                  moveSpeed=cycle.speed;targetCrouch=cycle.crouch;coverFire=cycle.fire;
 
-                  bot.coverPhaseTimer -= dt;
-                  if (bot.coverPhase === 'CROUCH_HOLD') {
-                    moveSpeed = 0;
-                    targetCrouch = 1;
-                    if (bot.coverPhaseTimer <= 0) {
-                      bot.coverPhase = 'PEEK_FIRE';
-                      bot.coverPhaseTimer = (bot.classId === 'heavy' ? 2.1 : bot.classId === 'sniper' ? 1.35 : 1.7) + Math.random() * 0.4;
-                    }
-                  } else {
-                    if (bot.coverIsPartial) {
-                      moveSpeed = 0;
-                      targetCrouch = 0;
-                    } else {
-                      const perpX = Math.cos(desiredUpperYaw) * bot.strafeDir;
-                      const perpZ = -Math.sin(desiredUpperYaw) * bot.strafeDir;
-                      const peekX = cn.x + perpX * 1.15;
-                      const peekZ = cn.z + perpZ * 1.15;
-                      if (isBotDirectWalkingLineClear(bot.pos,new THREE.Vector3(peekX,cn.y,peekZ))) {
-                        moveTargetPos = new THREE.Vector3(peekX, cn.y, peekZ);
-                        moveSpeed = 2.6;
-                      } else {
-                        moveSpeed = 0;
-                      }
-                      targetCrouch = 0.15;
-                    }
-
-                    if (bot.coverPhaseTimer <= 0) {
-                      bot.coverPhase = 'CROUCH_HOLD';
-                      bot.coverPhaseTimer = 1.05 + Math.random() * 0.55;
-                    }
-                  }
                 } else {
                   setBotState(bot, 'TAKE_COVER', 0.9);
                   moveSpeed = bot.classId === 'heavy' ? 4.4 : 5.2;
@@ -12177,6 +12203,7 @@ function buildSquadLeadership() {
             }
 
             if (isReactionReady && isAimSettled && bot.abilityCooldown <= 0 && bot.coverPhase!=='CROUCH_HOLD' &&
+                botCombatFireReady(bot,behaviorHint,moveSpeed,coverFire) &&
                 isBotAimAligned(bot, bestEnemy.eye) && isBotFireLaneClear(bot, bestEnemy.eye)) {
               const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
               const aimDir = new THREE.Vector3().subVectors(bestEnemy.eye, botEye).normalize();
@@ -12190,7 +12217,7 @@ function buildSquadLeadership() {
             }
 
             // V52: no firing during a deliberate cover hold; do not cancel retreat to unblock a shot.
-            const canShootFromStance = bot.coverPhase !== 'CROUCH_HOLD';
+            const canShootFromStance = bot.coverPhase !== 'CROUCH_HOLD' && botCombatFireReady(bot,behaviorHint,moveSpeed,coverFire);
             const canAdjustFireLane = !isWounded && !isSniperTooClose && bot.coverNode < 0 && bot.teamFlankGoalNode < 0;
             const fireLaneClear = isBotFireLaneClear(bot, bestEnemy.eye);
             const aimAligned = isBotAimAligned(bot, bestEnemy.eye);
@@ -12394,28 +12421,11 @@ function buildSquadLeadership() {
                     moveSpeed = 0;
                     targetCrouch = 1;
                   } else {
-                    bot.coverPhaseTimer -= dt;
-                    if (bot.coverPhase === 'CROUCH_HOLD') {
-                      const home=new THREE.Vector3(cn.x,cn.y,cn.z);
-                      const returnDistance=Math.hypot(home.x-bot.pos.x,home.z-bot.pos.z);
-                      if(!bot.coverIsPartial&&returnDistance>.38&&isBotDirectWalkingLineClear(bot.pos,home)){
-                        moveTargetPos=home;moveSpeed=2.1;
-                        // The hold starts after returning, not while exposed at the peek point.
-                        bot.coverPhaseTimer+=dt;
-                      }else moveSpeed=0;
-                      targetCrouch = 1;
-                      if (bot.coverPhaseTimer <= 0) {
-                        bot.coverPhase = 'PEEK_FIRE';
-                        bot.coverPhaseTimer = 1.25;
-                      }
-                    } else {
-                      moveSpeed = 0;
-                      targetCrouch = 0;
-                      if (bot.coverPhaseTimer <= 0) {
-                        bot.coverNode = -1;
-                        bot.coverPhase = 'NONE';
-                      }
-                    }
+                    const cycle=tickBotCoverCycle(bot,cn,activeThreatPos,dt,false,
+                      isBotDirectWalkingLineClear,(a,b)=>hasLineOfSight(new THREE.Vector3(a.x,a.y,a.z),new THREE.Vector3(b.x,b.y,b.z)));
+                    moveTargetPos=cycle.target?new THREE.Vector3(cycle.target.x,cycle.target.y,cycle.target.z):null;
+                    moveSpeed=cycle.speed;targetCrouch=cycle.crouch;coverFire=false;
+
                   }
                 } else {
                   moveSpeed = isWounded ? 5.6 : 4.8;
@@ -12703,6 +12713,7 @@ function buildSquadLeadership() {
               proposals.push(mission);
             }
           }
+          if(bot.coverNode<0||!['COVER','RETREAT'].includes(behaviorHint))resetBotCoverCycle(bot);
           const selectedPlan=selectBotBehaviorPlan(bot,proposals,nowSec);
           bot.behaviorPlan=selectedPlan;
           if(selectedPlan.kind!=='MISSION')foMissionOrder=null;
