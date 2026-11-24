@@ -5918,6 +5918,38 @@
           for(const child of node.children||[])upgradeSurface(child);
         };
         upgradeSurface(model.root);
+        // V105: coherent, role-specific protective shells instead of one generic helmet.
+        // Use the existing helmet reference and head pivot; approved V25 factory stays intact.
+        if(!G.v105){
+          const shape=(rows,sx,sz)=>{
+            const g=new THREE.LatheGeometry(rows.map(p=>new THREE.Vector2(p[0],p[1])),20);
+            if(typeof g.scale==='function')g.scale(sx,1,sz);
+            return g;
+          };
+          const helmets={
+            assault:shape([[.106,-.036],[.123,-.023],[.128,.023],[.118,.067],[.095,.102],[.058,.125],[.001,.132]],1,1.02),
+            medic:shape([[.103,-.031],[.119,-.016],[.121,.031],[.107,.073],[.082,.108],[.048,.122],[.001,.128]],1,1.01),
+            engineer:shape([[.108,-.038],[.127,-.028],[.129,.023],[.122,.062],[.103,.100],[.057,.125],[.001,.130]],1.01,1.04),
+            sniper:shape([[.102,-.035],[.117,-.018],[.119,.025],[.106,.064],[.081,.094],[.043,.115],[.001,.121]],.98,1.04),
+            heavy:shape([[.114,-.043],[.130,-.031],[.135,.021],[.127,.067],[.102,.107],[.063,.132],[.001,.139]],1.03,1.02)
+          };
+          G.v105={helmets};
+        }
+        const shellGeo=getSoldierSharedAssets().geos.helmetShell;
+        const helmetMesh=model.head.children.find(n=>(n.geometry||n.args?.[0])===shellGeo);
+        if(helmetMesh){
+          helmetMesh.geometry=G.v105.helmets[classId]||G.v105.helmets.assault;
+          helmetMesh.name='v105_role_helmet';
+        }
+        // Fit the protective vest to the role without touching shoulder/weapon pivots.
+        const vestProfile={assault:[1,1,1],medic:[.98,.95,.96],engineer:[1.02,1.02,1.04],sniper:[.94,.94,.91],heavy:[1.10,1.04,1.13]}[classId]||[1,1,1];
+        const {geos:baseGeos}=getSoldierSharedAssets();
+        for(const n of model.upperBody.children){
+          const g=n.geometry||n.args?.[0];
+          if(g===baseGeos.vestFront||g===baseGeos.vestBack){
+            n.scale.set(...vestProfile);n.name='v105_role_vest';
+          }
+        }
         // V104: combine static detail meshes by material within each existing animated pivot.
         // Geometry is cached per role/team/pivot. No skeleton, visible muzzle or hitbox changes.
         if(!G.v104)G.v104=new Map();

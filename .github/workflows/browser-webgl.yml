@@ -32,6 +32,7 @@ on:
       - ai/v62-personalities
       - ai/v63-integrated-validation
       - ai/v72-integrated-acceptance
+      - art/v104-character-production
   workflow_dispatch:
 
 jobs:
@@ -52,7 +53,7 @@ jobs:
       - name: Test independent Depot 17 bomb mode
         if: github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller' || github.ref_name == 'ai/v56-locomotion' || github.ref_name == 'ai/v57-navigation' || github.ref_name == 'ai/v58-map-awareness' || github.ref_name == 'ai/v59-combat-discipline' || github.ref_name == 'ai/v60-team-coordination' || github.ref_name == 'ai/v61-bomb-objectives' || github.ref_name == 'ai/v62-personalities' || github.ref_name == 'ai/v63-integrated-validation' || github.ref_name == 'ai/v72-integrated-acceptance'
         run: node scripts/browser-bomb-depot-smoke.mjs
-      - name: Render V25 versus V25+V11 characters from three angles
+      - name: Render V25 versus V105 characters from three angles
         run: node scripts/character-turntable.mjs
       - name: Save browser screenshots and report even if tests fail
         if: always()

@@ -205,3 +205,7 @@ jobs:
         run: node tests/rescue_v93_interiors_regression.cjs
       - name: Validate V103 visual gait
         run: node tests/soldier_v103_gait_regression.cjs
+      - name: Validate active defense V97
+        run: node tests/bot_ai_v97_active_defense_regression.cjs
+      - name: Validate sector defense V98
+        run: node tests/bot_ai_v98_team_sectors_regression.cjs

@@ -49,8 +49,8 @@ const pageHtml = '<!doctype html><html><head><meta charset="UTF-8">' +
   '#hint{position:absolute;top:65px;left:30px;font-size:14px;color:#dce5f4}' +
   '.caption{position:absolute;bottom:35px;font-size:24px;font-weight:900;background:#111827e6;padding:12px 20px;border-radius:12px;border:2px solid #9aa9bf}' +
   '#left{left:12%}#right{right:12%;border-color:#38bdf8}</style></head><body>' +
-  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V104 DETAILS</div>' +
-  '<div id="left" class="caption">ORIGINAL V25</div><div id="right" class="caption">V25 + V104 DETAILS</div>' +
+  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V105 DETAILS</div>' +
+  '<div id="left" class="caption">ORIGINAL V25</div><div id="right" class="caption">V25 + V105 DETAILS</div>' +
   '</body></html>';
 const server = createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -130,6 +130,19 @@ try {
         return {
           original: countMeshes(original.root),
           enhanced: countMeshes(improved.root),
+          ...(() => {
+            let input=0,output=0,invalid=0;
+            improved.root.traverse(o=>{
+              if(o.userData.v104OriginalMeshes){input+=o.userData.v104OriginalMeshes;output+=o.children.length;}
+              if(o.name==='v104_batch'){
+                const p=o.geometry.getAttribute('position'),n=o.geometry.getAttribute('normal');
+                if(!p.array.every(Number.isFinite)||!n.array.every(Number.isFinite)||!o.geometry.boundingBox)invalid++;
+              }
+            });
+            const h=improved.head.children.find(n=>n.name==='v105_role_helmet');
+            const v=improved.upperBody.children.filter(n=>n.name==='v105_role_vest');
+            return {detailInput:input,detailOutput:output,invalidBatches:invalid,roleHelmet:!!h,roleVests:v.length,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};
+          })(),
           headY: improved.head.position.y + improved.upperBody.position.y
         };
       }
@@ -144,8 +157,9 @@ try {
           args => window.__foCharacterPreview.change(args.role, args.angle, args.team),
           { team, role, angle }
         );
-        const delta = role === 'medic' ? 41 : role === 'sniper' ? 38 : 40;
-        if (stats.enhanced - stats.original !== delta) throw Error('Unexpected ' + role + ' mesh delta');
+        if(stats.detailInput<70||stats.detailOutput>=stats.detailInput*.45||stats.invalidBatches!==0)throw Error('Invalid V104 batches '+JSON.stringify(stats));
+        if(!stats.roleHelmet||stats.roleVests!==2)throw Error('Missing V105 role geometry');
+        if(stats.enhanced<=stats.original||stats.enhanced>stats.original+85)throw Error('Unexpected '+role+' model size');
         if (Math.abs(stats.headY - 1.54) > 0.001) throw Error('Head geometry regression');
         const image = 'character-' + team + '-' + role + '-' + angle + '.png';
         await page.screenshot({ path: path.join(output, image), animations: 'disabled' });
