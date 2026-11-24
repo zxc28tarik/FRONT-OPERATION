@@ -112,7 +112,29 @@ test('V22 seven team AI methods retained (V32 match-clock correction allowed)', 
         expected=expected.replace(original,'goal=chooseBotReservedGoal(bot,'+list+',bots,NAV_NODES);');
       }
       expected=expected.replace('bot.goalNode=goal;','if(goal<0)goal=startIdx;bot.goalNode=goal;');
-      assert.equal(active,expected,n);
+      // V97 explicitly permits the map-specific branch; the old Marien body must remain identical.
+      const guard=normalized(`if(typeof foActiveMap!=='undefined'&&foActiveMap!=='deathmatch'){
+          const idx=Math.max(0,Number(bot.id.split('_')[1])||0);
+          let p;
+          if(foActiveMap==='rescue')p=isBlue?FO_RESCUE_BRANCHES[idx%FO_RESCUE_BRANCHES.length]:foRescueGuardPoints(bot,true)[0];
+          else{const s=FO_BOMB_SITES[idx%FO_BOMB_SITES.length];p=NAV_NODES[isBlue?FO_TERSANE_ROUTES[idx%FO_TERSANE_ROUTES.length].entry:s.guards[idx%s.guards.length]];}
+          const goal=findNearestNavNode({x:p.x,y:p.y??0,z:p.z});
+          bot.goalNode=goal;bot.path=foFindObjectiveRoute(bot,goal);bot.pathIndex=0;return;
+        }`);
+      assert.equal(active.split(guard).length,2,'V97 map branch exists exactly once');
+      assert.equal(active.replace(guard,''),expected,n);
+      const route=[9,11];
+      const make=(team,id)=>({team,id,pos:{x:0,z:0}});
+      const select=(map,bot)=>{
+        const nodes=[{x:1,z:1},{x:2,z:2},{x:3,z:3}];
+        const f=new Function('foActiveMap','FO_RESCUE_BRANCHES','foRescueGuardPoints','FO_BOMB_SITES','FO_TERSANE_ROUTES','NAV_NODES','findNearestNavNode','foFindObjectiveRoute',func(game,n)+'\nreturn assignBotTacticalGoal;')(
+          map,[{x:12,z:13}],()=>[{x:-12,z:-13}],[{guards:[2]}],[{entry:1}],nodes,p=>p.x,()=>route);
+        f(bot);assert.equal(bot.path,route);assert.equal(bot.pathIndex,0);return bot.goalNode;
+      };
+      assert.equal(select('rescue',make('blue','blue_0')),12);
+      assert.equal(select('rescue',make('red','red_0')),-12);
+      assert.equal(select('bomb',make('blue','blue_0')),2);
+      assert.equal(select('bomb',make('red','red_0')),3);
     } else {
       assert.equal(active, reference, n);
     }
