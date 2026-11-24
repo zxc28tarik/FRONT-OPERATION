@@ -103,11 +103,11 @@ try {
         deaths:row.deaths,stuckRecoveries:row.stuckRecoveries}])),
     pageErrors:errors
   };
-  console.log('PASS V43 accelerated 600s real bot logic stress: '+
+  console.log('PASS V44 accelerated 600s real bot logic stress: '+
     JSON.stringify(result));
 } catch(e) {
   result={...result,error:String(e),pageErrors:errors};
-  console.error('FAIL V43 accelerated bot stress: '+String(e));
+  console.error('FAIL V44 accelerated bot stress: '+String(e));
   process.exitCode=1;
 } finally {
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(result,null,2));
