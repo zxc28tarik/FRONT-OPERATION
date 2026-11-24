@@ -127,10 +127,12 @@ function runBotAiV38Regression(html) {
    'Main game update loop executes team tactics and flank navigation');
  ok(html.includes('getTeamPinningOpportunity(bot, botEyeNoTarget, nowSec)'),
    'Team pinning integrates with existing covering-fire branch');
- ok(html.includes('bot.teamFlankGoalNode >= 0 ? bot.teamFlankGoalNode'),
+ ok(html.includes("if(kind==='FLANK')return valid(bot.teamFlankGoalNode);")&&
+   html.split('botRecoveryGoal(bot,selectedPlan.kind,foMissionOrder?.goal)').length===3&&
+   html.includes("else if(selectedPlan.kind==='FLANK'){bot.teamFlankRoute=alternative;bot.teamFlankPathIndex=0;}"),
    'Recovery system respects flank navigation mission');
  ok(html.includes('const wantsTacticalCover = !(bot.teamRole === \'FLANK\'')&&
-   html.includes('obstructedWp = bot.teamFlankGoalNode >= 0'),
+   html.includes('const obstructedWp=botRecoveryWaypoint(motionLeg,bot.behaviorPlan.local);'),
    'Flank movement suppresses repeated cover search and uses correct blocked waypoint');
  ok((html.match(/teamFlankGoalNode: -1,/g)||[]).length===2&&
    html.includes('bot.teamFlankRestUntil = 0;'),
