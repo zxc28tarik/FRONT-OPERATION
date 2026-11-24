@@ -5818,6 +5818,52 @@
           for(const z of [-.037,.02,.078,.136])block(boot,D.rubber,0,-.448,z,.112,.009,.026);
           for(const z of [.045,.078,.111])block(boot,D.strap,0,-.365,z,.065,.008,.012,-.16);
         }
+        // V102: distinguish class silhouettes with class-specific fitted equipment.
+        const palette=team==='blue'?mats.blueIFF:mats.redIFF;
+        const roleProfile={
+          assault:{head:[1,1,1],rig:[1,1,1]},
+          medic:{head:[.98,.96,1],rig:[.98,1,.98]},
+          engineer:{head:[1.02,.98,1],rig:[1.03,1,1]},
+          sniper:{head:[.96,.91,1],rig:[.94,1,.97]},
+          heavy:{head:[1.04,1.03,1],rig:[1.07,1,1.03]}
+        }[classId]||{head:[1,1,1],rig:[1,1,1]};
+        face.scale.set(...roleProfile.head);rig.scale.set(...roleProfile.rig);
+        // Visible role elements mounted on the animated head / carrier, not the weapon.
+        if(classId==='assault'){
+          block(face,D.hard,0,.105,.042,.055,.025,.069);
+          for(const s of [-1,1])block(rig,D.strap,s*.138,.31,-.144,.04,.16,.019);
+          ell(rig,D.hard,0,.27,-.17,.109,.087,.033);
+        }else if(classId==='medic'){
+          for(const s of [-1,1]){
+            block(face,D.med,s*.112,.067,-.045,.019,.035,.057);
+            block(face,mats.medCross,s*.123,.067,-.045,.005,.023,.006);
+            block(face,mats.medCross,s*.123,.067,-.045,.005,.006,.023);
+            ell(rig,D.med,s*.11,.22,-.22,.036,.09,.043);
+          }
+        }else if(classId==='engineer'){
+          for(const s of [-1,1]){
+            ell(face,D.hard,s*.137,.004,-.018,.022,.042,.044);
+            block(rig,D.hard,s*.113,.26,-.21,.048,.20,.058);
+          }
+          block(face,D.hard,0,.065,.130,.096,.019,.017);
+          block(rig,mats.brassBelt,0,.355,-.271,.057,.023,.009);
+        }else if(classId==='sniper'){
+          for(const s of [-1,1])for(let j=0;j<4;j++){
+            ell(face,j%2?D.strap:D.olive,s*(.089+.007*j),.098-.023*j,-.04-.009*j,.029,.022,.055,0,s*.2);
+            ell(rig,j%2?D.olive:D.strap,s*(.12+.017*j),.413-.026*j,-.058,.055,.018,.085,0,s*.3);
+          }
+          block(face,D.olive,0,.071,.126,.144,.021,.039);
+        }else if(classId==='heavy'){
+          for(const s of [-1,1]){
+            ell(face,D.hard,s*.111,-.039,.047,.027,.048,.040);
+            ell(rig,D.hard,s*.233,.39,.035,.075,.081,.096);
+            block(rig,D.strap,s*.182,.25,.105,.033,.15,.054);
+          }
+          ell(rig,D.hard,0,.445,.065,.154,.032,.097);
+          block(face,D.hard,0,.079,.125,.103,.023,.018);
+        }
+        // Compact team identifiers remain readable without painting the entire soldier brightly.
+        for(const s of [-1,1])block(rig,palette,s*.145,.40,.102,.025,.028,.016);
         // V100/V101: shaped body surfaces and shared textile maps on enhanced rig only.
         if(!G.v101){
           const {geos}=getSoldierSharedAssets();
@@ -5872,6 +5918,63 @@
           for(const child of node.children||[])upgradeSurface(child);
         };
         upgradeSurface(model.root);
+        // V104: combine static detail meshes by material within each existing animated pivot.
+        // Geometry is cached per role/team/pivot. No skeleton, visible muzzle or hitbox changes.
+        if(!G.v104)G.v104=new Map();
+        const groups=[face,rig,...[model.leftHip,model.rightHip,model.leftKnee,model.rightKnee].map(p=>p.children.find(c=>String(c.name).startsWith('v99_')))];
+        const buildBatches=group=>{
+          const buckets=new Map();
+          for(const m of group.children){
+            if(!m.geometry||typeof m.geometry.getAttribute!=='function'||typeof m.updateMatrix!=='function')return null;
+            const p=m.geometry.getAttribute('position'),n=m.geometry.getAttribute('normal'),uv=m.geometry.getAttribute('uv');
+            if(!p||!n||!uv)return null;
+            if(!buckets.has(m.material))buckets.set(m.material,[]);
+            buckets.get(m.material).push(m);
+          }
+          const batches=[];
+          for(const [material,meshes] of buckets){
+            let vertexCount=0,indexCount=0;
+            for(const m of meshes){const geo=m.geometry;vertexCount+=geo.getAttribute('position').count;indexCount+=geo.index?geo.index.count:geo.getAttribute('position').count;}
+            const pos=new Float32Array(vertexCount*3),norm=new Float32Array(vertexCount*3),uv=new Float32Array(vertexCount*2),indices=new Uint32Array(indexCount);
+            let offset=0,io=0;
+            const v=new THREE.Vector3(),normal=new THREE.Vector3(),normalMatrix=new THREE.Matrix3();
+            for(const m of meshes){
+              m.updateMatrix();normalMatrix.getNormalMatrix(m.matrix);
+              const g=m.geometry,p=g.getAttribute('position'),n=g.getAttribute('normal'),u=g.getAttribute('uv');
+              for(let i=0;i<p.count;i++){
+                v.fromBufferAttribute(p,i).applyMatrix4(m.matrix);
+                normal.fromBufferAttribute(n,i).applyMatrix3(normalMatrix).normalize();
+                const at=offset+i;pos.set([v.x,v.y,v.z],at*3);norm.set([normal.x,normal.y,normal.z],at*3);uv.set([u.getX(i),u.getY(i)],at*2);
+              }
+              if(g.index)for(let i=0;i<g.index.count;i++)indices[io++]=offset+g.index.getX(i);
+              else for(let i=0;i<p.count;i++)indices[io++]=offset+i;
+              offset+=p.count;
+            }
+            const geometry=new THREE.BufferGeometry();
+            geometry.setAttribute('position',new THREE.BufferAttribute(pos,3));
+            geometry.setAttribute('normal',new THREE.BufferAttribute(norm,3));
+            geometry.setAttribute('uv',new THREE.BufferAttribute(uv,2));
+            geometry.setIndex(new THREE.BufferAttribute(vertexCount<65536?new Uint16Array(indices):indices,1));
+            geometry.computeBoundingSphere();geometry.computeBoundingBox();
+            batches.push({material,geometry});
+          }
+          return batches;
+        };
+        for(let i=0;i<groups.length;i++){
+          const group=groups[i];if(!group)continue;
+          const key=team+':'+classId+':'+i;
+          let batches=G.v104.get(key);
+          if(!batches){
+            batches=buildBatches(group);
+            if(!batches)continue;
+            G.v104.set(key,batches);
+          }
+          group.userData.v104OriginalMeshes=group.children.length;
+          for(const child of group.children.slice())group.remove(child);
+          for(const b of batches){
+            const m=createLimbMesh(b.geometry,b.material,false);m.name='v104_batch';group.add(m);
+          }
+        }
         return model;
       }
       function createEnhancedBotSoldierMesh(team, classId) {
@@ -13075,6 +13178,20 @@
           amplitude:Math.min(.62,.14+speed*.10)};
       }
 
+      // V103: visual-only gait; no changes to aim, movement speed, noise or hitboxes.
+      function botVisualGait(phase,speed,forward,side,crouch,classId){
+        const run=Math.max(0,Math.min(1,(speed-2.1)/3));
+        const stance=Math.max(0,Math.min(1,crouch));
+        const weight=classId==='heavy'?.86:classId==='sniper'?.94:1;
+        const amplitude=(.20+.38*run)*weight*(1-.45*stance)*Math.min(1,speed/.9);
+        const a=Math.sin(phase),b=Math.cos(phase);
+        const stride=a*amplitude*forward;
+        const lateral=side*amplitude*.54;
+        return {leftHip:stride,rightHip:-stride,
+          leftSide:lateral*(.42+.58*a),rightSide:lateral*(.42-.58*a),
+          leftKnee:Math.max(0,-a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,-b)*Math.abs(side)*.20+stance*.43,
+          rightKnee:Math.max(0,a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,b)*Math.abs(side)*.20+stance*.43};
+      }
       // V58: derive map awareness from static, validated geometry, never enemy coordinates.
       let botMapAwarenessCache=null;
       function buildBotMapAwareness(nodes,adj,walk){
@@ -14567,21 +14684,21 @@
             bot.mesh.upperBody.position.y = 0.93;
             bot.animPhase += dt * actualSpeed * 2.35;
             const pose=botLocomotionPose((bot.pos.x-beforeMoveX)/Math.max(.001,dt),(bot.pos.z-beforeMoveZ)/Math.max(.001,dt),bot.legYaw,actualSpeed);
-            const swing=Math.sin(bot.animPhase)*pose.amplitude;
-            const stride=swing*pose.forward,side=swing*pose.side*.42;
-            bot.mesh.leftHip.rotation.x += (stride-bot.mesh.leftHip.rotation.x)*Math.min(1,dt*18);
-            bot.mesh.rightHip.rotation.x += (-stride-bot.mesh.rightHip.rotation.x)*Math.min(1,dt*18);
-            bot.mesh.leftHip.rotation.z += (side-bot.mesh.leftHip.rotation.z)*Math.min(1,dt*18);
-            bot.mesh.rightHip.rotation.z += (side-bot.mesh.rightHip.rotation.z)*Math.min(1,dt*18);
-            bot.mesh.leftKnee.rotation.x = Math.max(0, -swing) * 0.75+bot.crouchAmt*.32;
-            bot.mesh.rightKnee.rotation.x = Math.max(0, swing) * 0.75+bot.crouchAmt*.32;
+            bot.visualGaitPhase=((bot.visualGaitPhase??bot.animPhase)+dt*actualSpeed*(bot.classId==='heavy'?2.13:2.35))%(Math.PI*2);
+            const gait=botVisualGait(bot.visualGaitPhase,actualSpeed,pose.forward,pose.side,bot.crouchAmt,bot.classId);
+            const smooth=1-Math.exp(-dt*19);
+            const blend=(obj,key,target)=>obj[key]+=(target-obj[key])*smooth;
+            blend(bot.mesh.leftHip.rotation,'x',gait.leftHip);blend(bot.mesh.rightHip.rotation,'x',gait.rightHip);
+            blend(bot.mesh.leftHip.rotation,'z',gait.leftSide);blend(bot.mesh.rightHip.rotation,'z',gait.rightSide);
+            blend(bot.mesh.leftKnee.rotation,'x',gait.leftKnee);blend(bot.mesh.rightKnee.rotation,'x',gait.rightKnee);
           } else {
             bot.mesh.leftHip.rotation.z*=Math.exp(-12*dt);bot.mesh.rightHip.rotation.z*=Math.exp(-12*dt);
             const breath = Math.sin(performance.now() * 0.003 + bot.animPhase) * 0.025;
             bot.mesh.leftHip.rotation.x *= Math.exp(-10 * dt);
             bot.mesh.rightHip.rotation.x *= Math.exp(-10 * dt);
-            bot.mesh.leftKnee.rotation.x = bot.crouchAmt * 0.45;
-            bot.mesh.rightKnee.rotation.x = bot.crouchAmt * 0.45;
+            const kneeBlend=1-Math.exp(-dt*13);
+            bot.mesh.leftKnee.rotation.x += (bot.crouchAmt*.45-bot.mesh.leftKnee.rotation.x)*kneeBlend;
+            bot.mesh.rightKnee.rotation.x += (bot.crouchAmt*.45-bot.mesh.rightKnee.rotation.x)*kneeBlend;
             bot.mesh.upperBody.position.y = 0.93 + breath;
           }
         }

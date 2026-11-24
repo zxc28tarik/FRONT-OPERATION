@@ -203,3 +203,5 @@ jobs:
 
       - name: Run V93 furnished prison regression
         run: node tests/rescue_v93_interiors_regression.cjs
+      - name: Validate V103 visual gait
+        run: node tests/soldier_v103_gait_regression.cjs
