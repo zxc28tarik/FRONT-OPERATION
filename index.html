@@ -5993,12 +5993,14 @@
         const wp=NAV_NODES[route[bot.foObjectiveIndex]];
         // Preserve the current waypoint on a valid progressing path. Only
         // replan after role/goal change, obstruction, exhaustion or recovery.
-        const needs=bot.foObjectiveGoal!==goal||!wp||
-          (bot.foObjectiveRepath<=0&&!foBotSegmentClear(bot.pos,wp));
+        const needs=bot.foObjectiveGoal!==goal||
+          (bot.foObjectiveRepath<=0&&(!wp||!foBotSegmentClear(bot.pos,wp)));
         if(!needs&&bot.foObjectiveRepath<=0)bot.foObjectiveRepath=.65;
         if(needs){
           const from=findNearestNavNode(bot.pos,true);
-          bot.foObjectivePath=findPathAStar(from,goal,bot.blockedNode);
+          const candidate=findPathAStar(from,goal,bot.blockedNode);
+          // A* returns [goal] even when disconnected. Never interpret a blocked singleton as a walkable route.
+          bot.foObjectivePath=candidate.length===1&&!foBotSegmentClear(bot.pos,dest)?[]:candidate;
           bot.foObjectiveIndex=0;bot.foObjectiveGoal=goal;bot.foObjectiveRepath=.65;
         }
         const path=bot.foObjectivePath||[];
@@ -6011,6 +6013,7 @@
             if(next&&Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)<2.2&&foBotSegmentClear(bot.pos,next)){
               bot.foObjectiveIndex++;continue;
             }
+            if(!foBotSegmentClear(bot.pos,n)){bot.foObjectivePath=[];bot.foObjectiveIndex=0;return {target:null,speed:0,goal,role:assigned.role};}
             return {target:new THREE.Vector3(n.x,n.y,n.z),speed:assigned.role==='GUARD'?3.4:4.2,goal,role:assigned.role};
           }
           bot.foObjectiveIndex++;
@@ -8952,6 +8955,7 @@ function buildSquadLeadership() {
         resetBotHearing(bot);
         bot.hearingLastNoiseId = 0;
         bot.telemetryTargetId = null;
+        bot.lastDirectContactAt = -Infinity;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -11084,10 +11088,13 @@ function buildSquadLeadership() {
       }
 
       function isBotFireLaneClear(bot, targetEye, source = bot.pos) {
-        const sx = source.x, sy = source.y + 1.45, sz = source.z;
+        const sx = source.x, sy = source.y + 1.45-(bot.crouchAmt||0)*.32, sz = source.z;
         const dx = targetEye.x - sx, dy = targetEye.y - sy, dz = targetEye.z - sz;
         const lenSq = dx * dx + dy * dy + dz * dz;
         if (lenSq < 0.25) return false;
+        // Crouched soldiers must not shoot through geometry from a fictitious standing origin.
+        const actualEye=new THREE.Vector3(sx,sy,sz);
+        if(!hasLineOfSight(actualEye,targetEye))return false;
         const len = Math.sqrt(lenSq);
         const allyInLine = (pos) => {
           const ox = pos.x - sx, oy = pos.y + 1.05 - sy, oz = pos.z - sz;
@@ -11358,6 +11365,15 @@ function buildSquadLeadership() {
           }
         }
         return null;
+      }
+
+      // V53: movement momentum and the next waypoint determine corner speed.
+      function limitBotCornerSpeed(bot,target,speed){
+        const dx=target.x-bot.pos.x,dz=target.z-bot.pos.z,d=Math.hypot(dx,dz);
+        const vx=bot.moveVelX||0,vz=bot.moveVelZ||0,v=Math.hypot(vx,vz);
+        if(d<.15||v<.5)return speed;
+        const alignment=(dx*vx+dz*vz)/(d*v);
+        return speed*Math.max(.58,Math.min(1,.79+.21*alignment));
       }
 
       // V36: Smooth steering. Path decisions remain in the tactical layer.
@@ -11646,6 +11662,8 @@ function buildSquadLeadership() {
           const previouslyHeard = !!(bot.hearingPos && bot.hearingTimer > 0);
           updateBotPerception(bot, dt, targetClaimCounts);
           considerBotHeardNoise(bot, nowSec, dt);
+          if(bot.visibleEnemy)bot.lastDirectContactAt=nowSec;
+          const freshLostContact=!bot.visibleEnemy&&!!bot.lastKnownEnemyPos&&Number.isFinite(bot.lastDirectContactAt)&&nowSec-bot.lastDirectContactAt<.75;
           const bestEnemy = bot.visibleEnemy;
           const currentTarget = bestEnemy ? bestEnemy.id : null;
           if (currentTarget && currentTarget !== previousTarget) recordBotMetric(bot,'sightings');
@@ -11692,6 +11710,7 @@ function buildSquadLeadership() {
           let targetCrouch = 0;
           let desiredUpperYaw = bot.legYaw;
           let foPriorityCombat=false;
+          let foMissionOrder=null;
 
           if (bestEnemy) {
             bot.supportGoalNode = -1;
@@ -11809,7 +11828,7 @@ function buildSquadLeadership() {
                       const perpZ = -Math.sin(desiredUpperYaw) * bot.strafeDir;
                       const peekX = cn.x + perpX * 1.15;
                       const peekZ = cn.z + perpZ * 1.15;
-                      if (isPositionWalkable(peekX, bot.pos.y, peekZ)) {
+                      if (isBotDirectWalkingLineClear(bot.pos,new THREE.Vector3(peekX,cn.y,peekZ))) {
                         moveTargetPos = new THREE.Vector3(peekX, cn.y, peekZ);
                         moveSpeed = 2.6;
                       } else {
@@ -11844,24 +11863,22 @@ function buildSquadLeadership() {
                 // or the situation changes; no per-frame random zig-zag.
                 bot.strafeTimer -= dt;
                 const changedThreat = bot.combatStrafeTargetId !== bot.targetId;
-                if (changedThreat || bot.strafeTimer <= 0 ||
-                    (bot.combatStrafeGoal &&
-                     Math.hypot(bot.combatStrafeGoal.x - bot.pos.x,
-                                bot.combatStrafeGoal.z - bot.pos.z) <= 0.65)) {
+                if (changedThreat || bot.strafeTimer <= 0) {
                   if (!changedThreat) bot.strafeDir *= -1;
-                  bot.strafeTimer = 1.75 + Math.random() * 0.85;
+                  bot.strafeTimer = 2.05 + Math.random() * 0.85;
                   bot.combatStrafeTargetId = bot.targetId;
                   bot.combatStrafeGoal = chooseBotCombatStrafeGoal(bot, desiredUpperYaw);
                 }
-                if (bot.combatStrafeGoal) moveTargetPos = bot.combatStrafeGoal;
-                moveSpeed = bot.classId === 'sniper' ? 1.8 : 3.4;
+                const strafeRemaining = bot.combatStrafeGoal ? Math.hypot(bot.combatStrafeGoal.x-bot.pos.x,bot.combatStrafeGoal.z-bot.pos.z) : 0;
+                if (strafeRemaining > 0.48) moveTargetPos = bot.combatStrafeGoal;
+                moveSpeed = moveTargetPos ? (bot.classId === 'sniper' ? 1.8 : 2.7) : 0;
                 targetCrouch = (bot.classId === 'sniper' || distToEnemy > 24) ? 0.65 : 0;
               }
             }
 
             // A single squad flanker can approach the same observed enemy
             // from another navigable lane, without overruling emergency retreat.
-            if (!isWounded && !isSniperTooClose) {
+            if (!isWounded && !isSniperTooClose && bot.coverNode < 0 && distToEnemy > 14) {
               const previousFlank = bot.teamFlankGoalNode;
               const flankWp = getTeamFlankWaypoint(bot, nowSec);
               if (previousFlank < 0 && bot.teamFlankGoalNode >= 0)
@@ -11875,7 +11892,7 @@ function buildSquadLeadership() {
               }
             }
 
-            if (isReactionReady && isAimSettled && bot.abilityCooldown <= 0 &&
+            if (isReactionReady && isAimSettled && bot.abilityCooldown <= 0 && bot.coverPhase!=='CROUCH_HOLD' &&
                 isBotAimAligned(bot, bestEnemy.eye) && isBotFireLaneClear(bot, bestEnemy.eye)) {
               const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
               const aimDir = new THREE.Vector3().subVectors(bestEnemy.eye, botEye).normalize();
@@ -11888,10 +11905,12 @@ function buildSquadLeadership() {
               }
             }
 
-            const canShootFromStance = !(bot.coverPhase === 'CROUCH_HOLD' && bot.coverIsPartial && bot.crouchAmt > 0.7);
+            // V52: no firing during a deliberate cover hold; do not cancel retreat to unblock a shot.
+            const canShootFromStance = bot.coverPhase !== 'CROUCH_HOLD';
+            const canAdjustFireLane = !isWounded && !isSniperTooClose && bot.coverNode < 0 && bot.teamFlankGoalNode < 0;
             const fireLaneClear = isBotFireLaneClear(bot, bestEnemy.eye);
             const aimAligned = isBotAimAligned(bot, bestEnemy.eye);
-            if (isReactionReady && !fireLaneClear) {
+            if (isReactionReady && !fireLaneClear && canAdjustFireLane) {
               bot.fireLaneBlockTimer = Math.min(3, bot.fireLaneBlockTimer + dt);
               if (bot.fireLaneBlockTimer > 0.38) {
                 if (!bot.fireLaneRecoveryGoal ||
@@ -12090,7 +12109,13 @@ function buildSquadLeadership() {
                   } else {
                     bot.coverPhaseTimer -= dt;
                     if (bot.coverPhase === 'CROUCH_HOLD') {
-                      moveSpeed = 0;
+                      const home=new THREE.Vector3(cn.x,cn.y,cn.z);
+                      const returnDistance=Math.hypot(home.x-bot.pos.x,home.z-bot.pos.z);
+                      if(!bot.coverIsPartial&&returnDistance>.38&&isBotDirectWalkingLineClear(bot.pos,home)){
+                        moveTargetPos=home;moveSpeed=2.1;
+                        // The hold starts after returning, not while exposed at the peek point.
+                        bot.coverPhaseTimer+=dt;
+                      }else moveSpeed=0;
                       targetCrouch = 1;
                       if (bot.coverPhaseTimer <= 0) {
                         bot.coverPhase = 'PEEK_FIRE';
@@ -12121,6 +12146,23 @@ function buildSquadLeadership() {
                 if (activeThreatPos) {
                   desiredUpperYaw = Math.atan2(activeThreatPos.x - bot.pos.x, activeThreatPos.z - bot.pos.z);
                 }
+              } else if (freshLostContact) {
+                // Briefly hold the last observed angle before chasing or returning to the objective.
+                bot.investigateTimer=Math.max(0,bot.investigateTimer-dt);
+                setBotState(bot,'INVESTIGATE',.75,true);
+                desiredUpperYaw=Math.atan2(bot.lastKnownEnemyPos.x-bot.pos.x,bot.lastKnownEnemyPos.z-bot.pos.z);
+                moveSpeed=0;targetCrouch=.2;foPriorityCombat=true;
+              } else if (isFoBombMode() && bot.hp>=28 && bot.unstuckTimer<=0 && (foMissionOrder=getFoBombBotOrder(bot,dt))) {
+                // Objective mode owns quiet movement; avoid running legacy patrol and medic routes underneath it.
+                bot.coverNode=-1;
+                bot.coverPhase='NONE';
+                bot.rallyGoalNode=-1;
+                bot.supportGoalNode=-1;
+                bot.investigateTimer=Math.max(0,bot.investigateTimer-dt);
+                bot.hearingTimer=Math.max(0,bot.hearingTimer-dt);
+                if(bot.investigateTimer===0){bot.lastKnownEnemyPos=null;bot.memoryTargetId=null;}
+                if(bot.hearingTimer===0)bot.hearingPos=null;
+                setBotState(bot,foMissionOrder.speed>0?'ADVANCE':'DEFEND_HOLD',.5,true);
               } else {
                 bot.coverNode = -1;
                 bot.coverPhase = 'NONE';
@@ -12189,7 +12231,7 @@ function buildSquadLeadership() {
                   const routeTo = new THREE.Vector3(
                     investigationPos.x, investigationPos.y + 1.0, investigationPos.z
                   );
-                  if (!hasLineOfSight(routeFrom, routeTo)) {
+                  if (!hasLineOfSight(routeFrom, routeTo) || !isBotDirectWalkingLineClear(bot.pos,investigationPos)) {
                     const investigationGoal = findNearestNavNode(investigationPos);
                     if (bot.investigateGoalNode !== investigationGoal ||
                         !bot.path || bot.pathIndex >= bot.path.length) {
@@ -12219,6 +12261,7 @@ function buildSquadLeadership() {
                     moveTargetPos = investigationPos;
                   }
 
+                  moveSpeed=Math.min(moveSpeed,3.1);
                   const dLastKnown = bot.pos.distanceTo(bot.lastKnownEnemyPos);
                   if (bot.classId === 'assault' && bot.abilityCooldown <= 0 && dLastKnown >= 9 && dLastKnown <= 24) {
                     const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
@@ -12342,11 +12385,10 @@ function buildSquadLeadership() {
           // Mission movement never erases an active firefight, cover retreat,
           // drone engagement or fresh local contact. On a quiet objective
           // route the mission owns movement, while hearing can steer the head.
-          let foMissionOrder=null;
           if(isFoBombMode()&&!bestEnemy&&!foPriorityCombat&&bot.hp>=28&&
              !(bot.coverNode>=0&&bot.coverPhase!=='NONE'&&bot.investigateTimer>2.7)&&
              !(bot.state==='RETREAT'&&bot.investigateTimer>1.2)){
-            foMissionOrder=getFoBombBotOrder(bot,dt);
+            foMissionOrder=foMissionOrder||getFoBombBotOrder(bot,dt);
             if(foMissionOrder){
               moveTargetPos=foMissionOrder.target;moveSpeed=foMissionOrder.speed;
               targetCrouch=foMissionOrder.crouch||0;
@@ -12360,7 +12402,13 @@ function buildSquadLeadership() {
               }
             }
           }
+          // New contact cancels obsolete navigation detours, but not an active escape from cover.
+          if(bestEnemy && bot.coverPhase!=='MOVE_TO_COVER' && bot.telemetryTargetId!==previousTarget){
+            bot.unstuckTarget=null;bot.unstuckTimer=0;
+            bot.passageStepTarget=null;bot.passageStepTimer=0;
+          }
           // Complete a short walkable lateral sidestep before retrying A*.
+          if(freshLostContact){bot.unstuckTarget=null;bot.unstuckTimer=0;bot.passageStepTarget=null;bot.passageStepTimer=0;}
           if (bot.unstuckTarget && bot.unstuckTimer > 0) {
             bot.unstuckTimer = Math.max(0, bot.unstuckTimer - dt);
             const remaining = Math.hypot(
@@ -12391,7 +12439,7 @@ function buildSquadLeadership() {
               bot.passageStepTimer = 0;
             }
           }
-          if (!bot.passageStepTarget && moveTargetPos && moveSpeed > 2.2) {
+          if (!bot.passageStepTarget && moveTargetPos && moveSpeed > 2.2 && (!bestEnemy || bot.coverPhase==='MOVE_TO_COVER' || bot.teamFlankGoalNode>=0)) {
             const passage = inspectBotPassage(bot, moveTargetPos, moveSpeed);
             if (passage && passage.mode === 'sidestep') {
               bot.passageStepTarget = passage.point;
@@ -12425,6 +12473,10 @@ function buildSquadLeadership() {
             } else {
               bot.passageWaitTimer = 0;
             }
+          }
+          // Turn-aware approach: brake before abrupt route changes, without slowing straight movement.
+          if(moveTargetPos&&!bestEnemy&&moveSpeed>2.2){
+            moveSpeed=limitBotCornerSpeed(bot,moveTargetPos,moveSpeed);
           }
           const hasRouteIntent = moveTargetPos && moveSpeed > 2.2 &&
             Math.hypot(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z) > 1.55;
@@ -12567,15 +12619,15 @@ function buildSquadLeadership() {
             bot.pos.x - beforeMoveX, bot.pos.z - beforeMoveZ
           ) / Math.max(0.001, dt);
           if (actualSpeed > 0.35) {
-            const targetLegYaw = Math.atan2(bot.moveVelX, bot.moveVelZ);
-            bot.legYaw = lerpAngle(bot.legYaw, targetLegYaw, dt * 10);
+            const targetLegYaw = bestEnemy || foPriorityCombat ? desiredUpperYaw : Math.atan2(bot.moveVelX, bot.moveVelZ);
+            bot.legYaw = lerpAngle(bot.legYaw, targetLegYaw, 1-Math.exp(-dt * (bestEnemy?13:8)));
           } else {
             bot.legYaw = lerpAngle(bot.legYaw, desiredUpperYaw, dt * 5);
           }
-          bot.upperYaw = lerpAngle(bot.upperYaw, desiredUpperYaw, dt * 12);
+          bot.upperYaw = lerpAngle(bot.upperYaw, desiredUpperYaw, 1-Math.exp(-dt * (bestEnemy?16:10)));
           // Combat strafing moves the legs sideways, not the muzzle.
           // Rotate the body base enough to stay inside the torso's twist range.
-          if(bestEnemy||bot.state==='ENGAGE'){
+          if(bestEnemy||foPriorityCombat||bot.state==='ENGAGE'){
             const twist=normalizeAngle(bot.upperYaw-bot.legYaw);
             if(Math.abs(twist)>.92)bot.legYaw=normalizeAngle(bot.upperYaw-Math.sign(twist)*.92);
           }
