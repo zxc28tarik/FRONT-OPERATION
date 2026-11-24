@@ -9305,6 +9305,7 @@
         bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
         bot.locomotionMode='HOLD';bot.dodgeMode='HOLD';bot.locomotionSpeed=0;
         bot.routeProgress=null;bot.investigateRetryAt=0;resetBotCoverCycle(bot);bot.contactOpportunity=null;
+        bot.gustavContact=null;bot.gustavUsedThisLife=false;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -12450,6 +12451,26 @@
         return true;
       }
 
+      // V82: the Heavy's special launcher is never the opening shot.
+      // Track only uninterrupted direct contact with the current visible target.
+      function updateBotHeavyGustavContact(bot,enemy,now){
+        if(bot.classId!=='heavy'||!enemy){bot.gustavContact=null;return;}
+        const old=bot.gustavContact;
+        if(!old||old.id!==enemy.id||now<old.lastSeen||now-old.lastSeen>0.25){
+          bot.gustavContact={id:enemy.id,started:now,lastSeen:now,rounds:0};
+        }else old.lastSeen=now;
+      }
+      function botHeavyGustavReady(bot,enemy,now,distance){
+        const c=bot.gustavContact;
+        return bot.classId==='heavy'&&!bot.gustavUsedThisLife&&!!enemy&&!!c&&
+          c.id===enemy.id&&now===c.lastSeen&&now-c.started>=3.5&&c.rounds>=6&&
+          distance>=11&&distance<=38;
+      }
+      function recordBotHeavyGustavRound(bot,enemy){
+        if(bot.classId==='heavy'&&bot.gustavContact&&enemy&&
+           bot.gustavContact.id===enemy.id)bot.gustavContact.rounds++;
+      }
+
       // V63: a newly acquired direct contact gets a bounded firing opportunity.
       // No hidden coordinates or snap aim; existing reaction, muzzle and LOS gates remain.
       function updateBotContactOpportunity(bot,enemy,now){
@@ -12703,6 +12724,7 @@
           }
 
           updateBotContactOpportunity(bot,bestEnemy,nowSec);
+          updateBotHeavyGustavContact(bot,bestEnemy,nowSec);
           const activeThreatPos = bestEnemy
             ? bestEnemy.pos
             : ((bot.lastKnownEnemyPos && bot.investigateTimer > 0) ? bot.lastKnownEnemyPos : null);
@@ -12909,8 +12931,10 @@
               if (bot.classId === 'assault' && distToEnemy >= 10 && distToEnemy <= 26) {
                 bot.abilityCooldown = 16 + Math.random() * 6;
                 throwGrenade(botEye.clone().addScaledVector(aimDir, 0.5), aimDir, bot.name, bot.team);
-              } else if (bot.classId === 'heavy' && distToEnemy >= 11 && distToEnemy <= 38) {
+              } else if (botHeavyGustavReady(bot,bestEnemy,nowSec,distToEnemy)) {
+                bot.gustavUsedThisLife=true;
                 bot.abilityCooldown = 18 + Math.random() * 6;
+                bot.fireTimer=Math.max(bot.fireTimer,0.85);
                 fireRocket(botEye.clone().addScaledVector(aimDir, 0.7), aimDir, bot.name, bot.team);
               }
             }
@@ -12945,6 +12969,7 @@
               const bw = WEAPONS[botWeaponId];
               bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && botWeaponId === 'mrad' ? 1.35 : 2.1);
               if(bot.contactOpportunity)bot.contactOpportunity.fired=true;
+              recordBotHeavyGustavRound(bot,bestEnemy);
               bot.burstCount++;
               if (bot.burstCount > (bot.classId === 'heavy' ? 9 : 5)) {
                 bot.burstCount = 0;
