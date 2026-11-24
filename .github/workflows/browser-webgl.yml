@@ -12,6 +12,7 @@ on:
       - ai/v39-acoustic-investigation
       - ai/v40-bot-telemetry-balance
       - ai/v41-gate-navigation-fix
+      - ai/v42-collider-aware-nav-edges
   workflow_dispatch:
 
 jobs:
