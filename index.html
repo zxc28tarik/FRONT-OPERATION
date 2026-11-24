@@ -10031,6 +10031,22 @@ function buildSquadLeadership() {
         return null;
       }
 
+      // V44: A clear eye-level sightline is not proof a soldier can walk
+      // to a casualty. Check body clearance before taking a direct shortcut.
+      function isBotDirectWalkingLineClear(from, to) {
+        if (!from || !to || Math.abs(from.y - to.y) > 1.25) return false;
+        const dx = to.x - from.x, dz = to.z - from.z;
+        const distance = Math.hypot(dx, dz);
+        const samples = Math.max(1, Math.ceil(distance / 0.22));
+        for (let i = 1; i <= samples; i++) {
+          const t = i / samples;
+          if (!isPositionWalkable(from.x + dx * t, from.y, from.z + dz * t)) {
+            return false;
+          }
+        }
+        return true;
+      }
+
       // Patient affinity prevents rapid medic destination switches.
       function selectBotMedicPatient(bot) {
         let best = null, bestScore = Infinity;
@@ -10995,7 +11011,9 @@ function buildSquadLeadership() {
                   const medicEye = new THREE.Vector3(
                     bot.pos.x, bot.pos.y + 1.0, bot.pos.z
                   );
-                  const canReachAllyDirectly = hasLineOfSight(medicEye, allyEye);
+                  const canReachAllyDirectly =
+                    hasLineOfSight(medicEye, allyEye) &&
+                    isBotDirectWalkingLineClear(bot.pos, injuredAlly.pos);
                   if (canReachAllyDirectly) {
                     bot.supportGoalNode = -1;
                     moveTargetPos = injuredAlly.pos.clone();
