@@ -13,7 +13,7 @@ V47 son 3×600 simüle saniyelik eşleştirilmiş testte siper seçim kararsızl
 
 **Rota uzaklığını hesaplama:** `getBotCoverRemainingDistance(bot,node)`, mevcut yolun hedef siper düğümüne ait olması şartıyla botun bir sonraki A* waypoint'e kalan uzaklığını ve sonraki kenarların gerçek uzunluklarını birleştirir. Geçerli siper rotası yoksa önceki mesafe ölçümüne düşer. Siperin varış koşulu aynı fiziksel mesafeyi kullanır: botun siper düğümüne **1,45 m** içinde ulaşması.
 
-**Gerçekten duraksayan botun kurtarılması:** `recoverBotStalledCover`, aynı siper için son **5,4 simüle saniyedir** anlamlı rota ilerlemesi olmayan ve ayrıca **en az iki gerçek fiziksel sıkışma tespiti** bulunan botu gözden geçirir. Ancak botun canlı olması, gerçekten görünür bir düşmanı bulunması, siper yaklaşma evresinde olması ve bir kanat komutunu izlemiyor olması gerekir. Süre sınırı ve kurtarma soğuması tekrar tekrar rota değiştirmeyi önler.
+**Gerçekten duraksayan botun kurtarılması:** `recoverBotStalledCover`, aynı siper için son **4,2 simüle saniyedir** anlamlı A* rota ilerlemesi olmayan ve ayrıca **en az bir gerçek fiziksel sıkışma tespiti** bulunan botu gözden geçirir. Ancak botun canlı olması, gerçekten görünür bir düşmanı bulunması, siper yaklaşma evresinde olması ve bir kanat komutunu izlemiyor olması gerekir. Süre sınırı ve kurtarma soğuması tekrar tekrar rota değiştirmeyi önler.
 
 **Alternatif siperin güvenlik filtresi:** `selectAlternativeReachableCover`, sorunlu siper düğümünü dışlar. Adayın çömelmiş asker için gerçek fiziksel görüş engeli sunmasını, sınıfın kat/yükseklik sınırını, kısa/orta mesafesini, V45 ile yürünebilir başlangıç düğümünü ve V42 doğrulanmış A* yolu şart koşar. Çok büyük duvar dolanma yolları elenir. En fazla 50 nav düğümü taranır. Uygun alternatif bulursa bot mevcut A* rotasını değiştirir; bulamazsa kapalı siperi bırakıp mevcut çatışma hareketine döner. Duvarın içinden hareket veya görünmeyen düşmana atış uygulanmaz.
 
@@ -50,6 +50,19 @@ V47 son 3×600 simüle saniyelik eşleştirilmiş testte siper seçim kararsızl
 
 **Bu ilk ayar reddedildi:** İlerlemeden yaklaşma sayısını azaltırken gereğinden fazla acil rota değiştirme oluşturmuş, çarpışma kurtarma ve siperde kalma değerlerini kötüleştirmiştir.
 
-Son kodda acil rota değiştirmek için aynı siper rotasında **en az 5,4 saniyedir ilerleme olmaması VE mevcut fiziksel sıkışma sayacının en az 2 olması** şartı getirildi. Alternatif hedefler, ayrıca keskin yakın mesafe sınırına (çoğu sınıf için **18 m**, sniper için **24 m**) ve azami **32 m A*** yol mesafesine tabidir. Böylece siperin etrafında taktik hareket eden bot yerine gerçekten fiziksel olarak takılan bot için kurtarma çalışır. Karşılaştırma bu yeni ayarla tekrarlanır.
+Son kodda acil rota değiştirmek için aynı siper rotasında **en az 4,2 saniyedir rota ilerlemesi olmaması VE mevcut fiziksel sıkışma sayacının en az 1 olması** şartı getirildi. Alternatif hedefler, ayrıca keskin yakın mesafe sınırına (çoğu sınıf için **18 m**, sniper için **24 m**) ve azami **32 m A*** yol mesafesine tabidir. Böylece siperin etrafında taktik hareket eden bot yerine gerçekten fiziksel olarak takılan bot için kurtarma çalışır. Karşılaştırma bu yeni ayarla tekrarlanır.
 
 **Önemli:** Sayılardaki erken iyileşme iddiası son ayara aktarılmaz; doğrulama son sürümün kendi A/B testlerinden alınmalıdır.
+
+
+## V48 son revizyon: karar saati ve rota teşhisi ayrıldı
+
+İkinci A/B koşusunda ([#45380759895](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45380759895)), iki fiziksel takılma + 5,4 saniyelik sıkı koşul altında **hiç kurtarma tetiklenmedi**; buna rağmen davranıştaki küçük farklar ve çatışma etkinliği kaybı sürdü. İncelemede sorun, yeni rota-ilerleme zamanının V47'nin asıl siper-tutma kararındaki `lastProgressAt` saatiyle **aynı değişkeni paylaşması** olarak belirlendi.
+
+Bu nedenle son kaynak kodunda:
+
+- `bestDistance` ve `lastProgressAt` **V47'nin eski kuş uçuşu karar saati** olarak korunur. Bu, daha önce onaylanan siper-tutma ve hedef değiştirme temposunu muhafaza eder.
+- `routeBestDistance` ve `routeLastProgressAt` **yeni A* gerçekte kalan yol ölçümü** olarak ayrıca saklanır. `no_progress` tanısı ve V48 acil kurtarma kapısı yalnız bu sayaca bakar.
+- Gereksiz yeniden seçim yaratmamak için fiziksel sıkışma kapısı en az **bir gerçek kurtarma olayı + 4,2 saniye A* ilerlemesi kaybı** ister. Değişiklikler yalnızca `coverPhase=MOVE_TO_COVER` ve gerçek görünür düşman varken uygulanır.
+
+Böylece V47'nin karar hissiyatı ile V48'in daha doğru fiziksel teşhis sistemi birbirine karışmaz. Bu revizyonun sonuçları ayrıca aynı üç başlangıç tohumu üzerinden değerlendirilir; 3,6 saniyelik ilk kötü ayarın sonuçları yeni sürüm için geçerli sayılmaz.
