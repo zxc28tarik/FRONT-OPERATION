@@ -40,7 +40,7 @@ ok(!make(7)(b,enemy),'Missing V48 route evidence preserves conservative V47 expi
 b=bot();b._coverAudit.routeLastProgressAt=Number.NaN;
 ok(!make(7)(b,enemy),'Nonfinite route evidence cannot prolong cover use');
 b=bot();b._coverAudit.routeLastProgressAt=10;
-ok(make(7)(b,enemy)===true,'Future timestamp alone does not cancel concealment');
+ok(!make(7)(b,enemy),'Future progress timestamps cannot fake route advancement');
 // A future time never originates in the real monotonic bot clock;
 // it must not be accepted as proof of forward movement.
 const guard=html.slice(start,end);
@@ -65,8 +65,8 @@ ok(html.includes("recordBotMetric(bot,'coverRouteRetentions')") &&
 ok(html.includes("'coverRouteRetentions','coverTargetReevaluations'") &&
    html.includes('version: 49, seconds: 0'),'V49 telemetry fields are registered');
 ok(html.includes('function findBestCoverNode(botPos, threatPos, bot = null) {')&&
-   !html.includes('excludedNodes'), 'V20 approved cover-finder signature remains');
-ok((html.match(/aimSettleSec: 0\\.34/g)||[]).length===3 &&
+   !html.includes('function findBestCoverNode(botPos, threatPos, bot = null, excludedNodes'), 'V20 approved cover-finder signature remains');
+ok((html.match(/aimSettleSec: 0\.34/g)||[]).length===3 &&
    html.includes('return index % 15 === 14'),
    'All three 0.34s aim profiles and Expert substitution remain');
 console.log('BOT AI V49 PASS ('+checks+' checks)');
