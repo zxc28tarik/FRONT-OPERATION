@@ -128,3 +128,6 @@ jobs:
 
       - name: Run V71A corner ablation regression
         run: node tests/bot_ai_v71a_corner_ablation_regression.cjs
+
+      - name: Run V71B active weapon regression
+        run: node tests/bot_ai_v71b_active_weapon_regression.cjs
