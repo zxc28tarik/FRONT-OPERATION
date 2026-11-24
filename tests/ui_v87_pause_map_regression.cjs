@@ -1,0 +1,21 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
+const nodes=new Map();
+function el(id){if(!nodes.has(id)){const set=new Set();nodes.set(id,{style:{},textContent:'',value:'',classList:{add:v=>set.add(v),remove:v=>set.delete(v),contains:v=>set.has(v)},focus(){},addEventListener(){}});}return nodes.get(id);}
+const document={getElementById:el,querySelector:el};
+const state={started:true,ended:false,mode:'bomb',scoreBlue:4,scoreRed:2};
+let pauses=0;
+const a=html.indexOf('      function openPauseMapMenu()'),b=html.indexOf('      function openClassMenu()',a);
+assert(a>=0&&b>a);
+const api=new Function('document','matchState','foModeSelect','player','showPauseMenu','resetPausedInputs','refreshMapMenuCaption','selectMenuClass','let gamePaused=true,mapSwitchPending=false,scoreboardReturnToPause=false;\n'+html.slice(a,b)+'\nreturn {open:openPauseMapMenu,cancel:cancelPauseMapMenu,pending:()=>mapSwitchPending};')(document,state,el('fo-game-mode'),{classId:'heavy'},()=>pauses++,()=>{},()=>{},()=>{});
+api.open();assert(api.pending());assert.equal(el('fo-game-mode').value,'bomb');assert.equal(el('fo-mode-picker').style.display,'flex');assert(!el('btn-map-cancel').classList.contains('hidden'));
+el('fo-game-mode').value='deathmatch';api.cancel();assert(!api.pending());assert.equal(state.mode,'bomb');assert.equal(state.scoreBlue,4);assert.equal(state.scoreRed,2);assert.equal(pauses,1);assert(el('menu-overlay').classList.contains('hidden'));
+assert(html.includes("const isNewMatch = mapSwitchPending || matchState.ended"));
+assert(html.includes("if(!mapSwitchPending&&matchState.started&&!matchState.ended&&matchState.mode==='bomb')"));
+assert(html.includes('selectFoMap(selectedMode);'));
+assert(html.includes('clearAllMatchEntities();'));
+assert(html.includes('droneSystem.resetAll();'));
+assert(html.includes('stopFoSpectator();'));
+assert(html.includes("btn-touch-pause').addEventListener('click', showPauseMenu)"));
+console.log('V87 PAUSE MAP SWITCH PASS');
