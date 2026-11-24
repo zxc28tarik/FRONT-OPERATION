@@ -20,7 +20,9 @@ Kullanıcı ilk Depo 17 yerleşimini beğenmedi. Yeni harita asimetrik bir endü
 - Batı: daha dar, yapılarla bölünmüş sokak; doğu: geniş yükleme hattı.
 - İki ayrı üs; mevcut oyun sınırları korunur.
 - Orijinal Marien sahnesi ve navigasyonu ayrı saklanır.
-- Gerçek harita oluşturucusu izole geometri denetiminde 42 collider üretti; 50/50 düğüm yürünebilir ve erişilebilir, 85 aday kenardan 75 geçerli. Bu denetim WebGL görsel kabulü değildir.
+- V2: Güney ve ileri sektör arasında tam dört fiziksel geçiş: kapalı batı deposu (x=-32), batı sokağı (x=-16), servis koridoru (x=0), doğu yükleme hattı (x=32). Doğuda ayrıca kapalı ekipman odası. Dört farklı çatılı iç mekân: A hangarı, servis binası, batı deposu, doğu ekipman odası.
+- Gerçek harita oluşturucusu izole geometri denetiminde 70 collider üretti; 50/50 düğüm yürünebilir ve erişilebilir, 85 aday kenardan 72 geçerli. Ayırıcı duvarda dört açıklık ölçüldü, dört giriş de iki hedefe bağlanıyor. Bu denetim WebGL görsel kabulü değildir.
+- Saldırı botları dört geçide sırayla dağıtılır, önce geçit girişine sonra çıkışına yönelir. Çatışma ve bomba kuralları değişmedi.
 
 ## Bot davranışı
 Mevcut V49 algı, nişan, hasar ve çatışma sistemi korunur. Yalnız bomba modunda ve görünür düşman yokken botlar A/B hedefi, savunma/koruma noktası ve kurulum sonrası etkisizleştirme görevine göre A* yol kullanır. Normal ölüm maçına bu görevler uygulanmaz. İlk sürümde amaç görev çevriminin tamamlanması; tam bot taktik ve harita dengesi ayrıca doğal maç stresleri ile ölçülmelidir.
