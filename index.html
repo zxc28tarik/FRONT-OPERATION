@@ -3839,15 +3839,20 @@
         }
         box(35,-7,2.1,2.5,1.15,crate);
         sign('EKIPMAN',32,3.5,4.1,0,'#9eaaa8');
-        // V5: segmented dividers separate the four approaches from the
-        // central gate to the forward junction. Cross-links remain at z=6
-        // and z=-17, with the same two objective sites and four entrances.
+        // V5: longer independent approaches, separated by real structures.
+        // Lateral connections are limited to junctions, not every open row.
         for(const x of [-24,-8,24]){
           for(const [z,len] of [[12.5,7],[-.5,8]]){
             box(x,z,1.05,len,3.7,darkWall);
             deco(x,3.76,z,1.18,.12,len+.12,metal);
             for(const off of [-len*.32,len*.32])deco(x+.55,1.8,z+off,.08,3.0,.14,trim);
           }
+        }
+        // A second, staggered wall between the central and eastern lanes
+        // removes two shortcuts while preserving north and south junctions.
+        for(const [x,z,len] of [[8,6,5],[24,6,5],[-8,-6,5]]){
+          box(x,z,1.05,len,3.7,darkWall);
+          deco(x,3.76,z,1.18,.12,len+.12,metal);
         }
         // Tersane V3: finishing layer only. All small meshes either attach
         // to existing physical surfaces, lie on the floor, or are overhead.
