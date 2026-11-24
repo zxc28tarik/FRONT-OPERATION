@@ -8227,24 +8227,72 @@
       // =========================================================================
       // 10A. TEAM COORDINATION 3C — SQUAD RALLIES, INTEL SHARING & COVERING FIRE
       // =========================================================================
-function buildSquadLeadership() {
-        const squadRallyPos = {};
-        const squadLeaderId = {};
-        const squadBestPriority = {};
-        const roleLeadPriority = { assault: 5, heavy: 4, medic: 3, engineer: 2, sniper: 1 };
-        for (let i = 0; i < bots.length; i++) {
-          const member = bots[i];
-          if (!member.alive) continue;
-          const key = `${member.team}_${member.squadId}`;
-          const priority = (roleLeadPriority[member.classId] || 1) + (member.hp > 45 ? 10 : 0);
-          const currentPriority = squadBestPriority[key];
-          if (currentPriority === undefined || priority > currentPriority) {
-            squadBestPriority[key] = priority;
-            squadLeaderId[key] = member.id;
-            squadRallyPos[key] = member.pos.clone();
-          }
+      // V60: stable squad leadership, distinct formation slots, and soft goal reservations.
+      const botSquadLeaders=new Map();
+      function chooseBotSquadLeader(roster,previous){
+        const priority={assault:5,heavy:4,medic:3,engineer:2,sniper:1};
+        const eligible=roster.filter(b=>b.alive);
+        const score=b=>(priority[b.classId]||1)+(b.hp>45?10:0);
+        const ranked=eligible.slice().sort((a,b)=>score(b)-score(a)||String(a.id).localeCompare(String(b.id)));
+        const old=eligible.find(b=>b.id===previous);
+        return old&&old.hp>45&&ranked.length&&score(ranked[0])-score(old)<=1?old:ranked[0]||null;
+      }
+      function chooseBotFormationPoint(bot,leader,members,walk){
+        const followers=members.filter(b=>b.alive&&b.id!==leader.id).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+        const rank=followers.findIndex(b=>b.id===bot.id);
+        if(rank<0)return null;
+        let yaw=leader.behaviorPlan?.route&&leader.behaviorPlan.target?
+          Math.atan2(leader.behaviorPlan.target.x-leader.pos.x,leader.behaviorPlan.target.z-leader.pos.z):
+          Number.isFinite(leader.legYaw)?leader.legYaw:(leader.team==='blue'?Math.PI:0);
+        const row=Math.floor(rank/2),side=rank%2===0?-1:1;
+        const back=3.2+row*2.1+(bot.classId==='medic'?.8:0);
+        const width=2.2+Math.min(row,2)*.5;
+        const fx=Math.sin(yaw),fz=Math.cos(yaw);
+        const point=(lateral,d)=>({x:leader.pos.x-fx*d+fz*lateral,y:leader.pos.y,z:leader.pos.z-fz*d-fx*lateral});
+        for(const p of [point(side*width,back),point(side*width*.55,back+1),point(0,back+2+rank*.8)]){
+          if(!walk(p.x,p.y,p.z))continue;
+          if(members.some(b=>b.alive&&b.id!==bot.id&&Math.abs(b.pos.y-p.y)<1.35&&Math.hypot(b.pos.x-p.x,b.pos.z-p.z)<1.4))continue;
+          return p;
         }
-        return { squadRallyPos, squadLeaderId };
+        return null;
+      }
+      function chooseBotReservedGoal(bot,candidates,roster,nodes,random=Math.random){
+        const valid=candidates.filter(i=>nodes[i]);
+        if(!valid.length)return -1;
+        let chosen=valid[0],best=Infinity;
+        for(const i of new Set(valid)){
+          const p=nodes[i];
+          let cost=0;
+          for(const b of roster){
+            if(!b.alive||b.id===bot.id||b.team!==bot.team)continue;
+            const goal=nodes[b.goalNode];
+            if(goal&&Math.abs(goal.y-p.y)<1.4){
+              const d=Math.hypot(goal.x-p.x,goal.z-p.z);
+              cost+=d<.1?8:d<5?3:0;
+            }
+            if(Math.abs(b.pos.y-p.y)<1.4&&Math.hypot(b.pos.x-p.x,b.pos.z-p.z)<2)cost+=4;
+          }
+          cost-=valid.filter(v=>v===i).length*.2;
+          cost+=random()*.6;
+          if(cost<best){best=cost;chosen=i;}
+        }
+        return chosen;
+      }
+
+      function buildSquadLeadership() {
+        const squadRallyPos={},squadLeaderId={},squadMembers={};
+        for(const member of bots){
+          if(!member.alive)continue;
+          const key=member.team+'_'+member.squadId;
+          (squadMembers[key]||(squadMembers[key]=[])).push(member);
+        }
+        for(const [key,roster] of Object.entries(squadMembers)){
+          const leader=chooseBotSquadLeader(roster,botSquadLeaders.get(key));
+          if(!leader)continue;
+          botSquadLeaders.set(key,leader.id);
+          squadLeaderId[key]=leader.id;squadRallyPos[key]=leader.pos.clone();
+        }
+        return {squadRallyPos,squadLeaderId,squadMembers};
       }
 
       const TEAM_INTEL = {
@@ -8263,6 +8311,7 @@ function buildSquadLeadership() {
 
       function resetTeamIntel() {
         botAiClockSec = 0;
+        if(typeof botSquadLeaders!=='undefined')botSquadLeaders.clear();
         TEAM_INTEL.blue.sightings = {};
         TEAM_INTEL.blue.retreatAlerts = [];
         TEAM_INTEL.red.sightings = {};
@@ -8272,6 +8321,7 @@ function buildSquadLeadership() {
           TEAM_TACTICS[team].focusPos = null;
           TEAM_TACTICS[team].nextReview = 0;
           TEAM_TACTICS[team].lockedUntil = 0;
+          TEAM_TACTICS[team].flankId = null;
         }
       }
 
@@ -8410,7 +8460,9 @@ function buildSquadLeadership() {
               : b.classId === 'sniper' ? 'OVERWATCH'
               : b.classId === 'heavy' ? 'PIN' : 'POINT';
           });
-          const flank = roster.find(b => b.classId === 'assault' && b.hp >= 48);
+          const eligibleFlanks=roster.filter(b=>b.classId==='assault'&&b.hp>=48);
+          const flank=eligibleFlanks.find(b=>b.id===order.flankId)||eligibleFlanks[0];
+          order.flankId=flank?.id||null;
           if (flank) flank.teamRole = 'FLANK';
           const sightings = TEAM_INTEL[team].sightings;
           const fresh = Object.values(sightings)
@@ -8543,7 +8595,8 @@ function buildSquadLeadership() {
             locomotionSpeed:b.locomotionSpeed||0,dodgeMode:b.dodgeMode||'HOLD',
             routeOwner:b.behaviorPlan?.route?b.behaviorPlan.kind:null,routeProgress:b.routeProgress?.best??null,
             mapLook:b.lookControl?.owner?.startsWith('MAP_')?b.lookControl.owner:null,
-            combatCoverPhase:b.combatCoverCycle?.phase||null
+            combatCoverPhase:b.combatCoverCycle?.phase||null,goalNode:b.goalNode,
+            squadId:b.squadId,supportAllyId:b.supportAllyId||null
           })),
           started: matchState.started,
           playerAlive: player.alive,
@@ -8649,42 +8702,43 @@ function buildSquadLeadership() {
             : lane === 2
               ? (isBlue ? [27, 29, 37] : [37, 35, 27])
               : (isBlue ? [45, 45, 16, 15] : [48, 48, 23, 24]);
-          goal = sniperByLane[Math.floor(Math.random() * sniperByLane.length)];
+          goal = chooseBotReservedGoal(bot,sniperByLane,bots,NAV_NODES);
         } else if (bot.classId === 'engineer') {
           const chokeByLane = lane === 0
             ? [7, 11, 17, 22]
             : lane === 2
               ? [28, 30, 34, 36, 49]
               : (isBlue ? [17, 18, 43, 16] : [21, 22, 46, 23]);
-          goal = chokeByLane[Math.floor(Math.random() * chokeByLane.length)];
+          goal = chooseBotReservedGoal(bot,chokeByLane,bots,NAV_NODES);
         } else if (bot.classId === 'heavy') {
           const heavyByLane = lane === 0
             ? (isBlue ? [7, 9, 11] : [11, 9, 7])
             : lane === 2
               ? (isBlue ? [30, 32, 34] : [34, 32, 30])
               : (isBlue ? [16, 18, 20] : [23, 21, 19]);
-          goal = heavyByLane[Math.floor(Math.random() * heavyByLane.length)];
+          goal = chooseBotReservedGoal(bot,heavyByLane,bots,NAV_NODES);
         } else if (bot.classId === 'medic') {
           const medicByLane = lane === 0
             ? (isBlue ? [6, 7, 9] : [12, 11, 9])
             : lane === 2
               ? (isBlue ? [29, 30, 32] : [35, 34, 32])
               : (isBlue ? [16, 18, 19] : [23, 21, 20]);
-          goal = medicByLane[Math.floor(Math.random() * medicByLane.length)];
+          goal = chooseBotReservedGoal(bot,medicByLane,bots,NAV_NODES);
         } else {
           if (lane === 0) {
             const westGoals = isBlue ? [9, 11, 12] : [9, 7, 6];
-            goal = westGoals[Math.floor(Math.random() * westGoals.length)];
+            goal = chooseBotReservedGoal(bot,westGoals,bots,NAV_NODES);
           } else if (lane === 1) {
             const midGoals = isBlue ? [19, 20, 21, 23] : [20, 19, 18, 16];
-            goal = midGoals[Math.floor(Math.random() * midGoals.length)];
+            goal = chooseBotReservedGoal(bot,midGoals,bots,NAV_NODES);
           } else {
             const eastGoals = isBlue ? [32, 34, 35] : [32, 30, 29];
-            goal = eastGoals[Math.floor(Math.random() * eastGoals.length)];
+            goal = chooseBotReservedGoal(bot,eastGoals,bots,NAV_NODES);
           }
         }
 
         const startIdx = findNearestNavNode(bot.pos, true);
+        if(goal<0)goal=startIdx;
         bot.goalNode = goal;
         bot.path = findPathAStar(startIdx, goal, bot.blockedNode);
         bot.pathIndex = 0;
@@ -11183,8 +11237,9 @@ function buildSquadLeadership() {
           if (!ally.alive || ally.team !== bot.team || ally.hp >= 75 || id === bot.id) return;
           const distance = bot.pos.distanceTo(ally.pos);
           if (distance >= 20) return;
+          const assigned=bots.filter(b=>b.alive&&b.team===bot.team&&b.id!==bot.id&&b.classId==='medic'&&b.supportAllyId===id&&!b.visibleEnemy).length;
           const score = distance - Math.min(65, 75 - ally.hp) * 0.09
-            - (id === bot.supportAllyId ? 4.5 : 0);
+            - (id === bot.supportAllyId ? 4.5 : 0)+assigned*(ally.hp<25?3:11);
           if (score < bestScore) {
             bestScore = score;
             best = { id, pos: ally.pos, dist: distance };
@@ -11917,7 +11972,7 @@ function buildSquadLeadership() {
         if(isFoBombMode())refreshFoBotPlan(nowSec);
 
         const targetClaimCounts = {};
-        const { squadRallyPos, squadLeaderId } = buildSquadLeadership();
+        const { squadRallyPos, squadLeaderId, squadMembers } = buildSquadLeadership();
         for (let i = 0; i < bots.length; i++) {
           const b = bots[i];
           if (b.alive && b.targetId) {
@@ -12492,7 +12547,8 @@ function buildSquadLeadership() {
                     isBotDirectWalkingLineClear(bot.pos, injuredAlly.pos);
                   if (canReachAllyDirectly) {
                     bot.supportGoalNode = -1;
-                    moveTargetPos = injuredAlly.pos.clone();
+                    if(injuredAlly.dist<=2.5){moveTargetPos=null;moveSpeed=0;}
+                    else moveTargetPos = injuredAlly.pos.clone();
                   } else {
                     // Medics flank walls by nav nodes instead of pressing
                     // indefinitely into the nearest obstacle.
@@ -12625,16 +12681,15 @@ function buildSquadLeadership() {
                     if (dRally > 6.5 && dRally < 28 && Math.abs(rallyPt.y - bot.pos.y) < 1.5) {
                       behaviorHint='SUPPORT';
                       setBotState(bot, 'SUPPORT_ALLY', 0.8);
-                      const fwdSign = bot.team === 'blue' ? -1 : 1;
-                      const roleOffsetX = bot.classId === 'medic' ? 0 : (bot.classId === 'heavy' ? -2.8 : 2.8);
-                      const roleOffsetZ = bot.classId === 'medic' ? -2.8 * fwdSign : -1.4 * fwdSign;
-                      const formX = rallyPt.x + roleOffsetX;
-                      const formZ = rallyPt.z + roleOffsetZ;
-                      const formationPoint = isPositionWalkable(formX, rallyPt.y, formZ)
-                        ? new THREE.Vector3(formX, rallyPt.y, formZ)
-                        : rallyPt.clone();
-                      moveTargetPos = selectBotRallyWaypoint(bot, formationPoint);
-                      if (!moveTargetPos) moveSpeed = 0;
+                      const members=squadMembers[rallyKey]||[];
+                      const leader=members.find(b=>b.id===squadLeaderId[rallyKey]);
+                      const slot=leader?chooseBotFormationPoint(bot,leader,members,isPositionWalkable):null;
+                      if(slot){
+                        const formationPoint=new THREE.Vector3(slot.x,slot.y,slot.z);
+                        moveTargetPos = selectBotRallyWaypoint(bot, formationPoint);
+                        if(!moveTargetPos)moveSpeed=0;
+                        else moveSpeed=Math.min(moveSpeed,dRally<10?3.2:4.6);
+                      }else{behaviorHint='ADVANCE';bot.rallyGoalNode=-1;}
                     }
                   }
 
