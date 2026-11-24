@@ -1,0 +1,41 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
+const a=html.indexOf('      const FO_RESCUE_POINTS='),b=html.indexOf('      function selectFoMap(mode)',a);
+const s=html.indexOf('      const FO_RESCUE_RULES='),e=html.indexOf('      function updateFoRescue(dt)',s);
+assert(a>=0&&b>a&&s>=0&&e>s);
+const solids=[];let graph;
+const mesh=()=>({position:{set(){}},visible:true});
+const three=new Proxy({}, {get:()=>function(){return {}}});
+const api=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph',html.slice(a,b)+html.slice(s,e)+'\nbuildFoPrisonMap();return {points:FO_RESCUE_POINTS,exit:FO_RESCUE_EXIT,state:foRescue,reset:resetFoRescue,step:stepFoRescue};')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return mesh()},()=>mesh(),null,(nodes,edges)=>graph={nodes,edges});
+assert.equal(solids.length,38);
+const walk=(x,z)=>!solids.some(c=>1.6>c.y-c.h/2+.05&&0<c.y+c.h/2-.25&&x+.42>c.x-c.w/2&&x-.42<c.x+c.w/2&&z+.42>c.z-c.d/2&&z-.42<c.z+c.d/2);
+const adj=graph.nodes.map(()=>[]);
+for(const [i,j] of graph.edges){
+ const p=graph.nodes[i],q=graph.nodes[j],n=Math.ceil(Math.hypot(p.x-q.x,p.z-q.z)/.22);
+ for(let k=0;k<=n;k++)assert(walk(p.x+(q.x-p.x)*k/n,p.z+(q.z-p.z)*k/n));
+ adj[i].push(j);adj[j].push(i);
+}
+const seen=new Set([0]),todo=[0];while(todo.length)for(const j of adj[todo.pop()])if(!seen.has(j)){seen.add(j);todo.push(j)}
+assert.equal(seen.size,graph.nodes.length);assert(seen.has(1)&&seen.has(2));
+for(let i=0;i<5;i++)assert(walk(-12+i*6,50));
+for(let i=0;i<6;i++)assert(walk(-14+i*5.6,-50));
+api.reset();const state=api.state,p1=state.captives[0],p2=state.captives[1];
+const blue={id:'player',team:'blue',alive:true,pos:{x:p1.x,y:0,z:p1.z}},red={id:'red_0',team:'red',alive:true,pos:{x:p1.x,y:0,z:p1.z}};
+const step=(dt=1,remaining=100,eligible=()=>true)=>api.step(state,dt,remaining,[blue,red],eligible);
+assert.equal(step(.5),null);assert(!p1.carrier);
+assert.equal(step(.5,100,()=>false),null);assert.equal(p1.progress,0);
+assert.equal(step(1),null);assert.equal(p1.carrier,'player');
+blue.pos.x=p2.x;blue.pos.z=p2.z;step();assert(!p2.carrier);
+blue.pos.x=0;blue.pos.z=50;step();assert(p1.saved);
+blue.pos.x=p2.x;blue.pos.z=p2.z;step();assert.equal(p2.carrier,'player');
+blue.alive=false;assert.equal(step().winner,'red');blue.alive=true;
+const ally={id:'blue_1',team:'blue',alive:true,pos:{x:0,y:0,z:50}};
+blue.alive=false;api.step(state,1,100,[blue,ally,red],()=>true);assert(!p2.carrier);
+blue.alive=true;step();assert.equal(p2.carrier,'player');
+blue.pos.x=0;blue.pos.z=50;assert.equal(step().winner,'blue');
+api.reset();assert.equal(step(1,0).winner,'red');
+assert(html.includes('if(isFoRescueMode())startFoSpectator()')||html.includes('if(foSingleLife())startFoSpectator()'));
+assert(html.includes('updateFoRescue(dt);')&&html.includes('getFoRescueBotOrder(bot,dt)'));
+assert(html.includes('<option value="rescue">'));
+console.log('V90 RESCUE PASS: '+graph.nodes.length+' nodes, '+graph.edges.length+' edges, 38 solids');
