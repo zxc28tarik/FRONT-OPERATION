@@ -13,6 +13,7 @@ on:
       - ai/v40-bot-telemetry-balance
       - ai/v41-gate-navigation-fix
       - ai/v42-collider-aware-nav-edges
+      - ai/v43-stuck-context-diagnostics
   workflow_dispatch:
 
 jobs:
