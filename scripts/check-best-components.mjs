@@ -76,14 +76,31 @@ test('V22 seven team AI methods retained (V32 match-clock correction allowed)', 
       assert.equal(active, reference.replace(
         'constnowSec=performance.now()/1000;', 'constnowSec=botAiClockSec;'
       ), n);
+    } else if (n === 'buildSquadLeadership') {
+      // V60 intentionally replaces V22 leadership with a stable selection.
+      // Exercise the actual replacement rather than accepting a textual bypass.
+      const source = func(game,'chooseBotSquadLeader')+'\n'+func(game,'buildSquadLeadership');
+      const member=(id,classId,hp)=>({id,team:'blue',squadId:0,classId,hp,alive:true,pos:{clone:()=>({id})}});
+      const a=member('a','assault',100), b=member('b','heavy',100);
+      const roster=[a,b];
+      const run=new Function('bots','botSquadLeaders',source+'\nreturn buildSquadLeadership;')(roster,new Map());
+      assert.equal(run().squadLeaderId.blue_0,'a');
+      a.hp=20; assert.equal(run().squadLeaderId.blue_0,'b');
+      a.hp=100; assert.equal(run().squadLeaderId.blue_0,'b');
+      b.alive=false; assert.equal(run().squadLeaderId.blue_0,'a');
+      assert.equal(run().squadMembers.blue_0.length,1);
     } else if (n === 'assignBotTacticalGoal') {
-      // V45 approved navigation-only correction: the soldier's A* start
-      // must be physically reachable. Class goals, assignment and all
-      // V22 tactics are still required to match the approved source.
-      const oldOrigin = 'conststartIdx=findNearestNavNode(bot.pos);';
-      const checkedOrigin = 'conststartIdx=findNearestNavNode(bot.pos,true);';
-      assert.ok(reference.includes(oldOrigin));
-      assert.equal(active, reference.replace(oldOrigin, checkedOrigin), n);
+      // V45 reachable origin and V60 soft reservations: preserve the
+      // complete class/lane candidate tables and the remaining V22 logic.
+      let expected=reference.replace('conststartIdx=findNearestNavNode(bot.pos);',
+        'conststartIdx=findNearestNavNode(bot.pos,true);');
+      for(const list of ['sniperByLane','chokeByLane','heavyByLane','medicByLane','westGoals','midGoals','eastGoals']){
+        const original='goal='+list+'[Math.floor(Math.random()*'+list+'.length)];';
+        assert.ok(expected.includes(original),list);
+        expected=expected.replace(original,'goal=chooseBotReservedGoal(bot,'+list+',bots,NAV_NODES);');
+      }
+      expected=expected.replace('bot.goalNode=goal;','if(goal<0)goal=startIdx;bot.goalNode=goal;');
+      assert.equal(active,expected,n);
     } else {
       assert.equal(active, reference, n);
     }
