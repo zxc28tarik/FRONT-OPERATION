@@ -39,4 +39,45 @@ ok(html.includes("if (matchState.mode==='bomb') continue;")&&html.includes("docu
 ok(html.includes('if (matchState.mode === \'bomb\') return;'),'Bomb victory not deathmatch kill target');
 ok(html.includes('FO_MAPS.deathmatch=captureFoMap(foMapBefore)')&&html.includes('installFoGraph(next.nodes,next.edges)'),'Original world/nav snapshot restored');
 ok(html.includes('updateFoBomb(dt);')&&html.includes('getFoBombBotOrder(bot,dt);'),'Game loop and bot objective integration');
+// Evaluate the actual Tersane builder using a minimal Three.js adapter.
+// Collect every solid, run the same ground clearance as the game and
+// prove the four entrances are physical openings rather than visual labels.
+const solids=[];let liveGraph;
+const fakeMesh=()=>({position:{},rotation:{},visible:true});
+const fakeThree=new Proxy({}, {get:()=>function(){return {}}});
+const mapStart=html.indexOf('      const FO_BOMB_SITES');
+const mapEnd=html.indexOf('      function selectFoMap(mode)',mapStart);
+const routes=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh',
+ 'scene','mapEnvironmentMeshes','createCorridorSign','installFoGraph','dustParticles',
+ html.slice(mapStart,mapEnd)+'\nbuildDepot17Map();return FO_TERSANE_ROUTES;')(
+ fakeThree,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return fakeMesh()},
+ ()=>fakeMesh(),{children:[]},[],()=>{},(nodes,edges)=>{liveGraph={nodes,edges}},null);
+const walk=(x,z)=>!solids.some(c=>1.6>c.y-c.h/2+.05&&0<c.y+c.h/2-.25&&
+ x+.42>c.x-c.w/2&&x-.42<c.x+c.w/2&&z+.42>c.z-c.d/2&&z-.42<c.z+c.d/2);
+const links=liveGraph.nodes.map(()=>[]);
+for(const [a,b] of liveGraph.edges){
+ const p=liveGraph.nodes[a],q=liveGraph.nodes[b],steps=Math.ceil(Math.hypot(p.x-q.x,p.z-q.z)/.22);
+ let clear=true;for(let i=0;i<=steps;i++){const t=i/steps;
+  if(!walk(p.x+(q.x-p.x)*t,p.z+(q.z-p.z)*t)){clear=false;break}}
+ if(clear){links[a].push(b);links[b].push(a);}
+}
+const reach=(start)=>{const seen=new Set([start]),todo=[start];
+ while(todo.length)for(const j of links[todo.pop()])if(!seen.has(j)){seen.add(j);todo.push(j)}
+ return seen;};
+ok(solids.length>=70,'Tersane solid geometry built');
+ok(liveGraph.nodes.every(n=>walk(n.x,n.z)),'Every Tersane nav node walkable');
+ok(reach(0).size===50,'All Tersane nodes connected after collision filtering');
+let intervals=0,previous=false;
+for(let i=0;i<=770;i++){const clear=walk(-38.5+i*.1,21);if(clear&&!previous)intervals++;previous=clear;}
+ok(intervals===4,'Exactly four physical dividing-wall openings');
+ok(routes.length===4&&new Set(routes.map(q=>q.x)).size===4,'Four distinct route assignments');
+for(const route of routes){
+ ok(links[route.entry].includes(route.exit),'Walkable gate '+route.id);
+ const seen=reach(route.exit);ok(seen.has(36)&&seen.has(38),'Gate reaches both bomb sites '+route.id);
+}
+const underRoof=(x,z)=>solids.some(c=>c.y-c.h/2>3&&c.w>=8&&c.d>=12&&
+ x>c.x-c.w/2&&x<c.x+c.w/2&&z>c.z-c.d/2&&z<c.z+c.d/2);
+for(const [name,x,z] of [['A hangar',-16,-28],['service',0,6],['west storage',-32,20],['east equipment',32,-5]])
+ ok(underRoof(x,z)&&walk(x,z),'Enclosed and enterable '+name);
+ok(html.includes('goal=bot.foGateEntryReached?route.exit:route.entry;'),'Bot enters assigned gate before advancing');
 console.log('BOMB MODE PASS ('+n+' checks)');
