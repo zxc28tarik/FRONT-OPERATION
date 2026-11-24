@@ -8199,6 +8199,25 @@
         return count;
       }
 
+      // V71D: preference-only context; never weakens concealment or emergency retreat.
+      function botCoverPreference(bot,threatPos,isWounded){
+        const classId=bot?.classId||'assault';
+        const seen=bot?.visibleEnemy?.pos;
+        let weaponId=null;
+        if(!isWounded&&seen&&Math.hypot(seen.x-threatPos.x,seen.z-threatPos.z)<.5&&Math.abs(seen.y-threatPos.y)<.5){
+          const distance=Math.hypot(seen.x-bot.pos.x,seen.z-bot.pos.z);
+          weaponId=botAmmoWeapon(bot,botPreferredInfantryWeapon(bot,distance));
+        }
+        const sidearm=weaponId==='p320'||weaponId==='glock18c';
+        const order=!isWounded&&bot&&isFoBombMode()?foBotPlan.orders.get(bot.id):null;
+        const holding=order&&(order.role==='GUARD'||order.role==='HOLD');
+        const anchor=holding?NAV_NODES[order.goal]:null;
+        return {range:botCombatRangeBand(classId,weaponId),sidearm,anchor};
+      }
+      function botCoverDutyPenalty(node,anchor){
+        if(!anchor)return 0;
+        return Math.min(3,Math.max(0,Math.hypot(node.x-anchor.x,node.z-anchor.z)-6)*.20);
+      }
       function findBestCoverNode(botPos, threatPos, bot = null) {
         if (!threatPos) return -1;
         _coverThreatEye.set(threatPos.x, threatPos.y + 1.45, threatPos.z);
@@ -8210,11 +8229,8 @@
         const minDistFromBot = isWounded ? 0.5 : 1.4;
         const maxDistFromBot = isWounded ? 28.0 : 25.5;
 
-        const idealRange = classId === 'sniper' ? [22, 52]
-          : classId === 'heavy' ? [13, 34]
-          : classId === 'medic' ? [12, 30]
-          : classId === 'engineer' ? [8, 24]
-          : [10, 28];
+        const preference=botCoverPreference(bot,threatPos,isWounded);
+        const idealRange=preference.range;
 
         const toThreatX = threatPos.x - botPos.x;
         const toThreatZ = threatPos.z - botPos.z;
@@ -8279,12 +8295,13 @@
             score += (dThreat - idealRange[1]) * 0.35;
           }
 
-          if (classId === 'sniper' && (n.tag === 'sniper_south' || n.tag === 'sniper_north' || n.tag === 'mid_cover')) {
+          if (classId === 'sniper' && !preference.sidearm && (n.tag === 'sniper_south' || n.tag === 'sniper_north' || n.tag === 'mid_cover')) {
             score -= 9.0;
           } else if (classId === 'engineer' && (n.tag.endsWith('door') || n.tag.endsWith('entry'))) {
             score -= 5.5;
           }
 
+          score+=botCoverDutyPenalty(n,preference.anchor);
           const occupancy = getCoverOccupancyCount(i, team, bot ? bot.id : null);
           score += occupancy * 24.0;
 
