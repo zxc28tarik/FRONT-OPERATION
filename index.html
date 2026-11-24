@@ -4239,66 +4239,31 @@
               const t=(j+.5)/20;deco(sx,Y*t-.035,z0+(z1-z0)*t,width,.07,(z1-z0)/20*.92,metal);
             }
           }
-          // Furniture uses actual solid volumes; mattresses and trim are decorative.
-          const bed=(bx,bz,base,bunk)=>{
-            const ht=bunk?1.65:.72;
-            box(bx,bz,1.35,2.4,ht,metal,base+ht/2);
-            deco(bx,base+.74,bz,1.22,.16,2.2,wall);
-            deco(bx,base+.85,bz-.75,1.05,.14,.5,dark);
-            if(bunk){deco(bx,base+1.66,bz,1.25,.14,2.2,wall);deco(bx,base+1.77,bz-.75,1.05,.13,.5,dark);}
-          };
-          for(const bz of [-42,-30])bed(x+5.3,bz,0,false);
-          for(const bz of [-42,-32])bed(x-5.3,bz,Y,true);
-          box(x+5.8,-38,1.1,1.3,2.05,metal,Y+1.025);
-          box(x+1.8,-42,1.8,1.05,1.0,dark,Y+.5);
-          deco(x+1.8,Y+1.06,-42,1.95,.12,1.2,metal);
-          box(x+1.8,-40.7,.65,.65,.88,metal,Y+.44);
-          box(x-1.5,-29,1.65,.8,1.55,metal,Y+.775);
-          // Partition the second-floor sleeping area from its shared passage.
-          box(x-3.1,-40,.34,3.4,3.1,wall,Y+1.55);
-          box(x-3.1,-31,.34,2.6,3.1,wall,Y+1.55);
-          // Archive cabinet doors, shelf compartments and desk accessories.
-          for(const dz of [-.31,.31]){
-            deco(x+5.19,Y+1.02,-38+dz,.035,1.88,.55,dark);
-            deco(x+5.15,Y+1.0,-38+dz,.035,.10,.055,wall);
-          }
-          box(x+6,-29,1.0,1.6,1.75,metal,Y+.875);
-          for(const dy of [.4,.85,1.3,1.7])deco(x+5.45,Y+dy,-29,.07,.09,1.55,wall);
-          deco(x+1.8,Y+1.16,-42,.65,.08,.42,wall);
-          deco(x+1.45,Y+1.27,-42,.18,.18,.18,metal);
-          deco(x+1.8,Y+1.04,-40.4,.65,.43,.10,metal);
-          // Ground waiting bench and storage details.
-          box(x+6,-32,1.1,1.3,.82,metal,.41);
-          deco(x+6,.89,-32,1.06,.11,1.2,wall);
-          deco(x+6.45,1.12,-32,.10,.48,1.15,metal);
-          deco(x+5.45,.63,-34.1,.045,1.12,1.05,dark);
-          deco(x+5.40,.65,-34.1,.045,.12,.07,wall);
-          box(x+5.9,-34.1,.8,1.25,1.25,metal,.625);
-          box(x+1.6,-42,1.8,1.0,.95,dark,.475);
-          deco(x+1.6,.99,-42,1.95,.1,1.15,metal);
-          box(x+1.6,-40.8,.55,.55,.8,metal,.4);
-          for(const z of [-42,-30])deco(x,4.55,z,9,.12,.22,metal);
-          for(const dx of [-4,4])box(x+dx,-40,1.8,2,1.2,metal);
-          // V94: wider outward wings. Each floor has an independent corridor,
-          // a small storeroom, a larger sleeping room and a medium office.
+          // V95: three broad gameplay spaces per floor, not residential rooms.
+          // Rear hall and front hall share a generous doorway; outer gallery is open.
           const dir=x<0?-1:1,annex=x+dir*11.5,edge=x+dir*15;
-          const corridor=x+dir*9.35,roomSide=x+dir*12.85;
           for(const base of [0,Y]){
             const ht=base===0?4.8:wh,cy=base+ht/2;
             if(base===0&&x<0){
               box(edge,-41,1,8,ht,wall,cy);box(edge,-30,1,6,ht,wall,cy);
             }else box(edge,-36,1,18,ht,wall,cy);
             for(const z of [-45,-27])box(annex,z,7,1,ht,wall,cy);
-            const divider=x+dir*10.7;
-            for(const [z,len] of [[-44,2],[-39,2],[-33.5,2],[-28,2]])
-              box(divider,z,.28,len,ht,wall,cy);
-            for(const z of [-41,-34])box(x+dir*12.85,z,4.3,.3,ht,wall,cy);
-            box(roomSide,-43.5,.85,1.15,1.8,metal,base+.9);
-            bed(roomSide+dir*.5,-37.5,base,base>0);
-            box(roomSide+dir*.5,-30.8,1.4,.8,.94,dark,base+.47);
-            deco(roomSide+dir*.5,base+1,-30.8,1.5,.12,.95,metal);
-            box(roomSide+dir*.5,-29.4,.6,.6,.85,metal,base+.425);
-            for(const z of [-42,-36,-30])deco(corridor,base+ht-.18,z,1.1,.12,.35,metal);
+            // One cross partition splits the original large wing in two.
+            // 5.2-unit opening; keep the existing objective and gallery axes clear.
+            for(const side of [-1,1])box(x+side*5.3,-39.5,5.4,.38,ht,wall,cy);
+            // Broad industrial props replace beds, desks and narrow domestic cells.
+            const crate=(cx,cz,w,d,h)=>{
+              box(cx,cz,w,d,h,metal,base+h/2);
+              deco(cx,base+h+.05,cz,w+.10,.10,d+.10,dark);
+              for(const dx of [-w*.30,w*.30])deco(cx+dx,base+h/2,cz+d/2+.025,.12,h*.85,.05,wall);
+            };
+            crate(x-dir*5.5,-43,2.0,1.3,1.25);
+            crate(x+dir*5.5,-30.2,2.5,1.25,1.15);
+            crate(x+dir*12.8,-41.7,2.1,2.0,1.8);
+            crate(x+dir*12.8,-32.0,2.0,1.5,1.0);
+            // Sparse overhead beams and service lights distinguish the three areas.
+            for(const z of [-43,-34])deco(x,base+ht-.15,z,11,.16,.32,metal);
+            for(const z of [-41,-31])deco(annex,base+ht-.17,z,2.7,.12,.36,metal);
           }
           box(annex,-36,7.2,19,.36,dark,4.98);
           box(annex,-36,7.2,19.2,.32,dark,Y+3.66);
