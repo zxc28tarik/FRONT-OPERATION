@@ -211,3 +211,5 @@ jobs:
         run: node tests/bot_ai_v98_team_sectors_regression.cjs
       - name: Validate character combat animation curves
         run: node tests/soldier_v118_combat_pose_regression.cjs
+      - name: Validate V127 visual stance and carry
+        run: node tests/soldier_v127_stance_regression.cjs

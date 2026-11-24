@@ -92,8 +92,8 @@ for (const team of ['blue', 'red']) {
       // V26/V26B adds production-quality layers on top of V25+V11.
       // Exact deltas protect against removing these approved details.
       ['root', 2],
-      ['upperBody', role === 'medic' ? 16 : 15],
-      ['head', 10],
+      ['upperBody', role === 'medic' ? 17 : 16],
+      ['head', 11],
       ['leftHip', 3],
       ['rightHip', 3],
       ['leftKnee', 3],
@@ -165,5 +165,5 @@ assert.equal(actualMuzzle.y, 1.26);
 assert.equal(fakeRoot.position.y, -0.16);
 assert.equal(fakeRoot.updated, true);
 assert.equal(getMuzzle(null, new Vector3(0, 1.45, 0)).y, 1.45);
-console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99/V101/V104/V105/V119 details, head and muzzle hierarchy');
+console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99/V101/V104/V105/V127 details, head and muzzle hierarchy');
 console.log('PASS: visible BOT muzzle world position and fallback');

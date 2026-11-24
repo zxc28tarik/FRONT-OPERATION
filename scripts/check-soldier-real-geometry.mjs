@@ -36,7 +36,13 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert.equal(alt.root.userData.visualVariant,1);assert.equal(alt2.root.userData.visualVariant,2);
  m.root.traverse(n=>{if(!n.isMesh)return;const p=n.geometry.getAttribute('position'),normal=n.geometry.getAttribute('normal');assert(p.array.every(Number.isFinite)&&normal.array.every(Number.isFinite));});
  const near=countVisible(m.root);
- m.setVisualDetailDistance(24);assert.equal(m.visualDetailLevel,1);const mid=countVisible(m.root);
+ const armBands=m.upperBody.children.filter(n=>n.geometry===api.base(team,cls).upperBody.children.find(c=>c.geometry?.parameters?.height===.065)?.geometry);
+ const closeGroups=[m.head.children.find(n=>n.name==='v99_close_face'),m.upperBody.children.find(n=>n.name==='v99_close_rig')];
+ assert(closeGroups.every(g=>g&&g.visible&&g.children.length>0));
+ assert(m.root.children.some(n=>n.name==='v120_fitted_waist'));
+ m.setVisualCombatPose({carry:1});assert(m.weaponPivot.position.y<rest.y);
+ m.resetVisualCombatPose();assert(m.weaponPivot.position.distanceTo(rest)<.00001);
+ m.setVisualDetailDistance(24);assert.equal(m.visualDetailLevel,1);const mid=countVisible(m.root);assert(closeGroups.every(g=>!g.visible));
  m.setVisualDetailDistance(22);assert.equal(m.visualDetailLevel,1);
  m.setVisualDetailDistance(50);assert.equal(m.visualDetailLevel,2);const far=countVisible(m.root);
  assert(near>mid&&mid>far&&m.head.visible&&m.weaponPivot.visible);
@@ -45,4 +51,4 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert.equal(m.head.parent,m.upperBody);assert.equal(m.muzzleFlash.parent,m.weaponPivot);
  nearTotal+=near;farTotal+=far;models+=3;
 }
-console.log('V119 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
+console.log('V127 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');

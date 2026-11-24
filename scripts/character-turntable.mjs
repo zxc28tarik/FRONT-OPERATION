@@ -49,8 +49,8 @@ const pageHtml = '<!doctype html><html><head><meta charset="UTF-8">' +
   '#hint{position:absolute;top:65px;left:30px;font-size:14px;color:#dce5f4}' +
   '.caption{position:absolute;bottom:35px;font-size:24px;font-weight:900;background:#111827e6;padding:12px 20px;border-radius:12px;border:2px solid #9aa9bf}' +
   '#left{left:12%}#right{right:12%;border-color:#38bdf8}</style></head><body>' +
-  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V118 DETAILS</div>' +
-  '<div id="left" class="caption">ORIGINAL V25</div><div id="right" class="caption">V25 + V118 DETAILS</div>' +
+  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V127 DETAILS</div>' +
+  '<div id="left" class="caption">ORIGINAL V25</div><div id="right" class="caption">V25 + V127 DETAILS</div>' +
   '</body></html>';
 const server = createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -151,7 +151,7 @@ try {
   }, soldierFunctions);
   for (const team of ['blue', 'red']) {
     for (const role of ['assault', 'medic', 'engineer', 'sniper', 'heavy']) {
-      const views = team === 'blue' ? ['front', 'right', 'back'] : ['front'];
+      const views = ['front', 'right', 'back'];
       for (const angle of views) {
         const stats = await page.evaluate(
           args => window.__foCharacterPreview.change(args.role, args.angle, args.team),
