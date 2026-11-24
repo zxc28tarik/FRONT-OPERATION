@@ -6702,15 +6702,18 @@
         'stuckRecoveries','heard','heardArrived','heardInterrupted',
         'flankStarts','sightings','aliveSeconds','engagedSeconds',
         'targetAcquisitions','targetSwitches','targetLosses',
-        'coverApproachSeconds','coverHoldSeconds','movingSeconds'
+        'coverApproachSeconds','coverHoldSeconds','movingSeconds',
+        'coverAssignments','coverArrivals','coverAbandons','coverReassignments',
+        'coverStalledApproaches','coverOrphanSeconds'
       ];
       const newBotMetricBucket = () =>
         Object.fromEntries(BOT_METRIC_FIELDS.map(field => [field, 0]));
       const BOT_METRICS = {
-        version: 46, seconds: 0, carry: 0, samples: 0,
+        version: 47, seconds: 0, carry: 0, samples: 0,
         difficulty: {}, classes: {}, teams: {}, actors: {},
         stuckNodes: {},
         stuckContexts: [], stuckEventCounts: {},
+        coverEvents: [], coverAbandonReasons: {},
         spread: {blue:{sum:0,observations:0,closePairs:0,focusSum:0,focusSamples:0},
                  red:{sum:0,observations:0,closePairs:0,focusSum:0,focusSamples:0}},
         recent: [],
@@ -6737,6 +6740,8 @@
         BOT_METRICS.stuckNodes = {};
         BOT_METRICS.stuckContexts = [];
         BOT_METRICS.stuckEventCounts = {};
+        BOT_METRICS.coverEvents = [];
+        BOT_METRICS.coverAbandonReasons = {};
         BOT_METRICS.frame = { count: 0, sumMs: 0, maxMs: 0, slowFrames: 0 };
       }
       function recordBotMetric(bot, field) {
@@ -6760,6 +6765,78 @@
           recordBotMetric(bot, previousId ? 'targetSwitches' : 'targetAcquisitions');
         } else if (previousId) {
           recordBotMetric(bot, 'targetLosses');
+        }
+      }
+      // V47: Observe actual cover-node selection, arrival, and abandonment.
+      // Events are bounded, available only through localhost QA, and never
+      // mutate cover choices or player-visible behavior.
+      function observeBotCoverLifecycle(bot, nowSec) {
+        if (!bot) return;
+        const previous = bot._coverAudit || {node:-1, arrived:false};
+        const current = bot.alive && Number.isInteger(bot.coverNode) &&
+          bot.coverNode >= 0 && bot.coverNode < NAV_NODES.length
+          ? bot.coverNode : -1;
+        const round = v => Math.round(v * 100) / 100;
+        const event = (type, node, reason, duration, distance) => {
+          BOT_METRICS.coverEvents.push({
+            at:round(nowSec), bot:bot.id, classId:bot.classId, team:bot.team,
+            type, node, reason, state:bot.state, phase:bot.coverPhase,
+            duration:round(duration || 0), distance:round(distance || 0)
+          });
+          if(BOT_METRICS.coverEvents.length>90) BOT_METRICS.coverEvents.shift();
+        };
+        const distanceTo = node => {
+          const p = NAV_NODES[node];
+          return p ? Math.hypot(p.x-bot.pos.x,p.z-bot.pos.z) : Infinity;
+        };
+        if (previous.node !== current) {
+          if (previous.node >= 0 && !previous.arrived) {
+            const reason = !bot.alive ? 'death'
+              : current >= 0 ? 'reassignment'
+              : bot.teamFlankGoalNode >= 0 ? 'flank'
+              : bot.visibleEnemy && bot.pos &&
+                Math.hypot(bot.visibleEnemy.pos.x-bot.pos.x,
+                          bot.visibleEnemy.pos.z-bot.pos.z) < 7 ? 'close_combat'
+              : bot.state === 'ADVANCE' || bot.state === 'INVESTIGATE' ||
+                bot.state === 'SUPPORT_ALLY' ? 'role_change'
+              : bot.visibleEnemy ? 'combat_cancel'
+              : 'other';
+            recordBotMetric(bot,'coverAbandons');
+            BOT_METRICS.coverAbandonReasons[reason] =
+              (BOT_METRICS.coverAbandonReasons[reason]||0)+1;
+            event('abandoned', previous.node,reason,nowSec-previous.since,
+              distanceTo(previous.node));
+          }
+          if (current >= 0) {
+            recordBotMetric(bot,'coverAssignments');
+            if(previous.node >= 0) recordBotMetric(bot,'coverReassignments');
+            const d = distanceTo(current);
+            bot._coverAudit = {node:current,arrived:false,since:nowSec,
+              bestDistance:d,lastProgressAt:nowSec,stallRecorded:false};
+            event('selected', current,null,0,d);
+          } else {
+            bot._coverAudit = {node:-1,arrived:false};
+          }
+        }
+        const audit = bot._coverAudit;
+        if (!audit || audit.node < 0 || !bot.alive || audit.arrived) return;
+        const p = NAV_NODES[audit.node];
+        const d = distanceTo(audit.node);
+        if (d < 1.45 && Math.abs(p.y-bot.pos.y) < 1.2) {
+          audit.arrived = true;
+          recordBotMetric(bot,'coverArrivals');
+          event('arrived',audit.node,null,nowSec-audit.since,d);
+          return;
+        }
+        if (d < audit.bestDistance-0.6) {
+          audit.bestDistance = d;
+          audit.lastProgressAt = nowSec;
+          audit.stallRecorded = false;
+        }
+        if (!audit.stallRecorded && nowSec-audit.lastProgressAt >= 6) {
+          audit.stallRecorded = true;
+          recordBotMetric(bot,'coverStalledApproaches');
+          event('no_progress',audit.node,null,nowSec-audit.since,d);
         }
       }
       // Locate the worst A* recovery hotspots without changing route choice.
@@ -6835,8 +6912,12 @@
             if (!bot.alive) continue;
             recordBotMetric(bot,'aliveSeconds');
             if (bot.visibleEnemy) recordBotMetric(bot,'engagedSeconds');
-            if (bot.coverPhase === 'MOVE_TO_COVER')
+            if (bot.coverPhase === 'MOVE_TO_COVER') {
               recordBotMetric(bot,'coverApproachSeconds');
+              if (bot.coverNode < 0 || !bot._coverAudit ||
+                  bot._coverAudit.node !== bot.coverNode)
+                recordBotMetric(bot,'coverOrphanSeconds');
+            }
             if (bot.coverPhase === 'PEEK_FIRE' || bot.coverPhase === 'CROUCH_HOLD')
               recordBotMetric(bot,'coverHoldSeconds');
             if (Math.hypot(bot.moveVelX || 0, bot.moveVelZ || 0) > 0.75)
@@ -10527,6 +10608,7 @@ function buildSquadLeadership() {
           const bot = bots[i];
 
           if (bot.dying) {
+            observeBotCoverLifecycle(bot,nowSec);
             bot.deathAnimTimer -= dt;
             const fallProg = Math.min(1, 1 - bot.deathAnimTimer / 0.65);
             bot.mesh.root.rotation.x = fallProg * (Math.PI * 0.48);
@@ -10540,6 +10622,7 @@ function buildSquadLeadership() {
           }
 
           if (!bot.alive) {
+            observeBotCoverLifecycle(bot,nowSec);
             bot.respawnTimer -= dt;
             if (bot.respawnTimer <= 0) {
               respawnBot(bot);
@@ -10565,6 +10648,7 @@ function buildSquadLeadership() {
 
           const activeBotDrone = bot.classId === 'engineer' ? droneSystem.getOperatorDrone(bot.id) : null;
           if (activeBotDrone) {
+            observeBotCoverLifecycle(bot,nowSec);
             bot.moveVelX = 0;
             bot.moveVelZ = 0;
             bot.combatStrafeGoal = null;
@@ -11472,6 +11556,7 @@ function buildSquadLeadership() {
             bot.lastCheckPos.copy(bot.pos);
           }
 
+          observeBotCoverLifecycle(bot,nowSec);
           // Animate actual resolved movement, not attempted movement into a wall.
           const actualSpeed = Math.hypot(
             bot.pos.x - beforeMoveX, bot.pos.z - beforeMoveZ
