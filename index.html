@@ -8419,6 +8419,14 @@ function buildSquadLeadership() {
             bot.coverPhase === 'NONE' || !cand.pos || !cand.eye) return false;
         const node = NAV_NODES[bot.coverNode];
         if (!node) return false;
+        // A location that has not become closer for several seconds is not
+        // useful cover commitment. Allow the next confirmed threat to trigger
+        // a new reachable choice instead of trapping the soldier on the route.
+        const audit = bot._coverAudit;
+        if (bot.coverPhase === 'MOVE_TO_COVER' && audit &&
+            audit.node === bot.coverNode &&
+            (botAiClockSec - audit.lastProgressAt >= 2.25 ||
+             botAiClockSec - audit.since >= 6.2)) return false;
         const range = Math.hypot(cand.pos.x-bot.pos.x,cand.pos.z-bot.pos.z);
         if (!Number.isFinite(range) || range < 9) return false;
         const crouchEye = new THREE.Vector3(node.x,node.y+0.92,node.z);
