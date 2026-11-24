@@ -1,0 +1,46 @@
+'use strict';
+const fs=require('node:fs'),html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
+const a=html.indexOf('      const BOT_DIFFICULTY_SEQUENCE'),b=html.indexOf('      // V40: In-memory telemetry',a);
+const d=html.indexOf('      let botLifeSequence = 0;'),e=html.indexOf('      const NAV_NODES',d);
+const p=html.indexOf('      // V56: locomotion is independent'),q=html.indexOf('      // V58: derive map awareness',p);
+const h=html.indexOf('      // V59: one cover cycle'),j=html.indexOf('      function updateBots(dt)',h);
+const api=new Function(html.slice(a,b)+html.slice(d,e)+html.slice(p,q)+html.slice(h,j)+'\nreturn {personality:chooseBotPersonality,difficulty:chooseBotDifficultyForSpawn,skill:getBotSkillProfile,dodge:chooseBotDodgeMode,move:resolveBotLocomotion,cycle:tickBotCoverCycle};')();
+let n=0;const ok=(v,s)=>{if(!v)throw Error('V62 FAIL: '+s);n++};
+const profiles=['blue_0','blue_1','blue_2','blue_3'].map(api.personality);
+const [balanced,aggressive,cautious,support]=profiles;
+ok(new Set(profiles.map(p=>p.id)).size===4,'Four distinct personalities');
+ok(api.personality('blue_2')===cautious,'Stable identity');
+ok(api.personality('red_0')===aggressive,'Team offset prevents matching class personalities');
+ok(profiles.every(Object.isFrozen),'Immutable personality profiles');
+const counts={};for(let i=0;i<15;i++){const k=api.difficulty();counts[k]=(counts[k]||0)+1;}
+ok(counts.normal===8&&counts.hard===6&&counts.expert===1,'Original 15-life distribution');
+for(const personalityTuning of profiles)for(const difficulty of ['normal','hard','expert']){
+  ok(api.skill({difficulty,personalityTuning}).aimSettleSec===.34,'Medium aim independent of personality');
+}
+ok(api.skill({difficulty:'hard',personalityTuning:aggressive})===api.skill({difficulty:'hard',personalityTuning:cautious}),'Same difficulty has same skill object');
+const bot={pos:{x:0,y:0,z:0},legYaw:0,classId:'assault'};
+const enemy={pos:{x:0,y:0,z:10},yaw:Math.PI,isFiring:true};
+ok(api.dodge({...bot,personalityTuning:aggressive},enemy,10,false,.55)==='STRAFE','Aggressive avoids more often');
+ok(api.dodge({...bot,personalityTuning:cautious},enemy,10,false,.55)==='HOLD','Cautious steadier');
+ok(profiles.every(personalityTuning=>api.dodge({...bot,personalityTuning},enemy,10,true,0)==='HOLD'),'All stop on new contact');
+ok(profiles.every(personalityTuning=>api.dodge({...bot,personalityTuning},{...enemy,yaw:0},10,false,0)==='HOLD'),'No dodging without pressure');
+const target={x:0,y:0,z:10};
+ok(api.move({...bot,personalityTuning:cautious},{kind:'INVESTIGATE'},target,5,0,0).speed===2.5,'Cautious investigates slowly');
+ok(api.move({...bot,personalityTuning:support},{kind:'INVESTIGATE'},target,5,0,0).speed===2.8,'Support follows at intermediate pace');
+ok(api.move({...bot,personalityTuning:aggressive},{kind:'INVESTIGATE'},target,5,0,0).speed===3.1,'Aggressive respects cap');
+ok(profiles.every(personalityTuning=>api.move({...bot,personalityTuning},{kind:'ADVANCE'},target,5.3,0,0).speed===5.3),'Normal run speed unchanged');
+const home={x:0,y:0,z:0};
+const cover=personalityTuning=>({...bot,personalityTuning,coverNode:0,coverPhase:'MOVE_TO_COVER',coverIsPartial:true});
+const ag=cover(aggressive),ca=cover(cautious),su=cover(support);
+const tick=(b,dt)=>api.cycle(b,home,target,dt,true,()=>true,()=>true);
+ok(tick(ag,.7).phase==='AIM','Aggressive peeks sooner');
+ok(tick(ca,.7).phase==='HOLD','Cautious holds');
+ok(tick(su,.7).phase==='HOLD','Support holds');
+ok(tick(ca,.6).phase==='AIM','Cautious eventually peeks');
+ok(tick(ag,1.1).phase==='AIM','Aggressive exposure window');
+ok(tick(ca,1.3).phase==='RETURN','Cautious shorter exposure');
+ok(cautious.coverDistance<balanced.coverDistance&&aggressive.coverDistance>balanced.coverDistance,'Cover preference distinct');
+ok(html.includes('bot.personalityTuning=bot.personalityTuning||chooseBotPersonality(bot.id);'),'Personality retained on respawn');
+ok(html.includes("personalityTuning:chooseBotPersonality(bId)")&&html.includes("personalityTuning:chooseBotPersonality('red_'+i)"),'Both teams initialize profiles');
+ok(html.includes('bot.personalityTuning?.coverDistance??11.5'),'Cover preference integrated');
+console.log('BOT AI V62 PASS ('+n+' checks)');
