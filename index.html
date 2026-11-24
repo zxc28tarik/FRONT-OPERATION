@@ -6700,17 +6700,19 @@
       const BOT_METRIC_FIELDS = [
         'spawns','shots','hits','droneShots','droneHits','kills','deaths',
         'stuckRecoveries','heard','heardArrived','heardInterrupted',
-        'flankStarts','sightings','aliveSeconds','engagedSeconds'
+        'flankStarts','sightings','aliveSeconds','engagedSeconds',
+        'targetAcquisitions','targetSwitches','targetLosses',
+        'coverApproachSeconds','coverHoldSeconds','movingSeconds'
       ];
       const newBotMetricBucket = () =>
         Object.fromEntries(BOT_METRIC_FIELDS.map(field => [field, 0]));
       const BOT_METRICS = {
-        version: 40, seconds: 0, carry: 0, samples: 0,
+        version: 46, seconds: 0, carry: 0, samples: 0,
         difficulty: {}, classes: {}, teams: {}, actors: {},
         stuckNodes: {},
         stuckContexts: [], stuckEventCounts: {},
-        spread: {blue:{sum:0,observations:0,closePairs:0},
-                 red:{sum:0,observations:0,closePairs:0}},
+        spread: {blue:{sum:0,observations:0,closePairs:0,focusSum:0,focusSamples:0},
+                 red:{sum:0,observations:0,closePairs:0,focusSum:0,focusSamples:0}},
         recent: [],
         frame: { count: 0, sumMs: 0, maxMs: 0, slowFrames: 0 }
       };
@@ -6728,7 +6730,9 @@
         for (const key of ['difficulty','classes','teams','actors'])
           BOT_METRICS[key] = {};
         for (const team of ['blue','red'])
-          BOT_METRICS.spread[team] = {sum:0,observations:0,closePairs:0};
+          BOT_METRICS.spread[team] = {
+            sum:0,observations:0,closePairs:0,focusSum:0,focusSamples:0
+          };
         BOT_METRICS.recent.length = 0;
         BOT_METRICS.stuckNodes = {};
         BOT_METRICS.stuckContexts = [];
@@ -6746,6 +6750,16 @@
           const bucket=BOT_METRICS[key];
           if (!bucket[id]) bucket[id]=newBotMetricBucket();
           bucket[id][field]++;
+        }
+      }
+      // V46 QA: Distinguish first contact, visible target replacement and
+      // genuine loss of visibility. This does not alter perception priorities.
+      function recordBotTargetTransition(bot, previousId, nextId) {
+        if (!bot || previousId === nextId) return;
+        if (nextId) {
+          recordBotMetric(bot, previousId ? 'targetSwitches' : 'targetAcquisitions');
+        } else if (previousId) {
+          recordBotMetric(bot, 'targetLosses');
         }
       }
       // Locate the worst A* recovery hotspots without changing route choice.
@@ -6821,6 +6835,12 @@
             if (!bot.alive) continue;
             recordBotMetric(bot,'aliveSeconds');
             if (bot.visibleEnemy) recordBotMetric(bot,'engagedSeconds');
+            if (bot.coverPhase === 'MOVE_TO_COVER')
+              recordBotMetric(bot,'coverApproachSeconds');
+            if (bot.coverPhase === 'PEEK_FIRE' || bot.coverPhase === 'CROUCH_HOLD')
+              recordBotMetric(bot,'coverHoldSeconds');
+            if (Math.hypot(bot.moveVelX || 0, bot.moveVelZ || 0) > 0.75)
+              recordBotMetric(bot,'movingSeconds');
           }
           for (const team of ['blue','red']) {
             const group=roster.filter(b=>b.alive && b.team===team);
@@ -6837,6 +6857,15 @@
             }
             const stats=BOT_METRICS.spread[team];
             stats.sum+=radius;stats.observations++;stats.closePairs+=closePairs;
+            const focusClaims = new Map();
+            for (const member of group) {
+              const enemyId = member.visibleEnemy && member.visibleEnemy.id;
+              if (enemyId) focusClaims.set(enemyId, (focusClaims.get(enemyId) || 0) + 1);
+            }
+            if (focusClaims.size) {
+              stats.focusSum += Math.max(...focusClaims.values());
+              stats.focusSamples++;
+            }
             sample[team]={alive:group.length,radius:Math.round(radius*10)/10,closePairs};
           }
           BOT_METRICS.recent.push(sample);
@@ -6863,6 +6892,8 @@
           d.meanRadius=d.observations?Math.round(d.sum/d.observations*100)/100:null;
           d.meanClosePairs=d.observations?
             Math.round(d.closePairs/d.observations*100)/100:null;
+          d.meanLargestFocus=d.focusSamples ?
+            Math.round(d.focusSum/d.focusSamples*100)/100 : null;
         }
         return copy;
       }
@@ -10557,6 +10588,7 @@ function buildSquadLeadership() {
           const bestEnemy = bot.visibleEnemy;
           const currentTarget = bestEnemy ? bestEnemy.id : null;
           if (currentTarget && currentTarget !== previousTarget) recordBotMetric(bot,'sightings');
+          recordBotTargetTransition(bot, previousTarget, currentTarget);
           bot.telemetryTargetId = currentTarget;
           if (!previouslyHeard && bot.hearingPos && bot.hearingTimer > 0)
             recordBotMetric(bot,'heard');
