@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('node:fs'),script=fs.readFileSync(require('node:path').join(__dirname,'..','scripts','browser-bomb-full-round.mjs'),'utf8');
+let n=0;const ok=(v,s)=>{if(!v)throw Error('V74 '+s);n++};
+const a=script.indexOf('      // Read-only diagnostic snapshot.'),b=script.indexOf('      if(tick%100===0)samples.push(',a);
+ok(a>=0&&b>a,'Diagnostic block exists');
+const code=script.slice(a,b);
+ok(code.includes('diagnostic&&tick%20===0'),'Opt-in one-second samples');
+ok(!/\b(?:botAmmoSlot|botAmmoWeapon|updateBotPerception|Math.random|isBotFireLaneClear)\(/.test(code),'No decision calls in sample');
+ok(code.includes('b.ammoState?.[id]')&&code.includes('b.botReload?{...b.botReload}:null'),'Read-only ammo snapshot');
+ok(code.includes('b.aimSettleTimer')&&code.includes('b.fireLaneBlockTimer')&&code.includes('b.foObjectiveIndex'),'Decision blockers recorded');
+ok(script.includes('data.diagnostics.length>191'),'Bounded report');
+ok(script.includes("FRONT_OPERATION_DIAGNOSTIC==='1'"),'Normal test unchanged unless opted in');
+console.log('BOT AI V74 DIAGNOSTIC PASS ('+n+' checks)');

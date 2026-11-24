@@ -146,3 +146,6 @@ jobs:
 
       - name: Run V73 ammo conservation and ownership audit
         run: node tests/bot_ai_v73_ammo_audit_regression.cjs
+
+      - name: Run V74 diagnostic isolation checks
+        run: node tests/bot_ai_v74_diagnostic_regression.cjs
