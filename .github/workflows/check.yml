@@ -111,7 +111,7 @@ jobs:
       - name: Run V65 friendly spacing regression
         run: node tests/bot_ai_v65_spacing_regression.cjs
 
-      - name: Run V66 corner momentum regression
+      - name: Run V66 historical corner momentum opt-in regression
         run: node tests/bot_ai_v66_corner_regression.cjs
 
       - name: Run V67 combat range regression
@@ -125,3 +125,6 @@ jobs:
 
       - name: Run V70 phase continuity regression
         run: node tests/bot_ai_v70_phase_regression.cjs
+
+      - name: Run V71A corner ablation regression
+        run: node tests/bot_ai_v71a_corner_ablation_regression.cjs
