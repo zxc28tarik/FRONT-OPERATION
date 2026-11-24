@@ -140,3 +140,6 @@ jobs:
 
       - name: Run V71E map navigation regression
         run: node tests/bot_ai_v71e_map_navigation_regression.cjs
+
+      - name: Run V72 provisional candidate regression
+        run: node tests/bot_ai_v72_candidate_regression.cjs

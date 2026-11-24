@@ -11549,9 +11549,10 @@
       }
       // V71A: isolate the V66 experiment; default to proven V65 policy.
       // Explicit opt-in is used only by historical regression scenarios.
-      function botMapMomentumPolicy(mode){
-        // V71E: provisional map-specific comparison; not a global quality claim.
-        return mode==='marien';
+      function botMapMomentumPolicy(mode,comparison=false){
+        // V72: V71D movement is the provisional release candidate.
+        // V71E remains an explicit historical comparison, not live behavior.
+        return comparison&&mode==='marien';
       }
       function chooseBotRouteLookahead(bot,leg,experimentalMomentum=false){
         if(!leg||!leg.next||Math.abs(leg.node.y-leg.next.y)>.30||Math.abs(bot.pos.y-leg.next.y)>.35)return null;
