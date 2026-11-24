@@ -30,9 +30,10 @@ function runBotAiV33Regression(html) {
     { id: 'red_1', alive: true, team: 'red', hp: 20, pos: new Vec3(0, 0, 19) }
   ];
   let walk = () => true;
-  const make = () => new Function('THREE', 'bots', 'player', 'normalizeAngle', 'isPositionWalkable',
+  let sight = () => true;
+  const make = () => new Function('THREE', 'bots', 'player', 'normalizeAngle', 'isPositionWalkable', 'hasLineOfSight',
     helpers + '\nreturn {isBotAimAligned,isBotFireLaneClear,chooseBotFireLaneStep,selectBotMedicPatient};')(
-      THREE, mates, player, (a) => Math.atan2(Math.sin(a), Math.cos(a)), (...args) => walk(...args)
+      THREE, mates, player, (a) => Math.atan2(Math.sin(a), Math.cos(a)), (...args) => walk(...args), (...args) => sight(...args)
     );
   const enemy = new Vec3(0, 1.45, 30);
   let ai = make();
@@ -52,6 +53,12 @@ function runBotAiV33Regression(html) {
   ok(!ai.isBotFireLaneClear(bot, enemy), 'Friendly player also blocks shot path');
   player.alive = false;
   ok(ai.isBotFireLaneClear(bot, enemy), 'No living ally on line permits fire');
+  sight = () => false;
+  ok(!ai.isBotFireLaneClear(bot, enemy), 'Wall blocks otherwise clear friendly lane');
+  sight = (from) => from.y > 1.2;
+  bot.crouchAmt = 1;
+  ok(!ai.isBotFireLaneClear(bot, enemy), 'Crouched origin cannot shoot through low cover');
+  bot.crouchAmt = 0; sight = () => true;
   player.alive = true;
   mates[0].alive = true;
   mates[0].pos.x = 1.15; player.pos.x = 1.2;
