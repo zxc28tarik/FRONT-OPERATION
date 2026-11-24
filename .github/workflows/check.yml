@@ -113,3 +113,6 @@ jobs:
 
       - name: Run V66 corner momentum regression
         run: node tests/bot_ai_v66_corner_regression.cjs
+
+      - name: Run V67 combat range regression
+        run: node tests/bot_ai_v67_range_regression.cjs

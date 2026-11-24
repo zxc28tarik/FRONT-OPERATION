@@ -1,0 +1,4 @@
+# V67 — Sınıf aralığına göre kontrollü çatışma hareketi (deneysel)
+V65 Marien: sıkışma 76→64, isabet 964→1075, oran %10.09→%10.97, hedef değişimi 291→268. Tersane 3/3 kurulum, 3 sıkışma aynı. V66 teknik PASS; uzun maç sonucu henüz yok. V67 taslak V66 üzerine kurulur.
+V67 yalnız mevcut STRAFE kararını sınıfa göre hafifçe yönlendirir; siper seçimindeki mevcut ideal aralıklar kullanılır. 2 m ölü bant ve en çok 1 m radyal bileşen deneysel. Hedef noktası yürünebilir, takım arkadaşından uzak ve ateş hattı açık olmalıdır. Aksi halde önceki yan adım sistemi çalışır. İlk temas beklemesi, acil geri çekilme, nişan, zorluk, silah ve görev kuralları aynıdır. Bu paket tüm çatışma mesafesi sorunlarını çözdüğünü iddia etmez.
+14 yerel kontrol ve V66/V67 eşlenik 12 maç ile değerlendirme. V66 ve V67 kalite onayı olmadan ana dal birleştirilmez.

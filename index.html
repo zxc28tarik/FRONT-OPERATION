@@ -11679,6 +11679,39 @@
         return true;
       }
 
+      // V67: only bias a dodge that was already requested. Never force
+      // an otherwise stationary shooter to close distance or retreat.
+      function botCombatRangeBand(classId){
+        return classId==='sniper'?[22,52]:classId==='heavy'?[13,34]:
+          classId==='medic'?[12,30]:classId==='engineer'?[8,24]:[10,28];
+      }
+      function chooseBotRangeStrafeGoal(bot,enemy,walk,clear,occupied){
+        if(!enemy||!enemy.pos||!enemy.eye||Math.abs(enemy.pos.y-bot.pos.y)>1.35)return null;
+        const dx=enemy.pos.x-bot.pos.x,dz=enemy.pos.z-bot.pos.z,d=Math.hypot(dx,dz);
+        if(d<.1)return null;
+        const [low,high]=botCombatRangeBand(bot.classId);
+        // Deadband prevents direction flicker at range thresholds.
+        const bias=d<low-2?-1:d>high+2?1:0;
+        if(!bias)return null;
+        const fx=dx/d,fz=dz/d,preferred=bot.strafeDir===-1?-1:1;
+        for(const side of [preferred,-preferred]){
+          for(const lateral of [2.0,1.4]){
+            const radial=bias*Math.min(1.0,Math.abs(d-(bias<0?low:high))*.25);
+            const x=bot.pos.x+fz*side*lateral+fx*radial;
+            const z=bot.pos.z-fx*side*lateral+fz*radial;
+            const p={x,y:bot.pos.y,z};
+            const nextD=Math.hypot(enemy.pos.x-x,enemy.pos.z-z);
+            if(bias*(d-nextD)<=.15||occupied(p))continue;
+            let safe=true;
+            for(const t of [.25,.5,.75,1]){
+              if(!walk(bot.pos.x+(x-bot.pos.x)*t,p.y,bot.pos.z+(z-bot.pos.z)*t)){safe=false;break;}
+            }
+            if(!safe||!clear(p))continue;
+            return {point:p,side};
+          }
+        }
+        return null;
+      }
       // V36: A persistent lateral dodge that respects collision and allies.
       function chooseBotCombatStrafeGoal(bot, facingYaw) {
         const rightX = Math.cos(facingYaw), rightZ = -Math.sin(facingYaw);
@@ -12490,7 +12523,12 @@
                   bot.combatStrafeTargetId = bot.targetId;
                   if(bot.dodgeMode==='STRAFE'){
                     if(!changedThreat&&Math.random()<.5)bot.strafeDir *= -1;
-                    bot.combatStrafeGoal = chooseBotCombatStrafeGoal(bot, desiredUpperYaw);
+                    const ranged=chooseBotRangeStrafeGoal(bot,bestEnemy,isPositionWalkable,
+                      p=>isBotFireLaneClear(bot,bestEnemy.eye,p),
+                      p=>bots.some(a=>a.alive&&a.team===bot.team&&a.id!==bot.id&&Math.abs(a.pos.y-p.y)<=1.35&&Math.hypot(a.pos.x-p.x,a.pos.z-p.z)<1.2)||
+                        (player.alive&&player.team===bot.team&&Math.abs(player.pos.y-p.y)<=1.35&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<1.2));
+                    if(ranged){bot.strafeDir=ranged.side;bot.combatStrafeGoal=new THREE.Vector3(ranged.point.x,ranged.point.y,ranged.point.z);}
+                    else bot.combatStrafeGoal = chooseBotCombatStrafeGoal(bot, desiredUpperYaw);
                   }else bot.combatStrafeGoal=null;
                 }
                 if(holdContact){bot.combatStrafeGoal=null;bot.dodgeMode='HOLD';}
