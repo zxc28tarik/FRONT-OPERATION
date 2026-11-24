@@ -12503,9 +12503,10 @@ function buildSquadLeadership() {
               if (movedDist < 0.55) {
                 bot.stuckFailures++;
                 recordBotMetric(bot, 'stuckRecoveries');
-                const obstructedWp = foMissionOrder ? bot.foObjectivePath?.[bot.foObjectiveIndex] : bot.teamFlankGoalNode >= 0
+                let obstructedWp = bot.teamFlankGoalNode >= 0
                   ? bot.teamFlankRoute[bot.teamFlankPathIndex]
                   : (bot.path && bot.path[bot.pathIndex]);
+                if(foMissionOrder)obstructedWp=bot.foObjectivePath?.[bot.foObjectiveIndex];
                 recordBotStuckHotspot(bot, obstructedWp);
                 recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec);
                 if (obstructedWp !== undefined) {
