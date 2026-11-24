@@ -191,3 +191,6 @@ jobs:
 
       - name: Run V87 pause map switch regression
         run: node tests/ui_v87_pause_map_regression.cjs
+
+      - name: Run V90 rescue mode regression
+        run: node tests/rescue_v90_regression.cjs
