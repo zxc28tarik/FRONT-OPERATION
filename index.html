@@ -11561,10 +11561,23 @@
       // V34: Make friendly corridor negotiation deterministic. An infantryman
       // behind an ally yields; head-on encounters use stable ID precedence.
       // V57: distinguish the active route from stale routes owned by other behaviors.
+      // V79: acoustic investigation owns its own graph route, not patrol.
+      function botOwnsSoundRoute(bot,kind){
+        return kind==='INVESTIGATE'&&bot.behaviorPlan?.lookOwner==='SOUND'&&!!bot.hearingPos&&bot.hearingTimer>0;
+      }
+      function botSoundRouteGoal(bot){
+        return bot.hearingGoalNode>=0?bot.hearingGoalNode:findNearestNavNode(bot.hearingPos);
+      }
+      function setBotSoundRecoveryRoute(bot,goal,route){
+        bot.hearingGoalNode=goal;
+        bot.hearingRoute=route.length>1&&route[route.length-1]===goal?route:[];
+        bot.hearingRouteIndex=0;
+      }
       function getBotActiveRoute(bot,kind){
         const owner=kind||bot.behaviorPlan?.kind||bot.behavior?.kind;
         if(owner==='MISSION')return {path:bot.foObjectivePath||[],index:bot.foObjectiveIndex||0,key:'foObjectiveIndex'};
         if(owner==='FLANK')return {path:bot.teamFlankRoute||[],index:bot.teamFlankPathIndex||0,key:'teamFlankPathIndex'};
+        if(botOwnsSoundRoute(bot,owner))return {path:bot.hearingRoute||[],index:bot.hearingRouteIndex||0,key:'hearingRouteIndex'};
         return {path:bot.path||[],index:bot.pathIndex||0,key:'pathIndex'};
       }
       function getBotRouteLeg(bot,target,kind){
@@ -12094,7 +12107,10 @@
         if (!goal) return null;
         const from = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.0, bot.pos.z);
         const to = new THREE.Vector3(goal.x, goal.y + 1.0, goal.z);
-        if (hasLineOfSight(from, to)) return goal.clone();
+        if (hasLineOfSight(from, to)) {
+          bot.hearingRoute=[];bot.hearingRouteIndex=0;bot.hearingGoalNode=-1;
+          return goal.clone();
+        }
         const goalNode = findNearestNavNode(goal);
         if (bot.hearingGoalNode !== goalNode || !bot.hearingRoute ||
             bot.hearingRouteIndex >= bot.hearingRoute.length) {
@@ -13406,6 +13422,7 @@
           }
           // Negotiation occurs after tactical routing and before physics.
           // An intentional yield is not a navigation failure (no stuck timer).
+          const soundRoute=botOwnsSoundRoute(bot,selectedPlan.kind);
           let passageHolding = false;
           if (bot.passageStepTarget && bot.passageStepTimer > 0) {
             bot.passageStepTimer = Math.max(0, bot.passageStepTimer - dt);
@@ -13438,7 +13455,7 @@
               const local=resolveBotLocalMovement(selectedPlan,{yield:true});
               moveTargetPos=local.target;moveSpeed=local.speed;bot.behaviorPlan=local;
               if (bot.passageWaitTimer >= 1.6 && bot.passageRepathCooldown <= 0) {
-                const goal = foMissionOrder ? foMissionOrder.goal : selectedPlan.kind==='FLANK'?bot.teamFlankGoalNode:bot.coverNode >= 0 ? bot.coverNode :
+                const goal = foMissionOrder ? foMissionOrder.goal : soundRoute?botSoundRouteGoal(bot): selectedPlan.kind==='FLANK'?bot.teamFlankGoalNode:bot.coverNode >= 0 ? bot.coverNode :
                   (bot.supportGoalNode >= 0 ? bot.supportGoalNode :
                   (bot.rallyGoalNode >= 0 ? bot.rallyGoalNode : bot.goalNode));
                 const occupied = bots.find((b) => b.id === passage.blockerId);
@@ -13450,6 +13467,7 @@
                         alternative.some((node, index) => node !== getBotActiveRoute(bot,selectedPlan.kind).path[index])) {
                       if(foMissionOrder){bot.foObjectivePath=alternative;bot.foObjectiveIndex=0;bot.foObjectiveRepath=.65;}
                       else if(selectedPlan.kind==='FLANK'){bot.teamFlankRoute=alternative;bot.teamFlankPathIndex=0;}
+                      else if(soundRoute)setBotSoundRecoveryRoute(bot,goal,alternative);
                       else {bot.path = alternative;bot.pathIndex = 0;}
                     }
                   }
@@ -13553,6 +13571,7 @@
                   ? bot.teamFlankRoute[bot.teamFlankPathIndex]
                   : (bot.path && bot.path[bot.pathIndex]);
                 if(foMissionOrder)obstructedWp=bot.foObjectivePath?.[bot.foObjectiveIndex];
+                else if(soundRoute)obstructedWp=bot.hearingRoute?.[bot.hearingRouteIndex];
                 recordBotStuckHotspot(bot, obstructedWp);
                 recordBotStuckContext(bot, moveTargetPos, obstructedWp, nowSec,{
                   trigger:forwardProgress===null?'displacement':'waypoint_progress',
@@ -13567,7 +13586,7 @@
 
                 // Preserve the tactical objective: seek a different route
                 // before requesting a new random assignment.
-                const goal = foMissionOrder ? foMissionOrder.goal : bot.teamFlankGoalNode >= 0 ? bot.teamFlankGoalNode :
+                const goal = foMissionOrder ? foMissionOrder.goal : soundRoute?botSoundRouteGoal(bot): bot.teamFlankGoalNode >= 0 ? bot.teamFlankGoalNode :
                   (bot.coverNode !== -1 ? bot.coverNode :
                   (bot.supportGoalNode !== -1 ? bot.supportGoalNode :
                   (bot.lastKnownEnemyPos && bot.investigateTimer > 0 && !bot.visibleEnemy
@@ -13578,6 +13597,8 @@
                   else if (bot.teamFlankGoalNode >= 0) {
                     bot.teamFlankRoute = recovered;
                     bot.teamFlankPathIndex = 0;
+                  } else if(soundRoute){
+                    setBotSoundRecoveryRoute(bot,goal,recovered);
                   } else {
                     bot.path = recovered;
                     bot.pathIndex = 0;
@@ -13600,6 +13621,7 @@
                   bot.teamFlankRoute = [];
                   bot.teamFlankRestUntil = nowSec + 3;
                   if(foMissionOrder){bot.foObjectiveGoal=-1;bot.foObjectiveRepath=0;}
+                  else if(soundRoute){resetBotHearing(bot);bot.hearingCommitUntil=nowSec+1.1;}
                   else assignBotTacticalGoal(bot);
                 }
               } else {
