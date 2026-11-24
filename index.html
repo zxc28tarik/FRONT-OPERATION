@@ -8539,7 +8539,8 @@ function buildSquadLeadership() {
             behavior:b.behavior?.kind||null,lookOwner:b.behaviorPlan?.lookOwner||null,
             behaviorTransitions:b.behavior?.transitions||0,localMovement:b.behaviorPlan?.local||null,
             activeLookOwner:b.lookControl?.owner||null,lookTransitions:b.lookControl?.transitions||0,
-            lookYawVelocity:b.lookYawVelocity||0
+            lookYawVelocity:b.lookYawVelocity||0,locomotionMode:b.locomotionMode||'HOLD',
+            locomotionSpeed:b.locomotionSpeed||0,dodgeMode:b.dodgeMode||'HOLD'
           })),
           started: matchState.started,
           playerAlive: player.alive,
@@ -8962,6 +8963,7 @@ function buildSquadLeadership() {
         bot.lastDirectContactAt = -Infinity;
         bot.behavior=null;bot.behaviorPlan=null;
         bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
+        bot.locomotionMode='HOLD';bot.dodgeMode='HOLD';bot.locomotionSpeed=0;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -11679,6 +11681,44 @@ function buildSquadLeadership() {
         bot.aimPitch=p.angle;bot.lookPitchVelocity=p.velocity;
       }
 
+      // V56: locomotion is independent of tactical and look ownership.
+      function botObservedPressure(bot,enemy,dist){
+        if(!enemy||!enemy.pos||dist>30||!Number.isFinite(enemy.yaw))return false;
+        const toward=Math.atan2(bot.pos.x-enemy.pos.x,bot.pos.z-enemy.pos.z);
+        const delta=Math.abs(Math.atan2(Math.sin(toward-enemy.yaw),Math.cos(toward-enemy.yaw)));
+        return delta<.95&&(enemy.isFiring||dist<13);
+      }
+      function chooseBotDodgeMode(bot,enemy,dist,changedThreat,random){
+        if(changedThreat||!botObservedPressure(bot,enemy,dist))return 'HOLD';
+        const chance=bot.classId==='sniper'?.20:bot.classId==='heavy'?.32:.50;
+        return random<chance?'STRAFE':'HOLD';
+      }
+      function resolveBotLocomotion(bot,plan,target,speed,crouch,lookYaw){
+        const dx=target?target.x-bot.pos.x:0,dz=target?target.z-bot.pos.z:0,d=Math.hypot(dx,dz);
+        if(!(speed>0)||d<.18)return {mode:'HOLD',speed:0};
+        const facing=Number.isFinite(lookYaw)?lookYaw:bot.legYaw;
+        const forward=(Math.sin(facing)*dx+Math.cos(facing)*dz)/d;
+        const combat=['ENGAGE','COVER','RETREAT','FLANK'].includes(plan.kind);
+        if(crouch>.55)return {mode:'CROUCH',speed:Math.min(speed,2.1)};
+        if(combat&&forward<-.55)return {mode:'BACKPEDAL',speed:Math.min(speed,3.2)};
+        if(combat&&Math.abs(forward)<.60)return {mode:'STRAFE',speed:Math.min(speed,3.4)};
+        if(speed<=3.1||plan.kind==='INVESTIGATE')return {mode:'WALK',speed:Math.min(speed,3.1)};
+        return {mode:'RUN',speed};
+      }
+      function botSeparationStrength(distance,holding,yielding){
+        // Stationary soldiers only correct actual body overlap, not nearby traffic.
+        const radius=(holding||yielding)?.84:1.15;
+        if(distance<.001||distance>=radius)return 0;
+        return (radius-distance)/radius*((holding||yielding)?1.1:3.8);
+      }
+      function botLocomotionPose(vx,vz,yaw,speed){
+        if(speed<.05)return {forward:0,side:0,amplitude:0};
+        const forward=(Math.sin(yaw)*vx+Math.cos(yaw)*vz)/speed;
+        const side=(Math.cos(yaw)*vx-Math.sin(yaw)*vz)/speed;
+        return {forward:Math.max(-1,Math.min(1,forward)),side:Math.max(-1,Math.min(1,side)),
+          amplitude:Math.min(.62,.14+speed*.10)};
+      }
+
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
 
@@ -11745,6 +11785,7 @@ function buildSquadLeadership() {
             bot.moveVelX = 0;
             bot.moveVelZ = 0;
             bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
+            bot.locomotionMode='HOLD';bot.locomotionSpeed=0;
             bot.behaviorPlan=selectBotBehaviorPlan(bot,[{kind:'DRONE',speed:0,crouch:1,yaw:bot.legYaw}],nowSec);
             observeBotCoverLifecycle(bot,nowSec);
             bot.combatStrafeGoal = null;
@@ -11796,6 +11837,7 @@ function buildSquadLeadership() {
             bot.teamFlankPathIndex = 0;
             bot.combatStrafeGoal = null;
             bot.combatStrafeTargetId = null;
+            bot.dodgeMode='HOLD';
             bot.fireLaneBlockTimer = 0;
             bot.fireLaneRecoveryGoal = null;
           } else if (bot.passageStepTarget && bot.coverPhase !== 'MOVE_TO_COVER') {
@@ -11971,11 +12013,17 @@ function buildSquadLeadership() {
                 // or the situation changes; no per-frame random zig-zag.
                 bot.strafeTimer -= dt;
                 const changedThreat = bot.combatStrafeTargetId !== bot.targetId;
+                if(!botObservedPressure(bot,bestEnemy,distToEnemy)){
+                  bot.combatStrafeGoal=null;bot.dodgeMode='HOLD';
+                }
                 if (changedThreat || bot.strafeTimer <= 0) {
-                  if (!changedThreat) bot.strafeDir *= -1;
-                  bot.strafeTimer = 2.05 + Math.random() * 0.85;
+                  bot.dodgeMode=chooseBotDodgeMode(bot,bestEnemy,distToEnemy,changedThreat,Math.random());
+                  bot.strafeTimer=changedThreat?.65:bot.dodgeMode==='STRAFE'?1.1+Math.random()*.45:1.1+Math.random()*1.0;
                   bot.combatStrafeTargetId = bot.targetId;
-                  bot.combatStrafeGoal = chooseBotCombatStrafeGoal(bot, desiredUpperYaw);
+                  if(bot.dodgeMode==='STRAFE'){
+                    if(!changedThreat&&Math.random()<.5)bot.strafeDir *= -1;
+                    bot.combatStrafeGoal = chooseBotCombatStrafeGoal(bot, desiredUpperYaw);
+                  }else bot.combatStrafeGoal=null;
                 }
                 const strafeRemaining = bot.combatStrafeGoal ? Math.hypot(bot.combatStrafeGoal.x-bot.pos.x,bot.combatStrafeGoal.z-bot.pos.z) : 0;
                 if (strafeRemaining > 0.48) moveTargetPos = bot.combatStrafeGoal;
@@ -12617,6 +12665,9 @@ function buildSquadLeadership() {
           if(moveTargetPos&&!bestEnemy&&moveSpeed>2.2){
             moveSpeed=limitBotCornerSpeed(bot,moveTargetPos,moveSpeed);
           }
+          const locomotion=resolveBotLocomotion(bot,selectedPlan,moveTargetPos,moveSpeed,targetCrouch,desiredUpperYaw);
+          bot.locomotionMode=locomotion.mode;moveSpeed=locomotion.speed;
+          const holding=locomotion.mode==='HOLD';
           const hasRouteIntent = selectedPlan.route && moveTargetPos && moveSpeed > 2.2 &&
             Math.hypot(moveTargetPos.x - bot.pos.x, moveTargetPos.z - bot.pos.z) > 1.55;
           let moveX = 0;
@@ -12637,7 +12688,7 @@ function buildSquadLeadership() {
             const sz = bot.pos.z - bots[j].pos.z;
             const sd = Math.hypot(sx, sz);
             if (sd > 0.001 && sd < 1.15) {
-              const push = ((1.15 - sd) / 1.15) * (passageHolding ? 1.15 : 3.8);
+              const push = botSeparationStrength(sd,holding,passageHolding);
               moveX += (sx / sd) * push;
               moveZ += (sz / sd) * push;
             }
@@ -12647,7 +12698,7 @@ function buildSquadLeadership() {
             const pz = bot.pos.z - player.pos.z;
             const pd = Math.hypot(px, pz);
             if (pd > 0.001 && pd < 1.1) {
-              const push = ((1.1 - pd) / 1.1) * 3.6;
+              const push = botSeparationStrength(pd,holding,passageHolding);
               moveX += (px / pd) * push;
               moveZ += (pz / pd) * push;
             }
@@ -12660,6 +12711,8 @@ function buildSquadLeadership() {
           const isIntermediateWaypoint = !!(navNode && moveTargetPos &&
             (foMissionOrder ? bot.foObjectiveIndex < bot.foObjectivePath.length-1 : bot.pathIndex < bot.path.length - 1) &&
             Math.hypot(navNode.x - moveTargetPos.x, navNode.z - moveTargetPos.z) < 0.2);
+          // Limit combined overlap nudges, so a crowd cannot push a stationary soldier into a run.
+          if(holding){const push=Math.hypot(moveX,moveZ);if(push>.65){moveX*=.65/push;moveZ*=.65/push;}}
           const steer = computeBotSteeringVelocity(
             bot, moveTargetPos, moveSpeed, moveX, moveZ, dt, isIntermediateWaypoint
           );
@@ -12757,6 +12810,7 @@ function buildSquadLeadership() {
           const actualSpeed = Math.hypot(
             bot.pos.x - beforeMoveX, bot.pos.z - beforeMoveZ
           ) / Math.max(0.001, dt);
+          bot.locomotionSpeed=actualSpeed;
           if (actualSpeed > 0.35) {
             const targetLegYaw = bestEnemy || foPriorityCombat ? desiredUpperYaw : Math.atan2(bot.moveVelX, bot.moveVelZ);
             bot.legYaw = lerpAngle(bot.legYaw, targetLegYaw, 1-Math.exp(-dt * (bestEnemy?13:8)));
@@ -12799,12 +12853,17 @@ function buildSquadLeadership() {
           if (actualSpeed > 0.4) {
             bot.mesh.upperBody.position.y = 0.93;
             bot.animPhase += dt * actualSpeed * 2.35;
-            const swing = Math.sin(bot.animPhase) * 0.62;
-            bot.mesh.leftHip.rotation.x = swing;
-            bot.mesh.rightHip.rotation.x = -swing;
-            bot.mesh.leftKnee.rotation.x = Math.max(0, -swing) * 0.75;
-            bot.mesh.rightKnee.rotation.x = Math.max(0, swing) * 0.75;
+            const pose=botLocomotionPose((bot.pos.x-beforeMoveX)/Math.max(.001,dt),(bot.pos.z-beforeMoveZ)/Math.max(.001,dt),bot.legYaw,actualSpeed);
+            const swing=Math.sin(bot.animPhase)*pose.amplitude;
+            const stride=swing*pose.forward,side=swing*pose.side*.42;
+            bot.mesh.leftHip.rotation.x += (stride-bot.mesh.leftHip.rotation.x)*Math.min(1,dt*18);
+            bot.mesh.rightHip.rotation.x += (-stride-bot.mesh.rightHip.rotation.x)*Math.min(1,dt*18);
+            bot.mesh.leftHip.rotation.z += (side-bot.mesh.leftHip.rotation.z)*Math.min(1,dt*18);
+            bot.mesh.rightHip.rotation.z += (side-bot.mesh.rightHip.rotation.z)*Math.min(1,dt*18);
+            bot.mesh.leftKnee.rotation.x = Math.max(0, -swing) * 0.75+bot.crouchAmt*.32;
+            bot.mesh.rightKnee.rotation.x = Math.max(0, swing) * 0.75+bot.crouchAmt*.32;
           } else {
+            bot.mesh.leftHip.rotation.z*=Math.exp(-12*dt);bot.mesh.rightHip.rotation.z*=Math.exp(-12*dt);
             const breath = Math.sin(performance.now() * 0.003 + bot.animPhase) * 0.025;
             bot.mesh.leftHip.rotation.x *= Math.exp(-10 * dt);
             bot.mesh.rightHip.rotation.x *= Math.exp(-10 * dt);
