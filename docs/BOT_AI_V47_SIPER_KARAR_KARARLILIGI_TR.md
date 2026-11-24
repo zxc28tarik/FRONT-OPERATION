@@ -62,3 +62,28 @@ Bu sonuca dayanarak **ilerlemesi durmuş yaklaşma** hâlinde yeni hedef üzerin
 **Sınır:** 600 saniyelik hızlandırılmış *gerçek bot mantığı* Chromium motor testidir. 10 dakika canlı oynanan/render edilen, gerçek oyunculu performans/denge testi değildir. Aynı tohum, kararların değişmesiyle ileride random tüketim dizisinin farklılaşmasını tümüyle engellemez; çoklu koşu karşılaştırması da insan oynanışı doğrulamasının yerine geçmez.
 
 **Merge politikası:** `main` kullanıcı onayı olmadan değişmez. V47, V46'ya hedeflenen taslak PR olarak saklanır.
+
+
+## Son V47 kodu — aynı 3 tohumda yeniden ölçüm
+
+Son V47 kodunu (güvenli siper koruma + ilerlemesi duran yaklaşmada tekrar değerlendirme) içeren [GitHub run #45377724934](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45377724934) **PASS** verdi.
+
+| Ölçüm — 3 × 600 simüle saniye | Tanılama-only kontrol | Son V47 |
+|---|---:|---:|
+| Siper seçimi | 3.947 | **3.030** |
+| Gerçek siper ulaşımı | 1.551 | 1.329 |
+| Ulaşmadan terk | 2.389 | **1.689** |
+| Doğrudan siper yeniden atama | 1.591 | **832** |
+| Yeni görünür hedefte güvenli siper koruma | 0 | **1.277** |
+| Yaklaşırken uzun süre ilerleyememe | 59 | **91** |
+| Sipere yaklaşma bot-saniyeleri | 7.743 | 7.262 |
+| Siper tutma bot-saniyeleri | 700 | **883** |
+| Sıkışma kurtarma | 137 | **96** |
+| Atış | 6.407 | 7.087 |
+| İsabet | 944 | 1.054 |
+
+Son V47 ile *sipere ulaşmadan terk* yaklaşık **%29,3**, *doğrudan siper değiştirme* **%47,7**, *sıkışma kurtarma* **%29,9** azalırken *siperde kalma zamanı* **%26,1** arttı. Ulaşma sayısı 1.551'den 1.329'a düştü; fakat seçime göre ulaşma oranı yaklaşık **%39,3'ten %43,9'a** yükseldi. Yaklaşmada uzun süre ilerleyememe ise **59'dan 91'e arttı**: V48'de doğrudan takip edilmesi gereken açık regresyon riskidir.
+
+Bu üç eşleştirme aynı rastgele başlangıç tohumlarını kullanır fakat gerçek tarayıcıdaki olay/animasyon sıralaması ve farklı AI kararları RNG akışını ayrıştırabildiğinden kusursuz istatistiksel A/B değildir. İyileşmenin yönü güven verici; bütün siper ve bot davranışlarının tamamlandığı sonucu çıkarılmamalıdır.
+
+Kritik bağlantılar: [Güncel V47 karşılaştırması](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45377724934) · [PR #9](https://github.com/zxc28tarik/FRONT-OPERATION/pull/9).
