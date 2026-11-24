@@ -3,7 +3,7 @@ const fs=require('node:fs'),html=fs.readFileSync(require('node:path').join(__dir
 const a=html.indexOf('      // V57: distinguish the active route'),b=html.indexOf('      // V65: smooth following',a);
 if(a<0||b<a)throw Error('V66 helper block missing');
 let walk=()=>true;
-const api=new Function('NAV_NODES','isPositionWalkable',html.slice(a,b)+'\nreturn {clear:botCornerMomentumClear,ahead:chooseBotRouteLookahead,cap:botRouteCornerLimit};')([],(...x)=>walk(...x));
+const api=new Function('NAV_NODES','isPositionWalkable',html.slice(a,b)+'\nreturn {clear:botCornerMomentumClear,ahead:(b,l)=>chooseBotRouteLookahead(b,l,true),cap:(b,l,s)=>botRouteCornerLimit(b,l,s,true)};')([],(...x)=>walk(...x));
 let n=0;const ok=(v,s)=>{if(!v)throw Error('V66 '+s);n++};
 const bot={pos:{x:0,y:0,z:0},moveVelX:0,moveVelZ:5};
 const leg={node:{x:0,y:0,z:.6},next:{x:4,y:0,z:.6}};
@@ -21,6 +21,6 @@ ok(api.cap(bot,{node:{x:0,y:0,z:5},next:{x:4,y:0,z:5}},5)===5,'Distant turn does
 ok(api.ahead(bot,{...leg,next:{x:4,y:2,z:.6}})===null,'Elevation transition never shortcut');
 ok(api.cap(bot,{...leg,next:{x:4,y:2,z:.6}},5)>api.cap(bot,leg,5),'Legacy elevation speed rule retained');
 walk=x=>x<1;ok(api.ahead(bot,leg)===null,'Existing body clearance gate retained');
-ok(html.includes('if(!botCornerMomentumClear(bot,leg.next))return null;'),'Live lookahead uses momentum guard');
+ok(html.includes('if(experimentalMomentum&&!botCornerMomentumClear(bot,leg.next))return null;'),'Opt-in historical mode uses momentum guard');
 ok(html.includes('if(moveTargetPos&&!bestEnemy&&moveSpeed>2.2)'),'Combat movement unaffected');
-console.log('BOT AI V66 CORNER PASS ('+n+' checks)');
+console.log('BOT AI V66 HISTORICAL OPT-IN PASS ('+n+' checks)');

@@ -11519,7 +11519,9 @@
         }
         return true;
       }
-      function chooseBotRouteLookahead(bot,leg){
+      // V71A: isolate the V66 experiment; default to proven V65 policy.
+      // Explicit opt-in is used only by historical regression scenarios.
+      function chooseBotRouteLookahead(bot,leg,experimentalMomentum=false){
         if(!leg||!leg.next||Math.abs(leg.node.y-leg.next.y)>.30||Math.abs(bot.pos.y-leg.next.y)>.35)return null;
         if(Math.hypot(leg.node.x-bot.pos.x,leg.node.z-bot.pos.z)>2.1)return null;
         const dx=leg.next.x-bot.pos.x,dz=leg.next.z-bot.pos.z;
@@ -11527,10 +11529,10 @@
         // Only bypass a near waypoint if body clearance remains valid.
         const samples=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.22));
         for(let i=1;i<=samples;i++)if(!isPositionWalkable(bot.pos.x+dx*i/samples,bot.pos.y,bot.pos.z+dz*i/samples))return null;
-        if(!botCornerMomentumClear(bot,leg.next))return null;
+        if(experimentalMomentum&&!botCornerMomentumClear(bot,leg.next))return null;
         return leg.next;
       }
-      function botRouteCornerLimit(bot,leg,speed){
+      function botRouteCornerLimit(bot,leg,speed,experimentalMomentum=false){
         if(!leg||!leg.next)return speed;
         const ax=leg.node.x-bot.pos.x,az=leg.node.z-bot.pos.z,bx=leg.next.x-leg.node.x,bz=leg.next.z-leg.node.z;
         const a=Math.hypot(ax,az),b=Math.hypot(bx,bz);
@@ -11538,6 +11540,7 @@
         const dot=Math.max(-1,Math.min(1,(ax*bx+az*bz)/(a*b)));
         const factor=1-(1-dot)*.30*(1-a/4);
         const legacyCap=speed*Math.max(.55,factor);
+        if(!experimentalMomentum)return legacyCap;
         // Preserve the existing ramp/upper-deck transition policy.
         if(Math.abs(leg.node.y-leg.next.y)>.30||Math.abs(bot.pos.y-leg.node.y)>.35)return legacyCap;
         // Brake to a turn-dependent speed before reaching a sharp vertex.
