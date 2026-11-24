@@ -35,7 +35,7 @@ const bot=()=>({
   initialDistance:24,bestDistance:12,lastProgressAt:3.8},
  blockedNode:-1,path:[0],pathIndex:0
 });
-const threat={x:20,y:0,z:0};
+const threat={x:20,y:0,z:0,clone(){return {...this};}};
 let p=compile(4),b=bot();
 ok(p.api.keep(b,threat,4),'Distant cover attempt gets a short progress commitment');
 ok(p.api.refresh(b,threat,.05)===false,
@@ -54,7 +54,7 @@ ok(!p.api.keep(b,threat,4),
  'No forward movement for 2.25 seconds ends commitment early');
 ok(p.api.refresh(b,threat,.05)===true,
  'Stalled approach can relocate instead of being frozen');
-p=compile(4);b=bot();const close={x:6,y:0,z:0};
+p=compile(4);b=bot();const close={x:6,y:0,z:0,clone(){return {...this};}};
 ok(!p.api.keep(b,close,4),
  'Near enemy at under 9m can override cover commitment');
 ok(p.api.refresh(b,close,.05)===true,
