@@ -36,9 +36,10 @@ ok(after<initial-1.9,'Moving around wall decreases actual remaining path');
 ok(Math.hypot(soldier.pos.x-10,soldier.pos.z)>10,
  'That same correct movement can increase straight-line cover distance');
 audit.observe(soldier,2);
-ok(soldier._coverAudit.lastProgressAt===2 &&
- soldier._coverAudit.bestDistance<initial,
- 'V47 progress audit credits detour movement rather than false stagnation');
+ok( soldier._coverAudit.routeLastProgressAt===2 &&
+ soldier._coverAudit.lastProgressAt===1 &&
+ soldier._coverAudit.routeBestDistance<initial,
+ 'V48 route diagnostic credits detour but preserves V47 decision clock');
 for(let i=0;i<10;i++){soldier.pos.z=-2-(i+1)*.5;audit.observe(soldier,3+i*.5);}
 ok((counters.coverStalledApproaches||0)===0,
  'Steady progress avoids the six-second false stall detector');
@@ -68,13 +69,13 @@ const b={id:'red_4',team:'red',classId:'heavy',hp:100,
  pos:new V(0,0,0),alive:true,coverNode:1,
  coverPhase:'MOVE_TO_COVER',teamFlankGoalNode:-1,
  visibleEnemy:{id:'blue_0',pos:new V(22,0,0)},
- _coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0},
- coverRecoveryUntil:0,coverSearchCooldown:0,stuckFailures:2,
+ _coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0,routeLastProgressAt:0},
+ coverRecoveryUntil:0,coverSearchCooldown:0,stuckFailures:1,
  blockedNode:-1,coverAvoidNode:-1,coverAvoidUntil:0,
  path:[0,1],pathIndex:0};
-const movingDespiteCoverDelay={...b,stuckFailures:1};
+const movingDespiteCoverDelay={...b,stuckFailures:0};
 ok(api.recover(movingDespiteCoverDelay,8)===false,
- 'Cover-goal delay alone cannot trigger recovery without two physical stalls');
+ 'Cover-goal delay alone cannot trigger recovery without a genuine physical stall');
 let choice=api.select(b,b.visibleEnemy.pos,1);
 ok(choice&&choice.node!==1&&choice.route[0]===0,
  'Alternative excludes previously failed cover and keeps genuine A-star origin');
@@ -95,11 +96,11 @@ const c={...b,pos:new V(0,0,0),coverNode:1,
  coverRecoveryUntil:0,teamFlankGoalNode:-1};
 ok(api.recover(c,8)===false,
  'Approaches younger than 3.6s are never rerouted');
-const e={...c,_coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0},
+const e={...c,_coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0,routeLastProgressAt:0},
  teamFlankGoalNode:3};
 ok(api.recover(e,8)===false,
  'Emergency cover recovery does not override a coordinated flank');
-const noEnemy={...c,_coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0},
+const noEnemy={...c,_coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0,routeLastProgressAt:0},
  visibleEnemy:null};
 ok(api.recover(noEnemy,8)===false,
  'No confirmed visible enemy means no clairvoyant cover selection');
@@ -107,7 +108,7 @@ walk=false;
 ok(api.select(c,c.visibleEnemy.pos,1)===null,
  'Unreachable ground origin must not initiate unsafe alternative route');
 walk=true;hasCover=false;
-const fallback={...c,_coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0},
+const fallback={...c,_coverAudit:{node:1,arrived:false,since:0,lastProgressAt:0,routeLastProgressAt:0},
  coverRecoveryUntil:0,stuckFailures:3};
 ok(api.recover(fallback,8)===true &&
  fallback.coverNode===-1 && fallback.coverPhase==='NONE',
