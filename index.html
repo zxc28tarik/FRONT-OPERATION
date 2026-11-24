@@ -6834,9 +6834,12 @@
             if(previous.node >= 0) recordBotMetric(bot,'coverReassignments');
             const d = distanceTo(current);
             bot._coverAudit = {node:current,arrived:false,since:nowSec,
-              initialDistance:getBotCoverRemainingDistance(bot,current),
-              bestDistance:getBotCoverRemainingDistance(bot,current),
-              lastProgressAt:nowSec,stallRecorded:false};
+              // Preserve the V47 decision clock and preferred distance:
+              // cover commitment uses direct distance by design.
+              initialDistance:d,bestDistance:d,lastProgressAt:nowSec,
+              // Route progress is an independent PHYSICAL diagnostic.
+              routeBestDistance:getBotCoverRemainingDistance(bot,current),
+              routeLastProgressAt:nowSec,stallRecorded:false};
             event('selected', current,null,0,d);
           } else {
             bot._coverAudit = {node:-1,arrived:false};
@@ -6852,13 +6855,17 @@
           event('arrived',audit.node,null,nowSec-audit.since,d);
           return;
         }
-        const progressDistance=getBotCoverRemainingDistance(bot,audit.node);
-        if (progressDistance < audit.bestDistance-0.6) {
-          audit.bestDistance = progressDistance;
+        if (d < audit.bestDistance-0.6) {
+          audit.bestDistance = d;
           audit.lastProgressAt = nowSec;
+        }
+        const progressDistance=getBotCoverRemainingDistance(bot,audit.node);
+        if (progressDistance < audit.routeBestDistance-0.6) {
+          audit.routeBestDistance = progressDistance;
+          audit.routeLastProgressAt = nowSec;
           audit.stallRecorded = false;
         }
-        if (!audit.stallRecorded && nowSec-audit.lastProgressAt >= 6) {
+        if (!audit.stallRecorded && nowSec-audit.routeLastProgressAt >= 6) {
           audit.stallRecorded = true;
           recordBotMetric(bot,'coverStalledApproaches');
           event('no_progress',audit.node,null,nowSec-audit.since,d);
@@ -7510,8 +7517,8 @@
             // Do not mistake an AI stance change or a necessary detour
             // for physical blockage. Require multiple actual V40-style
             // movement failures, not just low cover-goal progress.
-            nowSec-audit.since<5.4 || nowSec-audit.lastProgressAt<5.4 ||
-            bot.stuckFailures<2 ||
+            nowSec-audit.since<4.2 || nowSec-audit.routeLastProgressAt<4.2 ||
+            bot.stuckFailures<1 ||
             (bot.coverRecoveryUntil||0)>nowSec ||
             bot.teamFlankGoalNode>=0) return false;
         const failed=bot.coverNode;
