@@ -80,4 +80,16 @@ const underRoof=(x,z)=>solids.some(c=>c.y-c.h/2>3&&c.w>=8&&c.d>=12&&
 for(const [name,x,z] of [['A hangar',-16,-28],['service',0,6],['west storage',-32,20],['east equipment',32,-5]])
  ok(underRoof(x,z)&&walk(x,z),'Enclosed and enterable '+name);
 ok(html.includes('goal=bot.foGateEntryReached?route.exit:route.entry;'),'Bot enters assigned gate before advancing');
+const aimStart=html.indexOf('      function isBotAimAligned(');
+const aimEnd=html.indexOf('      function isBotFireLaneClear(',aimStart);
+const aimGate=new Function('normalizeAngle',html.slice(aimStart,aimEnd)+'\nreturn isBotAimAligned;')(
+ a=>Math.atan2(Math.sin(a),Math.cos(a)));
+const eye={x:0,y:1.45,z:10};
+ok(!aimGate({pos:{x:0,z:0},upperYaw:0,legYaw:Math.PI},eye),'Logical aim cannot shoot through torso rotation limit');
+ok(aimGate({pos:{x:0,z:0},upperYaw:0,legYaw:.8},eye),'Aligned rendered weapon permits shot');
+ok(!aimGate({pos:{x:0,z:0},upperYaw:.3,legYaw:.3},eye),'Visibly offset muzzle blocks shot');
+ok(html.includes("const twist=normalizeAngle(bot.upperYaw-bot.legYaw);"),'Combat torso tracks body turn');
+ok(html.includes("function isFoSpectating()")&&html.includes("!player.alive;"),'Spectator requires death');
+ok(html.includes("b.alive&&b.team===player.team"),'Follow target is live teammate');
+ok(html.includes("updateFoSpectator(dt);")&&html.includes("stopFoSpectator();"),'Spectator frame and reset integrated');
 console.log('BOMB MODE PASS ('+n+' checks)');
