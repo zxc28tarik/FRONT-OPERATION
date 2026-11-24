@@ -12402,11 +12402,11 @@
           considerBotHeardNoise(bot, nowSec, dt);
           if(bot.visibleEnemy)bot.lastDirectContactAt=nowSec;
           const freshLostContact=!bot.visibleEnemy&&!!bot.lastKnownEnemyPos&&Number.isFinite(bot.lastDirectContactAt)&&nowSec-bot.lastDirectContactAt<.75;
-          const bestEnemy = bot.visibleEnemy;
-          tickBotAmmo(bot,dt,{contact:!!bestEnemy,
+          tickBotAmmo(bot,dt,{contact:!!bot.visibleEnemy,
             quiet:!freshLostContact&&(!Number.isFinite(bot.lastDirectContactAt)||nowSec-bot.lastDirectContactAt>1.5)&&!(bot.hearingTimer>0),
             stationary:Math.hypot(bot.moveVelX||0,bot.moveVelZ||0)<.6&&!(bot.behaviorPlan?.speed>0.8),
             role:isFoBombMode()?foBotPlan.orders.get(bot.id)?.role:null});
+          const bestEnemy = bot.visibleEnemy;
           const currentTarget = bestEnemy ? bestEnemy.id : null;
           if (currentTarget && currentTarget !== previousTarget) recordBotMetric(bot,'sightings');
           recordBotTargetTransition(bot, previousTarget, currentTarget);
