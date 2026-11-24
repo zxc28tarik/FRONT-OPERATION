@@ -1,8 +1,8 @@
-name: V47 accelerated 600s bot engine stress
+name: V48 accelerated 600s bot engine stress
 on:
   push:
     branches:
-      - ai/v47-cover-lifecycle-reliability
+      - ai/v48-cover-route-recovery
     paths:
       - .github/workflows/bot-ai-stress.yml
       - scripts/browser-bot-ai-stress.mjs
@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git show ccdcea335908b060506fb2aa4d8f5e58adf0678d:index.html > /tmp/front-operation-v47-control.html
+          git show 5356db87317340a02e88ef65db7ee6c73e7581a8:index.html > /tmp/front-operation-v47-control.html
           for seed in 471001 471002 471003; do
             FRONT_OPERATION_GAME_FILE=/tmp/front-operation-v47-control.html FRONT_OPERATION_SEED=$seed FRONT_OPERATION_VARIANT=baseline node scripts/browser-bot-ai-stress.mjs
             FRONT_OPERATION_GAME_FILE=index.html FRONT_OPERATION_SEED=$seed FRONT_OPERATION_VARIANT=candidate node scripts/browser-bot-ai-stress.mjs
@@ -38,7 +38,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: front-operation-bot-v47-600s
+          name: front-operation-bot-v48-600s
           path: test-artifacts/front-operation-bot-stress/
           if-no-files-found: warn
           retention-days: 14
