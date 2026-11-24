@@ -131,3 +131,6 @@ jobs:
 
       - name: Run V71B active weapon regression
         run: node tests/bot_ai_v71b_active_weapon_regression.cjs
+
+      - name: Run V71C target continuity regression
+        run: node tests/bot_ai_v71c_target_regression.cjs
