@@ -65,3 +65,6 @@ jobs:
 
       - name: Run BOT AI V49 route-progress retention regression
         run: node tests/bot_ai_v49_regression.cjs
+
+      - name: Run Bomb Depot 17 mode regression
+        run: node tests/bomb_mode_regression.cjs
