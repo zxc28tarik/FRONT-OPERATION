@@ -5839,7 +5839,9 @@
       const FO_BOMB_RULES=Object.freeze({roundSeconds:150,plantSeconds:3,defuseSeconds:4,plantedSeconds:35,radius:3.5});
       const foBomb={phase:'unplanted',site:null,actor:null,progress:0,seconds:0,reason:''};
       function isFoBombMode(){return matchState.mode==='bomb';}
+      const foBotPlan={key:'',next:0,orders:new Map(),operators:new Map()};
       function resetFoBomb(){
+        foBotPlan.key='';foBotPlan.next=0;foBotPlan.orders.clear();foBotPlan.operators.clear();
         Object.assign(foBomb,{phase:'unplanted',site:null,actor:null,actionSite:null,progress:0,seconds:0,reason:''});
         for(const site of FO_BOMB_SITES)if(site.beacon)site.beacon.visible=false;
       }
@@ -5880,7 +5882,9 @@
         if(!foBombInside(actor,site))return false;
         if(actor.player)return !droneSystem.isPlayerControlling()&&!player.reloading&&
           !mouseDownLeft&&!player.rollTimer&&Math.hypot(player.vel.x,player.vel.z)<1.3;
-        return !actor.visibleEnemy&&!actor.activeDroneId&&!(actor.unstuckTimer>0);
+        return !actor.visibleEnemy&&!actor.activeDroneId&&!(actor.unstuckTimer>0)&&
+          Math.hypot(actor.moveVelX||0,actor.moveVelZ||0)<1.0&&
+          (foBomb.actor===actor.id||foBotPlan.operators.get(site.id)===actor.id);
       }
       function updateFoBomb(dt){
         if(!isFoBombMode()||matchState.ended)return;
@@ -5906,58 +5910,105 @@
         if(active&&foBomb.actor)status.textContent+=' • ÇÖZÜLÜYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.defuseSeconds*100))+'%';
         if(result){foBomb.phase='ended';foBomb.reason=result.reason;endMatch(result.winner);}
       }
-      function getFoBombBotOrder(bot,dt){
-        if(!isFoBombMode()||!bot.alive||bot.visibleEnemy||bot.activeDroneId||
-            bot.unstuckTimer>0)return null;
-        const planted=foBomb.phase==='planted';
-        const idx=Math.max(0,Number(bot.id.split('_')[1])||0);
-        const site=planted?foBomb.site:FO_BOMB_SITES[idx%2];
-        if(!site)return null;
-        let goal=site.node;
-        if(planted){
-          if(bot.team==='blue')goal=site.guards[idx%site.guards.length];
-          else {
-            const nearest=bots.filter(b=>b.alive&&b.team==='red')
-              .sort((a,b)=>Math.hypot(a.pos.x-site.x,a.pos.z-site.z)-Math.hypot(b.pos.x-site.x,b.pos.z-site.z))[0];
-            if(nearest!==bot&&foBomb.actor!==bot.id)goal=site.guards[idx%site.guards.length];
+      // V11: bomb-specific mission roles; combat perception and difficulty
+      // remain shared with Marien. Orders change on phase/death, not each frame.
+      function refreshFoBotPlan(now){
+        if(!isFoBombMode())return;
+        const planted=foBomb.phase==='planted',live=bots.filter(b=>b.alive);
+        const key=foBomb.phase+':'+(foBomb.site?.id||'')+':'+live.map(b=>b.id).join(',');
+        if(key===foBotPlan.key&&now<foBotPlan.next)return;
+        foBotPlan.key=key;foBotPlan.next=now+2.5;
+        const previous=new Map(foBotPlan.orders),operators=new Map(foBotPlan.operators);
+        foBotPlan.orders.clear();foBotPlan.operators.clear();
+        const sites=planted?[foBomb.site]:FO_BOMB_SITES;
+        for(const site of sites){
+          if(!site)continue;
+          for(const team of ['blue','red']){
+            const group=live.filter(b=>b.team===team&&(planted||Number(b.id.split('_')[1])%2===FO_BOMB_SITES.indexOf(site)));
+            const acts=planted?team==='red':team==='blue';
+            const cost=b=>Math.hypot(b.pos.x-site.x,b.pos.z-site.z)+(b.hp<28?35:0)+(b.activeDroneId?40:0)+(b.visibleEnemy?12:0);
+            let operator=null;
+            if(acts&&group.length){
+              operator=group.find(b=>b.id===foBomb.actor)||group.find(b=>b.id===operators.get(site.id)&&b.hp>=28&&!b.activeDroneId);
+              if(!operator)operator=group.slice().sort((a,b)=>cost(a)-cost(b))[0];
+              foBotPlan.operators.set(site.id,operator.id);
+              foBotPlan.orders.set(operator.id,{site,role:planted?'DEFUSE':'PLANT',goal:site.node});
+            }
+            const used=new Set();
+            for(const bot of group){
+              if(bot===operator)continue;
+              const prev=previous.get(bot.id);
+              const candidates=site.guards.filter(n=>!used.has(n));
+              const goal=prev&&prev.site===site&&candidates.includes(prev.goal)?prev.goal:
+                candidates.sort((a,b)=>Math.hypot(bot.pos.x-NAV_NODES[a].x,bot.pos.z-NAV_NODES[a].z)-
+                  Math.hypot(bot.pos.x-NAV_NODES[b].x,bot.pos.z-NAV_NODES[b].z))[0]??site.guards[Number(bot.id.split('_')[1])%site.guards.length];
+              used.add(goal);
+              foBotPlan.orders.set(bot.id,{site,role:team==='red'?(planted?'RETAKE':'GUARD'):(planted?'HOLD':'ESCORT'),goal});
+            }
           }
-        }else if(bot.team==='red')goal=site.guards[idx%site.guards.length];
-        else {
-          const leader=bots.filter(b=>b.alive&&b.team==='blue'&&
-            (Number(b.id.split('_')[1])||0)%2===idx%2)
-            .sort((a,b)=>Math.hypot(a.pos.x-site.x,a.pos.z-site.z)-Math.hypot(b.pos.x-site.x,b.pos.z-site.z))[0];
-          if(leader!==bot&&foBomb.actor!==bot.id)goal=site.guards[idx%site.guards.length];
         }
-        // Route distribution belongs only to the bomb mode. An attacker
-        // crosses its assigned gateway once, then resumes its objective.
+      }
+      function foBotSegmentClear(pos,n){
+        if(!n)return false;
+        const dx=n.x-pos.x,dz=n.z-pos.z,count=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.35));
+        for(let k=1;k<=count;k++)if(!isPositionWalkable(pos.x+dx*k/count,pos.y,pos.z+dz*k/count))return false;
+        return true;
+      }
+      function getFoBombBotOrder(bot,dt){
+        if(!isFoBombMode()||!bot.alive||bot.visibleEnemy||bot.activeDroneId||bot.unstuckTimer>0)return null;
+        const assigned=foBotPlan.orders.get(bot.id);
+        if(!assigned)return null;
+        const planted=foBomb.phase==='planted',idx=Math.max(0,Number(bot.id.split('_')[1])||0);
+        let goal=assigned.goal;
         if(!planted&&bot.team==='blue'){
           if(bot.pos.z<foWorldZ(19))bot.foGatePassed=true;
-          if(bot.pos.z>foWorldZ(27))bot.foGatePassed=false;
+          if(bot.pos.z>foWorldZ(32)){bot.foGatePassed=false;bot.foGateEntryReached=false;}
           if(!bot.foGatePassed){
-            const route=FO_TERSANE_ROUTES[idx%FO_TERSANE_ROUTES.length];
+            // Pair route choice with the side of the assigned bomb site.
+            const route=FO_TERSANE_ROUTES[assigned.site.id==='A'?(idx===0?0:1):(idx===1?2:3)];
             const entry=NAV_NODES[route.entry];
-            if(Math.hypot(bot.pos.x-entry.x,bot.pos.z-entry.z)<2.0)bot.foGateEntryReached=true;
-            if(bot.pos.z>foWorldZ(32))bot.foGateEntryReached=false;
+            if(Math.hypot(bot.pos.x-entry.x,bot.pos.z-entry.z)<1.8)bot.foGateEntryReached=true;
             goal=bot.foGateEntryReached?route.exit:route.entry;
           }
         }
-        const dest=NAV_NODES[goal];
-        if(!dest)return null;
-        if(Math.hypot(dest.x-bot.pos.x,dest.z-bot.pos.z)<1.5)
-          return {target:null,speed:0};
-        bot.foObjectiveRepath=Math.max(0,(bot.foObjectiveRepath||0)-dt);
-        if(bot.foObjectiveGoal!==goal||!bot.foObjectivePath||bot.foObjectiveRepath<=0){
-          bot.foObjectivePath=findPathAStar(findNearestNavNode(bot.pos,true),goal,bot.blockedNode);
-          bot.foObjectiveIndex=0;bot.foObjectiveGoal=goal;bot.foObjectiveRepath=1.2;
+        const dest=NAV_NODES[goal];if(!dest)return null;
+        const dist=Math.hypot(dest.x-bot.pos.x,dest.z-bot.pos.z);
+        const objective=(assigned.role==='PLANT'||assigned.role==='DEFUSE')&&goal===assigned.goal;
+        if(dist<(objective?1.2:1.4)){
+          // Guards scan the approach, not the floor waypoint; designated
+          // operators stop long enough to plant/defuse.
+          const approachYaw=bot.team==='red'&&!planted?0:Math.PI;
+          return {target:null,speed:0,goal,role:assigned.role,
+            yaw:approachYaw+Math.sin(botAiClockSec*.65+idx*1.3)*.55,
+            crouch:objective?.55:(assigned.role==='GUARD'||assigned.role==='HOLD'?.35:0)};
         }
+        bot.foObjectiveRepath=Math.max(0,(bot.foObjectiveRepath||0)-dt);
         const route=bot.foObjectivePath||[];
-        while(route[bot.foObjectiveIndex]!==undefined){
-          const n=NAV_NODES[route[bot.foObjectiveIndex]];
-          if(Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)>1.25)
-            return {target:new THREE.Vector3(n.x,n.y,n.z),speed:4.2};
+        const wp=NAV_NODES[route[bot.foObjectiveIndex]];
+        // Preserve the current waypoint on a valid progressing path. Only
+        // replan after role/goal change, obstruction, exhaustion or recovery.
+        const needs=bot.foObjectiveGoal!==goal||!wp||
+          (bot.foObjectiveRepath<=0&&!foBotSegmentClear(bot.pos,wp));
+        if(needs){
+          const from=findNearestNavNode(bot.pos,true);
+          bot.foObjectivePath=findPathAStar(from,goal,bot.blockedNode);
+          bot.foObjectiveIndex=0;bot.foObjectiveGoal=goal;bot.foObjectiveRepath=.65;
+        }
+        const path=bot.foObjectivePath||[];
+        while(path[bot.foObjectiveIndex]!==undefined){
+          const n=NAV_NODES[path[bot.foObjectiveIndex]];
+          if(Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)>.9){
+            // Skip the current point only when the NEXT leg is physically
+            // clear. Prevent turn-back oscillation and wall shortcuts.
+            const next=NAV_NODES[path[bot.foObjectiveIndex+1]];
+            if(next&&Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)<2.2&&foBotSegmentClear(bot.pos,next)){
+              bot.foObjectiveIndex++;continue;
+            }
+            return {target:new THREE.Vector3(n.x,n.y,n.z),speed:assigned.role==='GUARD'?3.4:4.2,goal,role:assigned.role};
+          }
           bot.foObjectiveIndex++;
         }
-        return {target:null,speed:0};
+        return {target:null,speed:0,goal,role:assigned.role};
       }
       function refreshFoModeUi(){
         const mode=matchState.mode;
@@ -11511,6 +11562,7 @@ function buildSquadLeadership() {
         const nowSec = botAiClockSec;
         pruneTeamIntel(nowSec);
         refreshTeamBattlePlans(nowSec);
+        if(isFoBombMode())refreshFoBotPlan(nowSec);
 
         const targetClaimCounts = {};
         const { squadRallyPos, squadLeaderId } = buildSquadLeadership();
@@ -11632,6 +11684,7 @@ function buildSquadLeadership() {
           let moveSpeed = bot.classId === 'heavy' ? 4.4 : bot.classId === 'sniper' ? 4.8 : 5.3;
           let targetCrouch = 0;
           let desiredUpperYaw = bot.legYaw;
+          let foPriorityCombat=false;
 
           if (bestEnemy) {
             bot.supportGoalNode = -1;
@@ -11933,6 +11986,7 @@ function buildSquadLeadership() {
             }
 
             if (visibleEnemyDrone) {
+              foPriorityCombat=true;
               setBotState(bot, 'ENGAGE', 0.7);
               const dDist = botEyeNoTarget.distanceTo(visibleEnemyDrone.pos);
               desiredUpperYaw = Math.atan2(visibleEnemyDrone.pos.x - bot.pos.x, visibleEnemyDrone.pos.z - bot.pos.z);
@@ -11976,6 +12030,7 @@ function buildSquadLeadership() {
                    getTeamPinningOpportunity(bot, botEyeNoTarget, nowSec))
                 : null;
               if (coverOpp) {
+                foPriorityCombat=true;
                 setBotState(bot, 'SUPPORT_ALLY', 0.85);
                 bot.suppressTargetPos = coverOpp.threatPos;
                 bot.suppressThreatId = coverOpp.threatId;
@@ -12239,7 +12294,7 @@ function buildSquadLeadership() {
                         bot.stateTimer += dt;
                         // 4B + V25: Drone Operator BOT deploys its 1-per-life 110 HP drone from safe hold
                         if (bot.classId === 'engineer' && droneSystem.getRemainingCharges(bot.id) > 0 && bot.abilityCooldown <= 0 && bot.hp >= 60) {
-                          if (droneSystem.tryDeployBotDrone(bot)) {
+                          if ((!isFoBombMode()||(!['PLANT','DEFUSE'].includes(foBotPlan.orders.get(bot.id)?.role)&&bot.hearingTimer>0))&&droneSystem.tryDeployBotDrone(bot)) {
                             bot.abilityCooldown = 12;
                           }
                         }
@@ -12277,13 +12332,21 @@ function buildSquadLeadership() {
             }
           }
 
-          // Objective orders apply only in the new mode, after combat AI.
-          if (matchState.mode==='bomb'&&!bestEnemy&&bot.hp>=28) {
-            const order=getFoBombBotOrder(bot,dt);
-            if(order){
-              moveTargetPos=order.target;moveSpeed=order.speed;
-              bot.coverNode=-1;bot.coverPhase='NONE';
-              if(moveTargetPos)desiredUpperYaw=Math.atan2(moveTargetPos.x-bot.pos.x,moveTargetPos.z-bot.pos.z);
+          // Mission movement never erases an active firefight, cover retreat,
+          // drone engagement or fresh local contact. On a quiet objective
+          // route the mission owns movement, while hearing can steer the head.
+          let foMissionOrder=null;
+          if(isFoBombMode()&&!bestEnemy&&!foPriorityCombat&&bot.hp>=28&&
+             !(bot.coverNode>=0&&bot.coverPhase!=='NONE'&&bot.investigateTimer>2.7)&&
+             !(bot.state==='RETREAT'&&bot.investigateTimer>1.2)){
+            foMissionOrder=getFoBombBotOrder(bot,dt);
+            if(foMissionOrder){
+              moveTargetPos=foMissionOrder.target;moveSpeed=foMissionOrder.speed;
+              targetCrouch=foMissionOrder.crouch||0;
+              if(Number.isFinite(foMissionOrder.yaw))desiredUpperYaw=foMissionOrder.yaw;
+              else if(moveTargetPos)desiredUpperYaw=Math.atan2(moveTargetPos.x-bot.pos.x,moveTargetPos.z-bot.pos.z);
+              if(bot.hearingPos&&bot.hearingTimer>0&&Math.hypot(bot.hearingPos.x-bot.pos.x,bot.hearingPos.z-bot.pos.z)<22)
+                desiredUpperYaw=Math.atan2(bot.hearingPos.x-bot.pos.x,bot.hearingPos.z-bot.pos.z);
             }
           }
           // Complete a short walkable lateral sidestep before retrying A*.
@@ -12331,7 +12394,7 @@ function buildSquadLeadership() {
               moveTargetPos = null;
               moveSpeed = 0;
               if (bot.passageWaitTimer >= 1.6 && bot.passageRepathCooldown <= 0) {
-                const goal = bot.coverNode >= 0 ? bot.coverNode :
+                const goal = foMissionOrder ? foMissionOrder.goal : bot.coverNode >= 0 ? bot.coverNode :
                   (bot.supportGoalNode >= 0 ? bot.supportGoalNode :
                   (bot.rallyGoalNode >= 0 ? bot.rallyGoalNode : bot.goalNode));
                 const occupied = bots.find((b) => b.id === passage.blockerId);
@@ -12341,8 +12404,8 @@ function buildSquadLeadership() {
                     const alternative = findPathAStar(findNearestNavNode(bot.pos, true), goal, avoidNode);
                     if (alternative.length > 1 && alternative[alternative.length - 1] === goal &&
                         alternative.some((node, index) => node !== (bot.path || [])[index])) {
-                      bot.path = alternative;
-                      bot.pathIndex = 0;
+                      if(foMissionOrder){bot.foObjectivePath=alternative;bot.foObjectiveIndex=0;bot.foObjectiveRepath=.65;}
+                      else {bot.path = alternative;bot.pathIndex = 0;}
                     }
                   }
                 }
@@ -12390,10 +12453,10 @@ function buildSquadLeadership() {
 
           const beforeMoveX = bot.pos.x;
           const beforeMoveZ = bot.pos.z;
-          const navIdx = bot.path && bot.path[bot.pathIndex];
+          const navIdx = foMissionOrder ? bot.foObjectivePath?.[bot.foObjectiveIndex] : bot.path && bot.path[bot.pathIndex];
           const navNode = navIdx === undefined ? null : NAV_NODES[navIdx];
           const isIntermediateWaypoint = !!(navNode && moveTargetPos &&
-            bot.pathIndex < bot.path.length - 1 &&
+            (foMissionOrder ? bot.foObjectiveIndex < bot.foObjectivePath.length-1 : bot.pathIndex < bot.path.length - 1) &&
             Math.hypot(navNode.x - moveTargetPos.x, navNode.z - moveTargetPos.z) < 0.2);
           const steer = computeBotSteeringVelocity(
             bot, moveTargetPos, moveSpeed, moveX, moveZ, dt, isIntermediateWaypoint
@@ -12429,7 +12492,7 @@ function buildSquadLeadership() {
               if (movedDist < 0.55) {
                 bot.stuckFailures++;
                 recordBotMetric(bot, 'stuckRecoveries');
-                const obstructedWp = bot.teamFlankGoalNode >= 0
+                const obstructedWp = foMissionOrder ? bot.foObjectivePath?.[bot.foObjectiveIndex] : bot.teamFlankGoalNode >= 0
                   ? bot.teamFlankRoute[bot.teamFlankPathIndex]
                   : (bot.path && bot.path[bot.pathIndex]);
                 recordBotStuckHotspot(bot, obstructedWp);
@@ -12441,14 +12504,15 @@ function buildSquadLeadership() {
 
                 // Preserve the tactical objective: seek a different route
                 // before requesting a new random assignment.
-                const goal = bot.teamFlankGoalNode >= 0 ? bot.teamFlankGoalNode :
+                const goal = foMissionOrder ? foMissionOrder.goal : bot.teamFlankGoalNode >= 0 ? bot.teamFlankGoalNode :
                   (bot.coverNode !== -1 ? bot.coverNode :
                   (bot.supportGoalNode !== -1 ? bot.supportGoalNode :
                   (bot.lastKnownEnemyPos && bot.investigateTimer > 0 && !bot.visibleEnemy
                     ? findNearestNavNode(bot.lastKnownEnemyPos) : bot.goalNode)));
                 if (goal >= 0 && goal < NAV_NODES.length) {
                   const recovered = findPathAStar(findNearestNavNode(bot.pos, true), goal, bot.blockedNode);
-                  if (bot.teamFlankGoalNode >= 0) {
+                  if(foMissionOrder){bot.foObjectivePath=recovered;bot.foObjectiveIndex=0;bot.foObjectiveRepath=.65;}
+                  else if (bot.teamFlankGoalNode >= 0) {
                     bot.teamFlankRoute = recovered;
                     bot.teamFlankPathIndex = 0;
                   } else {
@@ -12472,7 +12536,8 @@ function buildSquadLeadership() {
                   bot.teamFlankGoalNode = -1;
                   bot.teamFlankRoute = [];
                   bot.teamFlankRestUntil = nowSec + 3;
-                  assignBotTacticalGoal(bot);
+                  if(foMissionOrder){bot.foObjectiveGoal=-1;bot.foObjectiveRepath=0;}
+                  else assignBotTacticalGoal(bot);
                 }
               } else {
                 bot.stuckFailures = 0;
