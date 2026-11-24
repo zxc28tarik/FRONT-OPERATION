@@ -95,3 +95,6 @@ jobs:
 
       - name: Run BOT AI V62 personality regression
         run: node tests/bot_ai_v62_regression.cjs
+
+      - name: Run V63 ramp landing regression
+        run: node tests/bot_ai_v63_ramp_regression.cjs
