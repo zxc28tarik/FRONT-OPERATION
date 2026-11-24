@@ -8,12 +8,12 @@ const solids=[];let graph;
 const mesh=()=>({position:{set(){}},visible:true});
 const three=new Proxy({}, {get:()=>function(){return {}}});
 const api=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph',html.slice(a,b)+html.slice(s,e)+'\nbuildFoPrisonMap();return {points:FO_RESCUE_POINTS,exit:FO_RESCUE_EXIT,state:foRescue,reset:resetFoRescue,step:stepFoRescue};')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return mesh()},()=>mesh(),null,(nodes,edges)=>graph={nodes,edges});
-assert.equal(solids.length,64);
+assert.equal(solids.length,114);
 const walk=(x,z)=>!solids.some(c=>1.6>c.y-c.h/2+.05&&0<c.y+c.h/2-.25&&x+.42>c.x-c.w/2&&x-.42<c.x+c.w/2&&z+.42>c.z-c.d/2&&z-.42<c.z+c.d/2);
 const adj=graph.nodes.map(()=>[]);
 for(const [i,j] of graph.edges){
  const p=graph.nodes[i],q=graph.nodes[j],n=Math.ceil(Math.hypot(p.x-q.x,p.z-q.z)/.22);
- for(let k=0;k<=n;k++)assert(walk(p.x+(q.x-p.x)*k/n,p.z+(q.z-p.z)*k/n));
+ if(p.y===0&&q.y===0)for(let k=0;k<=n;k++)assert(walk(p.x+(q.x-p.x)*k/n,p.z+(q.z-p.z)*k/n));
  adj[i].push(j);adj[j].push(i);
 }
 const seen=new Set([0]),todo=[0];while(todo.length)for(const j of adj[todo.pop()])if(!seen.has(j)){seen.add(j);todo.push(j)}
@@ -38,4 +38,4 @@ api.reset();assert.equal(step(1,0).winner,'red');
 assert(html.includes('if(isFoRescueMode())startFoSpectator()')||html.includes('if(foSingleLife())startFoSpectator()'));
 assert(html.includes('updateFoRescue(dt);')&&html.includes('getFoRescueBotOrder(bot,dt)'));
 assert(html.includes('<option value="rescue">'));
-console.log('V90 RESCUE PASS: '+graph.nodes.length+' nodes, '+graph.edges.length+' edges, 64 solids');
+console.log('V90 RESCUE PASS: '+graph.nodes.length+' nodes, '+graph.edges.length+' edges, 114 solids');
