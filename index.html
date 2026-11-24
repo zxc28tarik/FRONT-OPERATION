@@ -3922,6 +3922,20 @@
             for(const side of [-1,1])deco(x,h*.72,z+side*(d/2+.03),w*.58,.65,.065,windowMat);
           }
         }
+        // V89: fill measured exposed pockets using existing cargo/building materials.
+        const extraSightBlocks=[
+          [-33,46,4,3,3.4],[33,45,4.5,3.2,3.4],[-16,0,5,4,3.8],
+          [-34,-34,4.5,4,3.4],[34,-34,4.5,4,3.4],[-16,54,4,3,3.2],
+          [16,54,4,3,3.2],[-8,-52,3,4,3.3],[0,-34,4.2,3,3.7],
+          [-8,34,3.2,4,3.3],[16,-2,4.4,3.5,3.6],[10,-52,3.5,4,3.2],
+          [-34,-54,4,3,3.2],[34,-54,4,3,3.2],[0,44,4.5,3,3.3]
+        ];
+        for(const [x,z,w,d,ht] of extraSightBlocks){
+          box(x,z,w,d,ht,rust);
+          deco(x,ht+.08,z,w+.14,.16,d+.12,metal);
+          for(const side of [-1,1])for(let k=1;k<=4;k++)
+            deco(x-w*.5+k*w/5,ht*.5,z+side*(d/2+.025),.075,ht*.82,.05,trim);
+        }
         // V9/V10: longitudinal middle divider, with two forward transfers.
         // Offset from the central lane to preserve its original gateway.
         // No east-west crossing on the deployment half.
