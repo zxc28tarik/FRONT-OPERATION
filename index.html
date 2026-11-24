@@ -7012,6 +7012,40 @@
         return true;
       }
 
+      // V42: Validate ground-floor A* graph edges against the SAME collider
+      // geometry used by soldier motion; do not change mesh or physics.
+      // Upper-deck/ramp links are intentionally left to their existing rules.
+      const NAV_VALIDATION = { checked: 0, blockedEdges: [], activeEdges: NAV_EDGES.length };
+      function validateGroundNavEdges() {
+        NAV_VALIDATION.checked = 0;
+        NAV_VALIDATION.blockedEdges = [];
+        for (const [a, b] of NAV_EDGES) {
+          const from = NAV_NODES[a], to = NAV_NODES[b];
+          if (from.y !== 0 || to.y !== 0) continue;
+          NAV_VALIDATION.checked++;
+          const distance = Math.hypot(to.x - from.x, to.z - from.z);
+          const steps = Math.max(1, Math.ceil(distance / 0.22));
+          let clear = true;
+          for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            if (!isPositionWalkable(
+              from.x + (to.x - from.x) * t, 0,
+              from.z + (to.z - from.z) * t
+            )) {
+              clear = false;
+              break;
+            }
+          }
+          if (!clear) {
+            NAV_ADJ[a] = NAV_ADJ[a].filter(edge => edge.to !== b);
+            NAV_ADJ[b] = NAV_ADJ[b].filter(edge => edge.to !== a);
+            NAV_VALIDATION.blockedEdges.push(`${a}-${b}`);
+          }
+        }
+        NAV_VALIDATION.activeEdges = NAV_EDGES.length - NAV_VALIDATION.blockedEdges.length;
+        return NAV_VALIDATION;
+      }
+
       // Recover from collisions by walking around obstacles, never by
       // teleporting the soldier through geometry.
       function findBotEscapePoint(bot, desiredPos) {
@@ -7501,6 +7535,11 @@ function buildSquadLeadership() {
           playerAlive: player.alive,
           tacticTeams: Object.keys(TEAM_TACTICS),
           botMetrics: getBotMetricsSnapshot(),
+          navValidation: {
+            checked: NAV_VALIDATION.checked,
+            activeEdges: NAV_VALIDATION.activeEdges,
+            blockedEdges: NAV_VALIDATION.blockedEdges.slice()
+          },
           soundEvents: BOT_NOISE_EVENTS.map(e => ({
             kind: e.kind, team: e.team, sourceId: e.sourceId,
             age: botAiClockSec - e.timestamp
@@ -12438,6 +12477,7 @@ function buildSquadLeadership() {
 
       window.onload = function () {
         buildMarienCQCMap();
+        validateGroundNavEdges();
         droneSystem.grantLifeCharge('player');
         initPlayerLoadout('assault');
         initBots();
