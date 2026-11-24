@@ -3635,15 +3635,15 @@
         validateGroundNavEdges();
       }
       const FO_BOMB_SITES = [
-        {id:'A',owner:'blue',x:0,z:39,node:7,guards:[6,8,2,12]},
-        {id:'B',owner:'red',x:0,z:-39,node:42,guards:[41,43,47,37]}
+        {id:'A',x:-16,z:-28,node:36,guards:[31,35,37,41]},
+        {id:'B',x:16,z:-28,node:38,guards:[33,37,39,43]}
       ];
       function depotGraph() {
         const nodes=[],edges=[],xs=[-32,-16,0,16,32],zs=[50,39,28,17,6,-6,-17,-28,-39,-50];
         for(let row=0;row<zs.length;row++)for(let col=0;col<xs.length;col++){
           const i=row*5+col;
           const tag=row===0?'blue_spawn':row===9?'red_spawn':
-            i===7?'bomb_a':i===42?'bomb_b':
+            i===36?'bomb_a':i===38?'bomb_b':
             col===0?'west':col===4?'east':'mid';
           nodes.push({x:xs[col],y:0,z:zs[row],tag});
           if(col>0)edges.push([i-1,i]);
@@ -3690,16 +3690,16 @@
         // Site A and B: recognizable contrasting industrial yards with
         // open center circles and waist-high flanking physical cover.
         for(const site of FO_BOMB_SITES){
-          const accent=site.owner==='blue'?0x77aab0:0xd4aa63;
+          const accent=site.id==='A'?0xd4aa63:0x77aab0;
           const ring=new THREE.MeshBasicMaterial({color:accent,transparent:true,opacity:.75,side:THREE.DoubleSide});
           site.ring=addDecoMesh(new THREE.RingGeometry(3.5,3.68,48),ring,site.x,.025,site.z,-Math.PI/2);
           // Abstract in-game objective indicator; not a weapon model.
           const beaconMat=new THREE.MeshBasicMaterial({color:0xf0c078,transparent:true,opacity:.88});
           site.beacon=addDecoMesh(new THREE.OctahedronGeometry(.42),beaconMat,site.x,1.0,site.z);
           site.beacon.visible=false;
-          for(const dx of [-5.5,5.5])addSolidBox(site.x+dx,0.72,site.z+Math.sign(site.z)*3,2.7,1.44,1.5,site.owner==='blue'?blue:orange);
+          for(const dx of [-5.5,5.5])addSolidBox(site.x+dx,0.72,site.z-3,2.7,1.44,1.5,site.id==='A'?orange:blue);
           const signBefore=new Set(scene.children);
-          createCorridorSign('ÜS '+site.id,'#192329',site.owner==='blue'?'#77aab0':'#d4aa63',site.x,2.8,site.z+Math.sign(site.z)*6,site.owner==='blue'?Math.PI:0);
+          createCorridorSign('BÖLGE '+site.id,'#192329',site.id==='A'?'#d4aa63':'#77aab0',site.x,2.8,site.z-6,0);
           for(const o of scene.children)if(!signBefore.has(o))mapEnvironmentMeshes.push(o);
         }
         // Sparse environment finish, no obstruction of the traversable lanes.
@@ -5509,34 +5509,26 @@
         return !!(actor&&actor.alive&&site&&actor.pos&&Math.abs(actor.pos.y)<1.5&&
           Math.hypot(actor.pos.x-site.x,actor.pos.z-site.z)<=FO_BOMB_RULES.radius);
       }
-      // Both teams can attack the opposing base; one active objective per round.
-      function foBombInteractionAllowed(team,site,planted,activeSite) {
-        if(!site||!['blue','red'].includes(team))return false;
-        return planted ? activeSite===site&&team===site.owner : team!==site.owner;
-      }
+      // Pure objective state transition; no wall clock, RNG or weapon logic.
       function stepFoBomb(state,dt,remaining,blue,red,eligible) {
         if(state.phase==='ended')return null;
         const planted=state.phase==='planted';
         if(planted){
-          const defender=state.site.owner,attacker=defender==='blue'?'red':'blue';
           state.seconds=Math.max(0,state.seconds-dt);
-          if(state.seconds<=0)return {winner:attacker,reason:'Bomba patladı'};
-          if((defender==='blue'?blue:red)===0)return {winner:attacker,reason:'Savunan takım elendi'};
+          if(state.seconds<=0)return {winner:'blue',reason:'Bomba patladı'};
+          if(red===0)return {winner:'blue',reason:'Savunan takım elendi'};
         }else{
-          if(blue===0&&red===0)return {winner:'draw',reason:'İki takım elendi'};
-          if(blue===0)return {winner:'red',reason:'Derbaran elendi'};
-          if(red===0)return {winner:'blue',reason:'N.I.U. elendi'};
-          if(remaining<=0)return {winner:'draw',reason:'Süre doldu'};
+          if(blue===0)return {winner:'red',reason:'Saldıran takım elendi'};
+          if(red===0)return {winner:'blue',reason:'Savunan takım elendi'};
+          if(remaining<=0)return {winner:'red',reason:'Süre doldu'};
         }
-        if(!eligible||!foBombInteractionAllowed(eligible.team,eligible.site,planted,state.site)){
-          state.actor=null;state.progress=0;return null;
-        }
+        if(!eligible){state.actor=null;state.progress=0;return null;}
         if(state.actor!==eligible.id||state.actionSite!==eligible.site.id){
           state.actor=eligible.id;state.actionSite=eligible.site.id;state.progress=0;
         }
         state.progress+=dt;
         if(state.progress>=(planted?FO_BOMB_RULES.defuseSeconds:FO_BOMB_RULES.plantSeconds)){
-          if(planted)return {winner:state.site.owner,reason:'Bomba etkisizleştirildi'};
+          if(planted)return {winner:'red',reason:'Bomba etkisizleştirildi'};
           state.phase='planted';state.site=eligible.site;
           state.seconds=FO_BOMB_RULES.plantedSeconds;state.actor=null;state.progress=0;
         }
@@ -5555,11 +5547,11 @@
       function updateFoBomb(dt){
         if(!isFoBombMode()||matchState.ended)return;
         const actors=foBombActors(),planted=foBomb.phase==='planted';
+        const team=planted?'red':'blue';
         const sites=planted?[foBomb.site]:FO_BOMB_SITES;
         const eligible=[];
-        for(const a of actors)for(const site of sites)
-          if(foBombInteractionAllowed(a.team,site,planted,foBomb.site)&&foBombCanInteract(a,site))
-            eligible.push({id:a.id,team:a.team,site});
+        for(const a of actors)if(a.team===team)for(const site of sites)
+          if(foBombCanInteract(a,site))eligible.push({id:a.id,site});
         const chosen=eligible.find(e=>e.id===foBomb.actor&&e.site.id===foBomb.actionSite)||eligible[0]||null;
         const blue=actors.filter(a=>a.team==='blue'&&a.alive).length,
           red=actors.filter(a=>a.team==='red'&&a.alive).length;
@@ -5572,7 +5564,7 @@
         }
         status.textContent=blue+' / '+red+' CANLI • '+(active
           ?'BOMBA '+foBomb.site.id+' '+Math.ceil(foBomb.seconds)+' sn'
-          :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%':'A SAVUN • B HEDEF');
+          :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%':'A / B • BÖLGEDE DUR');
         if(active&&foBomb.actor)status.textContent+=' • ÇÖZÜLÜYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.defuseSeconds*100))+'%';
         if(result){foBomb.phase='ended';foBomb.reason=result.reason;endMatch(result.winner);}
       }
@@ -5581,29 +5573,22 @@
             bot.unstuckTimer>0)return null;
         const planted=foBomb.phase==='planted';
         const idx=Math.max(0,Number(bot.id.split('_')[1])||0);
-        const own=FO_BOMB_SITES.find(s=>s.owner===bot.team);
-        const enemy=FO_BOMB_SITES.find(s=>s.owner!==bot.team);
-        const teamAlive=bots.filter(b=>b.alive&&b.team===bot.team);
-        // Two initial base guards; remaining bots advance to the rival base.
-        // If the attack group is eliminated, a surviving guard takes over.
-        const attackers=teamAlive.filter(b=>(Number(b.id.split('_')[1])||0)%5>=2);
-        const attacking=idx%5>=2||attackers.length===0;
-        const site=planted?foBomb.site:(attacking?enemy:own);
+        const site=planted?foBomb.site:FO_BOMB_SITES[idx%2];
         if(!site)return null;
         let goal=site.node;
         if(planted){
-          if(bot.team!==site.owner)goal=site.guards[idx%site.guards.length];
+          if(bot.team==='blue')goal=site.guards[idx%site.guards.length];
           else {
-            const nearest=teamAlive.slice().sort((a,b)=>
-              Math.hypot(a.pos.x-site.x,a.pos.z-site.z)-Math.hypot(b.pos.x-site.x,b.pos.z-site.z))[0];
+            const nearest=bots.filter(b=>b.alive&&b.team==='red')
+              .sort((a,b)=>Math.hypot(a.pos.x-site.x,a.pos.z-site.z)-Math.hypot(b.pos.x-site.x,b.pos.z-site.z))[0];
             if(nearest!==bot&&foBomb.actor!==bot.id)goal=site.guards[idx%site.guards.length];
           }
-        }else if(!attacking)goal=site.guards[idx%site.guards.length];
+        }else if(bot.team==='red')goal=site.guards[idx%site.guards.length];
         else {
-          const group=attackers.length?attackers:teamAlive;
-          const nearest=group.slice().sort((a,b)=>
-            Math.hypot(a.pos.x-site.x,a.pos.z-site.z)-Math.hypot(b.pos.x-site.x,b.pos.z-site.z))[0];
-          if(nearest!==bot&&foBomb.actor!==bot.id)goal=site.guards[idx%site.guards.length];
+          const leader=bots.filter(b=>b.alive&&b.team==='blue'&&
+            (Number(b.id.split('_')[1])||0)%2===idx%2)
+            .sort((a,b)=>Math.hypot(a.pos.x-site.x,a.pos.z-site.z)-Math.hypot(b.pos.x-site.x,b.pos.z-site.z))[0];
+          if(leader!==bot&&foBomb.actor!==bot.id)goal=site.guards[idx%site.guards.length];
         }
         const dest=NAV_NODES[goal];
         if(!dest)return null;
