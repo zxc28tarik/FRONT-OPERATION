@@ -11654,6 +11654,12 @@
           const along = ax * fx + az * fz;
           const lateral = Math.abs(ax * fz - az * fx);
           if (along <= 0.35 || along >= 3.1 || lateral > 1.05) return;
+          // V76: separate walkable spaces must not create phantom queues.
+          // Invalid endpoints keep the conservative legacy behavior.
+          if(Math.abs(ally.pos.y-bot.pos.y)<=.35&&
+             isPositionWalkable(bot.pos.x,bot.pos.y,bot.pos.z)&&
+             isPositionWalkable(ally.pos.x,ally.pos.y,ally.pos.z)&&
+             !isBotDirectWalkingLineClear(bot.pos,ally.pos))return;
           // If both soldiers are facing each other, only one yields.
           const nextNode = getBotPassageDestination(ally);
           if (nextNode) {
@@ -11716,7 +11722,7 @@
         const targetEye = new THREE.Vector3(
           formationPoint.x, formationPoint.y + 1.0, formationPoint.z
         );
-        if (hasLineOfSight(eye, targetEye)) {
+        if (hasLineOfSight(eye, targetEye)&&isBotDirectWalkingLineClear(bot.pos,formationPoint)) {
           bot.rallyGoalNode = -1;
           return formationPoint;
         }
@@ -11725,6 +11731,8 @@
         if (changedGoal ||
             ((!bot.path || bot.pathIndex >= bot.path.length) && bot.rallyRetryCooldown <= 0)) {
           bot.path = findPathAStar(findNearestNavNode(bot.pos, true), goal, bot.blockedNode);
+          // A-star's singleton failure sentinel is not a valid walking shortcut.
+          if(bot.path.length===1&&!isBotDirectWalkingLineClear(bot.pos,NAV_NODES[bot.path[0]]))bot.path=[];
           bot.pathIndex = 0;
           bot.rallyGoalNode = goal;
           bot.rallyRetryCooldown = 1.0;

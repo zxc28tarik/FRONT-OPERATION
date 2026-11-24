@@ -1,12 +1,13 @@
 'use strict';
 const fs=require('node:fs'),html=fs.readFileSync(require('node:path').join(__dirname,'..','index.html'),'utf8');
 const a=html.indexOf('      // V57: distinguish the active route'),b=html.indexOf('      function selectBotRallyWaypoint(',a);
+const directSrc=html.slice(html.indexOf('      // V44: A clear eye-level sightline'),html.indexOf('      // Patient affinity prevents rapid medic destination switches.'));
 class Vector3{constructor(x=0,y=0,z=0){Object.assign(this,{x,y,z})}}
 const nodes=[{x:0,y:0,z:10},{x:0,y:0,z:-10}];
 const self={id:'a',team:'blue',alive:true,pos:new Vector3(),strafeDir:1};
 const ally={id:'b',team:'blue',alive:true,pos:new Vector3(0,0,2),moveVelX:0,moveVelZ:3,behaviorPlan:{route:true,speed:3,target:nodes[0]}};
 const bots=[self,ally],player={alive:false};let walk=()=>true;
-const api=new Function('THREE','NAV_NODES','bots','player','isPositionWalkable',html.slice(a,b)+'\nreturn {passage:inspectBotPassage,follow:botFriendlyFollowSpeed};')({Vector3},nodes,bots,player,(...x)=>walk(...x));
+const api=new Function('THREE','NAV_NODES','bots','player','isPositionWalkable',directSrc+'\n'+html.slice(a,b)+'\nreturn {passage:inspectBotPassage,follow:botFriendlyFollowSpeed};')({Vector3},nodes,bots,player,(...x)=>walk(...x));
 let n=0;const ok=(v,s)=>{if(!v)throw Error('V65 '+s);n++};
 const f=(gap=2,speed=5)=>api.follow(self,ally,0,1,gap,speed);
 ok(f()<3&&f()>1,'Follower brakes inside desired gap');

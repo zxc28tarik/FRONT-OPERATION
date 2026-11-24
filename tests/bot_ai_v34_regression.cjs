@@ -13,7 +13,8 @@ function runBotAiV34Regression(html) {
   const start = html.indexOf('      // V34: Make friendly corridor negotiation deterministic.');
   const end = html.indexOf('      function updateBots(dt) {', start);
   if (start < 0 || end < start) throw new Error('Missing V34 helper block');
-  const helpers = html.slice(start, end);
+  const directSrc=html.slice(html.indexOf('      // V44: A clear eye-level sightline'),html.indexOf('      // Patient affinity prevents rapid medic destination switches.'));
+  const helpers = directSrc+'\n'+html.slice(start, end);
   class Vector3 {
     constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; }
     clone() { return new Vector3(this.x, this.y, this.z); }

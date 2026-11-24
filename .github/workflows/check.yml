@@ -152,3 +152,6 @@ jobs:
 
       - name: Run V75 bounded objective continuity regression
         run: node tests/bot_ai_v75_objective_continuity_regression.cjs
+
+      - name: Run V76 physical friendly-space regression
+        run: node tests/bot_ai_v76_friendly_space_regression.cjs
