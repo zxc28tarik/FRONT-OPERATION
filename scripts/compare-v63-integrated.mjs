@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const seeds=[471001,471002,471003];
 const load=(mode,variant,seed)=>JSON.parse(fs.readFileSync(path.join('test-artifacts',mode==='marien'?'front-operation-bot-stress':'front-operation-bomb-full',variant+'-'+seed,'report.json'),'utf8'));
-const summary={status:'PASS',baseline:'V53',candidate:'V62 / V63 test harness',seeds,limitation:'Accelerated Chromium simulation with passive human slot; same initial seeds, divergent later random streams. Not rendered FPS or human playtest.',modes:{}};
+const summary={status:'PASS',baseline:process.env.FRONT_OPERATION_BASELINE_LABEL||'V53',candidate:process.env.FRONT_OPERATION_CANDIDATE_LABEL||'V62 / V63 test harness',seeds,limitation:'Accelerated Chromium simulation with passive human slot; same initial seeds, divergent later random streams. Not rendered FPS or human playtest.',modes:{}};
 const sum=(rows,key)=>rows.reduce((n,r)=>n+(r[key]||0),0);
 const ratio=(n,d)=>d?Math.round(n/d*10000)/10000:null;
 for(const mode of ['marien','bomb']){
@@ -50,6 +50,8 @@ for(const mode of ['marien','bomb']){
  if(candidate.stuckPerMinute>baseline.stuckPerMinute*1.1)review.push('stuck rate increased >10%');
  if(candidate.meanClosePairs>baseline.meanClosePairs*1.1)review.push('close-pair rate increased >10%');
  if(mode==='marien'&&candidate.coverArrivalRate<baseline.coverArrivalRate-.1)review.push('cover arrival rate fell >10 percentage points');
+ if(mode==='marien'&&candidate.switchesPerAcquisition>baseline.switchesPerAcquisition*1.1)review.push('target switches per acquisition increased >10%');
+ if(mode==='marien'&&candidate.accuracy<baseline.accuracy-.01)review.push('accuracy fell >1 percentage point');
  if(mode==='bomb'&&candidate.plants<baseline.plants)review.push('fewer natural plants');
  summary.modes[mode]={baseline,candidate,delta,review,bySeed:rows};
 }
