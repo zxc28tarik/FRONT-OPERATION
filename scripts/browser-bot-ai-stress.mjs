@@ -142,6 +142,10 @@ try {
       selections,arrivals,abandons,
       reassignments:coverCounts('coverReassignments'),
       retainedTargets:coverCounts('coverRetentions'),
+      routeRejected:coverCounts('coverRouteRejected'),
+      alternativeSelected:coverCounts('coverAlternativeSelected'),
+      stallReroutes:coverCounts('coverStallReroutes'),
+      stallFallbacks:coverCounts('coverStallFallbacks'),
       stalledApproaches:coverCounts('coverStalledApproaches'),
       orphanSeconds:coverCounts('coverOrphanSeconds'),
       approachSeconds:coverCounts('coverApproachSeconds'),
@@ -175,11 +179,11 @@ try {
         coverHoldSeconds:row.coverHoldSeconds,movingSeconds:row.movingSeconds}])),
     pageErrors:errors
   };
-  console.log('PASS V47 accelerated 600s real bot logic stress: '+
+  console.log('PASS V48 accelerated 600s real bot logic stress: '+
     JSON.stringify(result));
 } catch(e) {
   result={...result,seed,variant,error:String(e),pageErrors:errors};
-  console.error('FAIL V47 accelerated bot stress: '+String(e));
+  console.error('FAIL V48 accelerated bot stress: '+String(e));
   process.exitCode=1;
 } finally {
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(result,null,2));
