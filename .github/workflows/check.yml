@@ -155,3 +155,6 @@ jobs:
 
       - name: Run V76 physical friendly-space regression
         run: node tests/bot_ai_v76_friendly_space_regression.cjs
+
+      - name: Verify V75/V76 all-seed comparison coverage
+        run: node tests/bot_ai_v75_comparison_coverage.cjs

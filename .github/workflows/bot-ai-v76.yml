@@ -60,7 +60,7 @@ jobs:
           pattern: v63-*
           path: test-artifacts
           merge-multiple: true
-      - run: node scripts/compare-v63-integrated.mjs
+      - run: node scripts/compare-v75-objective.mjs
         env:
           FRONT_OPERATION_BASELINE_LABEL: V75
           FRONT_OPERATION_CANDIDATE_LABEL: V76
