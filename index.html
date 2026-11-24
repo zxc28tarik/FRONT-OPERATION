@@ -8965,7 +8965,7 @@ function buildSquadLeadership() {
         bot.behavior=null;bot.behaviorPlan=null;
         bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
         bot.locomotionMode='HOLD';bot.dodgeMode='HOLD';bot.locomotionSpeed=0;
-        bot.routeProgress=null;
+        bot.routeProgress=null;bot.investigateRetryAt=0;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -11224,7 +11224,7 @@ function buildSquadLeadership() {
         const d=Math.hypot(target.x-bot.pos.x,target.z-bot.pos.z);
         const p=bot.routeProgress;
         if(!p||Math.abs(p.y-target.y)>.35||Math.hypot(p.x-target.x,p.z-target.z)>.65||p.local!==!!localRecovery){
-          bot.routeProgress={x:target.x,y:target.y,z:target.z,d,best:d,elapsed:0,local:!!localRecovery};
+          bot.routeProgress={x:target.x,y:target.y,z:target.z,d,best:d,elapsed:dt,local:!!localRecovery};
           return null;
         }
         p.elapsed+=dt;p.best=Math.min(p.best,d);
@@ -12810,7 +12810,7 @@ function buildSquadLeadership() {
           if (hasRouteIntent) {
             const forwardProgress=botRouteProgress(bot,moveTargetPos,dt,!!bot.behaviorPlan.local);
             bot.stuckTimer += dt;
-            if (bot.stuckTimer >= 1.1) {
+            if (forwardProgress!==null || bot.stuckTimer >= 2.2) {
               const actualMoved = Math.hypot(
                 bot.pos.x - bot.lastCheckPos.x, bot.pos.z - bot.lastCheckPos.z
               );
