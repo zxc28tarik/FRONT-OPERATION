@@ -130,4 +130,36 @@ ok(crossings.length>0&&crossings.every(z=>z<-3.6),'No early lateral shortcuts ac
 ok(crossings.some(z=>z>-12.6&&z<-3.6),'First forward crossover navigable');
 ok(crossings.some(z=>z>-29.7&&z<-19.8),'Second forward crossover navigable');
 ok(crossings.every(z=>(z>-12.6&&z<-3.6)||(z>-29.7&&z<-19.8)),'Only the two forward windows connect sides');
+// Execute the real bomb plan and route selection with controlled actors.
+const ps=html.indexOf('      function refreshFoBotPlan(now)');
+const pe=html.indexOf('      function refreshFoModeUi()',ps);
+const sites=[{id:'A',x:g.nodes[36].x,z:g.nodes[36].z,node:36,guards:[31,35,37,41]},
+ {id:'B',x:g.nodes[38].x,z:g.nodes[38].z,node:38,guards:[33,37,39,43]}];
+const fakeBots=['blue','red'].flatMap(team=>Array.from({length:team==='blue'?5:6},(_,i)=>({
+ id:team+'_'+i,team,alive:true,hp:100,pos:{x:i*2,y:0,z:team==='blue'?45:-45}})));
+const state={phase:'unplanted',site:null,actor:null};
+const plan={key:'',next:0,orders:new Map(),operators:new Map()};
+let searches=0;
+const ai=new Function('isFoBombMode','bots','foBomb','foBotPlan','FO_BOMB_SITES','NAV_NODES','FO_TERSANE_ROUTES','foWorldZ','botAiClockSec','isPositionWalkable','findNearestNavNode','findPathAStar','THREE',
+ html.slice(ps,pe)+'\nreturn {refresh:refreshFoBotPlan,order:getFoBombBotOrder};')(
+ ()=>true,fakeBots,state,plan,sites,liveGraph.nodes,routes,z=>z*.9,0,()=>true,()=>0,(_a,b)=>{searches++;return [b]}, {Vector3:function(x,y,z){Object.assign(this,{x,y,z})}});
+ai.refresh(0);
+ok(plan.orders.size===11&&plan.operators.size===2,'Every living bot assigned a mission; one planter per site');
+ok([...plan.operators.values()].every(id=>id.startsWith('blue_')),'Only attacking team assigned to plant');
+const beforeOps=[...plan.operators.values()].join(',');
+fakeBots[0].pos.x+=50;ai.refresh(3);
+ok([...plan.operators.values()].join(',')===beforeOps,'Operators retain stable assignments despite movement');
+const bot=fakeBots[0];ai.order(bot,.05);ai.order(bot,.05);
+ok(searches===1,'Valid objective path retained between frames');
+bot.visibleEnemy={id:'enemy'};
+ok(ai.order(bot,.05)===null,'Visible enemy takes precedence over mission route');
+bot.visibleEnemy=null;
+const lost=plan.operators.get('A');fakeBots.find(b=>b.id===lost).alive=false;ai.refresh(3.1);
+ok(plan.operators.get('A')!==lost&&plan.orders.size===10,'Dead operator replaced immediately');
+state.phase='planted';state.site=sites[0];ai.refresh(4);
+ok(plan.operators.size===1&&plan.operators.get('A').startsWith('red_'),'One defender defuses after planting');
+const reds=fakeBots.filter(b=>b.team==='red'&&b.alive).map(b=>plan.orders.get(b.id).goal);
+ok(new Set(reds).size===reds.length,'Defusing team uses distinct positions');
+ok(html.includes('Math.hypot(actor.moveVelX||0,actor.moveVelZ||0)<1.0'),'Bots must stop before objective interaction');
+ok(html.includes('foMissionOrder ? bot.foObjectivePath?.[bot.foObjectiveIndex]'),'Stuck recovery uses active mission path');
 console.log('BOMB MODE PASS ('+n+' checks)');
