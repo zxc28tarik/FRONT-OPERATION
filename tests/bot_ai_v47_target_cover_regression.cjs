@@ -13,9 +13,9 @@ ok(from>0&&to>from,'Actual cover-retention helper extracted from gameplay');
 class Vec{constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z;}}
 let obstructed=true;
 const nodes=[{x:-6,y:0,z:3},{x:14,y:0,z:8}];
-const preserve=new Function('THREE','NAV_NODES','hasLineOfSight',
+const preserve=new Function('botAiClockSec','THREE','NAV_NODES','hasLineOfSight',
   html.slice(from,to)+'\nreturn isCoverSafeForNewVisibleTarget;')(
-  {Vector3:Vec},nodes,()=>!obstructed);
+  4,{Vector3:Vec},nodes,()=>!obstructed);
 const bot={
   pos:new Vec(0,0,0),coverNode:0,coverPhase:'MOVE_TO_COVER',
   targetId:'enemy_1',targetLockTimer:1.7,aimSettleTimer:0.21
@@ -42,6 +42,15 @@ ok(preserve(bot,enemy),'Crouched cover can be retained against concealed target'
 bot.coverPhase='MOVE_TO_COVER';
 ok(!preserve(bot,null),'Missing new enemy requires conservative replacement');
 ok(!preserve(bot,{id:'invalid'}),'Missing enemy geometry requires conservative replacement');
+bot._coverAudit={node:0,arrived:false,since:1,lastProgressAt:1};
+ok(!preserve(bot,enemy),'Unproductive approach cannot retain old cover indefinitely');
+bot._coverAudit.lastProgressAt=3.7;
+ok(preserve(bot,enemy),'Recently progressing approach can retain covered destination');
+bot._coverAudit.since=-3;
+ok(!preserve(bot,enemy),'Seven-second stale approach expires even if recent movement occurs');
+bot._coverAudit.node=1;
+ok(preserve(bot,enemy),'Audit for another node cannot falsely invalidate current cover');
+delete bot._coverAudit;
 bot.coverNode=99;
 ok(!preserve(bot,enemy),'Unknown cover node cannot be trusted');
 bot.coverNode=0;
