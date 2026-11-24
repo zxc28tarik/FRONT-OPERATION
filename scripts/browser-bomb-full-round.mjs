@@ -60,7 +60,7 @@ window.__foFullRoundQA=({seed,diagnostic})=>{
             coverPhase:b.coverPhase,lastAmmoWeapon:b.lastAmmoWeapon??null,
             reload:b.botReload?{...b.botReload}:null,inventory,
             shots:stats.shots??0,droneShots:stats.droneShots??0,ammoRounds:stats.ammoRounds??null,
-            emptyAttempts:stats.ammoEmptyAttempts??null,
+            emptyAttempts:stats.ammoEmptyAttempts??null,objectiveRetryStarts:stats.objectiveRetryStarts??null,objectiveRetryMoves:stats.objectiveRetryMoves??null,
             pathIndex:b.foObjectiveIndex??null,pathLength:b.foObjectivePath?.length??null};
         })
       });
@@ -114,6 +114,7 @@ try{
     }
   }
  report.ammoAudit=ammoAudit;
+ report.objectiveRetry={starts:Object.values(stats.actors).reduce((n,b)=>n+(b.objectiveRetryStarts||0),0),moveTicks:Object.values(stats.actors).reduce((n,b)=>n+(b.objectiveRetryMoves||0),0)};
  if(diagnostic){
    if(!data.diagnostics.length||data.diagnostics.length>191)throw Error('Diagnostic sampling bounds');
    for(const frame of data.diagnostics)for(const b of frame.bots){
@@ -126,6 +127,6 @@ try{
      final:data.reason,operators:data.diagnostics.filter((_,i)=>i%10===0).flatMap(f=>f.bots.filter(b=>b.role==='PLANT'||b.role==='DEFUSE').map(b=>({t:f.t,id:b.id,role:b.role,state:b.state,contact:b.contact,speed:b.speed,aimSettle:b.aimSettle,fireTimer:b.fireTimer,fireLaneBlockTimer:b.fireLaneBlockTimer,inventory:b.inventory,reload:b.reload,ammoRounds:b.ammoRounds,emptyAttempts:b.emptyAttempts,shots:b.shots})))}));
  }
  report.status='PASS';
- console.log('V63 BOMB FULL ROUND '+JSON.stringify({seed,variant,elapsed:data.elapsed,reason:data.reason,plantedAt:data.plantedAt,shots:data.shots,hits:data.hits,stuck:data.stuck,actorSeconds:data.actorSeconds,operators:data.samples.map(s=>({t:s.t,operators:s.operators}))}));
+ console.log('V63 BOMB FULL ROUND '+JSON.stringify({seed,variant,elapsed:data.elapsed,reason:data.reason,plantedAt:data.plantedAt,shots:data.shots,hits:data.hits,stuck:data.stuck,actorSeconds:data.actorSeconds,objectiveRetry:report.objectiveRetry,operators:data.samples.map(s=>({t:s.t,operators:s.operators}))}));
 }catch(e){report.error=String(e);console.error(report.error);process.exitCode=1;}
 finally{fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));await browser?.close();await new Promise(r=>server.close(r));}

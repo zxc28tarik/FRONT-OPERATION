@@ -6134,8 +6134,32 @@
         }
         return null;
       }
-      function getFoBombBotOrder(bot,dt){
-        if(!isFoBombMode()||foBomb.phase==='ended'||!bot.alive||bot.visibleEnemy||bot.activeDroneId)return null;
+      // V75: a game mission must not be starved indefinitely by a stationary
+      // ENGAGE state. Retry is bounded and cannot override safety gates.
+      function foShouldRetryObjective(bot,order,now,eligible,stationary){
+        if(!order||!['PLANT','DEFUSE'].includes(order.role)||!order.site||!Number.isFinite(now)){
+          bot.foObjectiveDelay=null;return false;
+        }
+        const key=order.role+':'+order.site.id;
+        let s=bot.foObjectiveDelay;
+        if(!s||s.key!==key||now<s.last){
+          s=bot.foObjectiveDelay={key,last:now,since:null,until:0,readyAt:0};
+        }
+        s.last=now;
+        const d=Math.hypot(bot.pos.x-order.site.x,bot.pos.z-order.site.z);
+        if(!eligible||d<=4){
+          s.since=null;s.until=0;return false;
+        }
+        if(now<s.until)return true;
+        if(!stationary){s.since=null;return false;}
+        if(s.since===null)s.since=now;
+        if(now-s.since<12||now<s.readyAt)return false;
+        s.since=null;s.until=now+1.6;s.readyAt=now+10;
+        if(typeof recordBotMetric==='function')recordBotMetric(bot,'objectiveRetryStarts');
+        return true;
+      }
+      function getFoBombBotOrder(bot,dt,allowContact=false){
+        if(!isFoBombMode()||foBomb.phase==='ended'||!bot.alive||(bot.visibleEnemy&&!allowContact)||bot.activeDroneId)return null;
         const assigned=foBotPlan.orders.get(bot.id);
         if(!assigned)return null;
         const planted=foBomb.phase==='planted',idx=Math.max(0,Number(bot.id.split('_')[1])||0);
@@ -7568,7 +7592,8 @@
         'ammoRounds','ammoSidearmRounds','ammoWeaponSwitches','ammoReloadStarts',
         'ammoReloadCompletes','ammoReloadCancels','ammoEmptyAttempts','ammoReloadSeconds',
         'rolePlantSeconds','roleDefuseSeconds','roleEscortSeconds','roleGuardSeconds',
-        'roleHoldSeconds','roleRetakeSeconds','coverSidearmPreferences','coverDutyPreferences'
+        'roleHoldSeconds','roleRetakeSeconds','coverSidearmPreferences','coverDutyPreferences',
+        'objectiveRetryStarts','objectiveRetryMoves'
       ];
       const newBotMetricBucket = () =>
         Object.fromEntries(BOT_METRIC_FIELDS.map(field => [field, 0]));
@@ -9269,7 +9294,7 @@
         bot.state = 'ADVANCE';
         bot.assignedLane = bot.squadId;
         bot.burstCount = 0;
-        bot.ammoState={};bot.botReload=null;bot.lastAmmoWeapon=null;
+        bot.ammoState={};bot.botReload=null;bot.lastAmmoWeapon=null;bot.foObjectiveDelay=null;
         bot.stuckTimer = 0;
         bot.stuckFailures = 0;
         bot.blockedNode = -1;
@@ -12750,6 +12775,27 @@
               }
             }
 
+            // A bounded game-objective retry uses only the existing route.
+            // No extra fire, aim, damage, or perception advantage.
+            let objectiveRetry=false;
+            if(isFoBombMode()){
+              const order=foBotPlan.orders.get(bot.id);
+              const allowed=!isWounded&&!isSniperTooClose&&!holdContact&&
+                behaviorHint==='ENGAGE'&&bot.coverNode<0&&bot.teamFlankGoalNode<0&&
+                !bot.activeDroneId&&foBomb.actor!==bot.id&&
+                !botObservedPressure(bot,bestEnemy,distToEnemy)&&distToEnemy>12;
+              if(foShouldRetryObjective(bot,order,nowSec,allowed,
+                  moveSpeed<=.2&&Math.hypot(bot.moveVelX||0,bot.moveVelZ||0)<.6)){
+                const retry=getFoBombBotOrder(bot,dt,true);
+                if(retry?.target&&retry.speed>0){
+                  objectiveRetry=true;foMissionOrder=retry;
+                  behaviorHint='MISSION';moveTargetPos=retry.target;moveSpeed=retry.speed;
+                  targetCrouch=retry.crouch||0;coverFire=false;
+                  bot.combatStrafeGoal=null;bot.dodgeMode='HOLD';
+                  recordBotMetric(bot,'objectiveRetryMoves');
+                }
+              }
+            }
             if (isReactionReady && isAimSettled && bot.abilityCooldown <= 0 && bot.coverPhase!=='CROUCH_HOLD' &&
                 botCombatFireReady(bot,behaviorHint,moveSpeed,coverFire) &&
                 isBotAimAligned(bot, bestEnemy.eye) && isBotFireLaneClear(bot, bestEnemy.eye)) {
@@ -12766,7 +12812,7 @@
 
             // V52: no firing during a deliberate cover hold; do not cancel retreat to unblock a shot.
             const canShootFromStance = bot.coverPhase !== 'CROUCH_HOLD' && botCombatFireReady(bot,behaviorHint,moveSpeed,coverFire);
-            const canAdjustFireLane = !isWounded && !isSniperTooClose && bot.coverNode < 0 && bot.teamFlankGoalNode < 0;
+            const canAdjustFireLane = !objectiveRetry && !isWounded && !isSniperTooClose && bot.coverNode < 0 && bot.teamFlankGoalNode < 0;
             const fireLaneClear = isBotFireLaneClear(bot, bestEnemy.eye);
             const aimAligned = isBotAimAligned(bot, bestEnemy.eye);
             if (isReactionReady && !fireLaneClear && canAdjustFireLane) {
@@ -12844,6 +12890,7 @@
               }
             }
           } else {
+            if(bot.foObjectiveDelay){bot.foObjectiveDelay.since=null;bot.foObjectiveDelay.until=0;}
             desiredAimPitch=0;
             bot.burstCount = 0;
 
@@ -13239,9 +13286,10 @@
             }
           }
 
-          // Mission movement never erases an active firefight, cover retreat,
-          // drone engagement or fresh local contact. On a quiet objective
-          // route the mission owns movement, while hearing can steer the head.
+          // Ordinary mission movement never erases active combat or retreat.
+          // V75's separately gated bounded retry can own the route for an
+          // otherwise indefinitely delayed game operator. Firing is disabled
+          // during that retry; normal perception and look requests are retained.
           const proposals=[{kind:behaviorHint,target:moveTargetPos,speed:moveSpeed,crouch:targetCrouch,yaw:desiredUpperYaw,lookOwner,
             route:!(bot.coverPhase==='CROUCH_HOLD'||bot.coverPhase==='PEEK_FIRE')}];
           if(isFoBombMode()&&!bestEnemy&&!foPriorityCombat&&foBotMissionEligible(bot)&&
