@@ -11461,6 +11461,21 @@
         bot.routeProgress={x:target.x,y:target.y,z:target.z,d,best:d,elapsed:0,local:!!localRecovery};
         return progress;
       }
+      // V66: a clear chord is not sufficient when current velocity would
+      // carry the soldier into a wall during the turn. Check only near
+      // meaningful turns; ordinary straight travel stays unchanged.
+      function botCornerMomentumClear(bot,target){
+        const vx=bot.moveVelX||0,vz=bot.moveVelZ||0,v=Math.hypot(vx,vz);
+        const dx=target.x-bot.pos.x,dz=target.z-bot.pos.z,d=Math.hypot(dx,dz);
+        if(v<2.2||d<.15||(vx*dx+vz*dz)/(v*d)>=.90)return true;
+        const travel=Math.min(1.8,v*v/(2*12.5)+.12);
+        const samples=Math.max(1,Math.ceil(travel/.22));
+        for(let k=1;k<=samples;k++){
+          const r=travel*k/samples;
+          if(!isPositionWalkable(bot.pos.x+vx/v*r,bot.pos.y,bot.pos.z+vz/v*r))return false;
+        }
+        return true;
+      }
       function chooseBotRouteLookahead(bot,leg){
         if(!leg||!leg.next||Math.abs(leg.node.y-leg.next.y)>.30||Math.abs(bot.pos.y-leg.next.y)>.35)return null;
         if(Math.hypot(leg.node.x-bot.pos.x,leg.node.z-bot.pos.z)>2.1)return null;
@@ -11469,6 +11484,7 @@
         // Only bypass a near waypoint if body clearance remains valid.
         const samples=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.22));
         for(let i=1;i<=samples;i++)if(!isPositionWalkable(bot.pos.x+dx*i/samples,bot.pos.y,bot.pos.z+dz*i/samples))return null;
+        if(!botCornerMomentumClear(bot,leg.next))return null;
         return leg.next;
       }
       function botRouteCornerLimit(bot,leg,speed){
@@ -11478,7 +11494,14 @@
         if(a<.2||a>4||b<.2)return speed;
         const dot=Math.max(-1,Math.min(1,(ax*bx+az*bz)/(a*b)));
         const factor=1-(1-dot)*.30*(1-a/4);
-        return speed*Math.max(.55,factor);
+        const legacyCap=speed*Math.max(.55,factor);
+        // Preserve the existing ramp/upper-deck transition policy.
+        if(Math.abs(leg.node.y-leg.next.y)>.30||Math.abs(bot.pos.y-leg.node.y)>.35)return legacyCap;
+        // Brake to a turn-dependent speed before reaching a sharp vertex.
+        // Use a conservative deceleration lower than the steering controller.
+        const turnSpeed=speed*Math.max(.40,1-(1-dot)*.55);
+        const brakingCap=Math.sqrt(turnSpeed*turnSpeed+2*8*Math.max(0,a-.60));
+        return Math.min(legacyCap,brakingCap);
       }
 
       // V65: smooth following is preferable to repeatedly dodging a moving

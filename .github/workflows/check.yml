@@ -110,3 +110,6 @@ jobs:
 
       - name: Run V65 friendly spacing regression
         run: node tests/bot_ai_v65_spacing_regression.cjs
+
+      - name: Run V66 corner momentum regression
+        run: node tests/bot_ai_v66_corner_regression.cjs
