@@ -98,7 +98,7 @@ for (const team of ['blue', 'red']) {
       ['rightHip', 3],
       ['leftKnee', 3],
       ['rightKnee', 3],
-      ['weaponPivot', role === 'sniper' ? 5 : 7]
+      ['weaponPivot', role === 'sniper' ? 6 : 7]
     ]) {
       assert.equal(model[part].children.length - baseline[part].children.length, difference,
         `${team}/${role} V11 detail count ${part}`);
@@ -165,5 +165,5 @@ assert.equal(actualMuzzle.y, 1.26);
 assert.equal(fakeRoot.position.y, -0.16);
 assert.equal(fakeRoot.updated, true);
 assert.equal(getMuzzle(null, new Vector3(0, 1.45, 0)).y, 1.45);
-console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99/V101/V104/V105/V118 details, head and muzzle hierarchy');
+console.log('PASS: 10/10 V25 soldier rigs with V11/V26/V26B/V99/V101/V104/V105/V119 details, head and muzzle hierarchy');
 console.log('PASS: visible BOT muzzle world position and fallback');

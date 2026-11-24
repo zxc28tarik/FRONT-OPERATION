@@ -6091,11 +6091,11 @@
             mesh.scale.y=length/nominal;
             if(length>.0001)mesh.quaternion.setFromUnitVectors(axis,direction.normalize());
           };
-          model.updateVisualGrip=(pitch,reload=0)=>{
+          model.updateVisualGrip=(pitch,reload=0,reloadTarget=null)=>{
             if(!Number.isFinite(pitch))return;
             reload=Math.max(0,Math.min(1,reload||0));
             const wpos=model.weaponPivot.position;
-            const gripKey=[pitch,reload,wpos.x,wpos.y,wpos.z].join(':');
+            const gripKey=[pitch,reload,wpos.x,wpos.y,wpos.z,reloadTarget?.x,reloadTarget?.y,reloadTarget?.z].join(':');
             if(model.lastVisualGripPitch===gripKey)return;
             model.lastVisualGripPitch=gripKey;
             const c=Math.cos(pitch),s=Math.sin(pitch),w=model.weaponPivot.position;
@@ -6104,9 +6104,10 @@
               arm.hand.position.set(w.x+p.x,w.y+c*p.y-s*p.z,w.z+s*p.y+c*p.z);
               if(arm.left&&reload>0){
                 // The support glove travels to the magazine well, not through the torso.
-                arm.hand.position.x+=(w.x-.044-arm.hand.position.x)*reload;
-                arm.hand.position.y+=(w.y-.105-arm.hand.position.y)*reload;
-                arm.hand.position.z+=(w.z+.105-arm.hand.position.z)*reload;
+                const target=reloadTarget||{x:-.044,y:-.105,z:.105};
+                arm.hand.position.x+=(w.x+target.x-arm.hand.position.x)*reload;
+                arm.hand.position.y+=(w.y+c*target.y-s*target.z-arm.hand.position.y)*reload;
+                arm.hand.position.z+=(w.z+s*target.y+c*target.z-arm.hand.position.z)*reload;
               }
               arm.hand.rotation.set(pitch+(arm.left?-.10:-.28),arm.left?.11:-.09,arm.left?.16:-.12);
               const a=arm.shoulder.position,e=arm.elbow.position,h=arm.hand.position;
@@ -6203,16 +6204,26 @@
         // V114/V115: a visual-only firearm recoil and reload controller.
         // Actual game ammo, firing cadence, aim and damage are not written here.
         const weaponRest={x:model.weaponPivot.position.x,y:model.weaponPivot.position.y,z:model.weaponPivot.position.z};
-        const magazine=model.weaponPivot.children.find(n=>Math.abs(n.position.x)<.01&&Math.abs(n.position.y+.085)<.012&&Math.abs(n.position.z-.16)<.02);
+        // V119: role-specific magazine and ammunition-box visual movement.
+        let magazine=model.weaponPivot.children.find(n=>Math.abs(n.position.x)<.01&&Math.abs(n.position.y+.085)<.012&&Math.abs(n.position.z-.16)<.02);
+        if(classId==='heavy')magazine=model.weaponPivot.children.find(n=>Math.abs(n.position.x+.07)<.012&&Math.abs(n.position.y+.06)<.012&&Math.abs(n.position.z-.12)<.02);
+        if(classId==='sniper'){
+          if(!G.v119)G.v119={sniperMagazine:new THREE.BoxGeometry(.036,.074,.083)};
+          magazine=createLimbMesh(G.v119.sniperMagazine,mats.gunMetal,false);
+          magazine.position.set(0,-.055,.115);model.weaponPivot.add(magazine);
+        }
+        if(magazine)magazine.name='v119_visual_magazine';
         const magRest=magazine?{x:magazine.position.x,y:magazine.position.y,z:magazine.position.z,rx:magazine.rotation.x}:null;
         model.setVisualCombatPose=(pose)=>{
           const p=pose||{},kick=Math.max(0,Math.min(1,p.kick||0)),reload=Math.max(0,Math.min(1,p.reload||0)),swap=Math.max(0,Math.min(1,p.swap||0));
           model.weaponPivot.position.set(weaponRest.x,weaponRest.y-.025*reload,weaponRest.z-kick*.033-.012*reload);
           if(magazine&&magRest){
-            magazine.position.set(magRest.x-.027*swap,magRest.y-.105*swap,magRest.z-.025*swap);
-            magazine.rotation.x=magRest.rx+swap*.38;
+            const heavy=classId==='heavy',sniper=classId==='sniper';
+            magazine.position.set(magRest.x-(heavy?.065:.026)*swap,magRest.y-(heavy?.071:sniper?.075:.105)*swap,magRest.z-(heavy?.012:.025)*swap);
+            magazine.rotation.x=magRest.rx+swap*(heavy?.21:.38);
           }
-          if(model.updateVisualGrip)model.updateVisualGrip(model.weaponPivot.rotation.x,reload);
+          const reloadTarget=magazine?{x:magazine.position.x-(classId==='heavy'?.027:.024),y:magazine.position.y,z:magazine.position.z}:null;
+          if(model.updateVisualGrip)model.updateVisualGrip(model.weaponPivot.rotation.x,reload,reloadTarget);
         };
         model.resetVisualCombatPose=()=>{
           model.setVisualCombatPose({kick:0,reload:0,swap:0});
