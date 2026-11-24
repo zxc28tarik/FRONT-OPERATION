@@ -30,6 +30,37 @@ const hook=`
           return {playerDead:!player.alive,botDead:!b.alive,
             deathText:document.getElementById('respawn-countdown').textContent};
         },
+        spectatorCheck:()=>{
+          const initial=selectFoSpectatorTarget();
+          if(!initial||initial.team!==player.team||!initial.alive)throw Error('No live teammate selected');
+          const first=initial.id,second=selectFoSpectatorTarget(1);
+          updateFoSpectator(.05);
+          const follow=foSpectator.mode==='follow'&&
+            !viewmodelGroup.visible&&document.body.classList.contains('fo-spectating')&&
+            document.getElementById('respawn-overlay').classList.contains('hidden');
+          const distinct=second&&second.id!==first;
+          // Forced death in QA only, verify automatic retargeting.
+          if(second)applyDamageToTarget(second,999,true,'QA','red','QA');
+          updateFoSpectator(.05);
+          const switched=foSpectator.targetId!==second?.id&&
+            foSpectatorTeam().some(b=>b.id===foSpectator.targetId);
+          setFoSpectatorMode('free');
+          const before=camera.position.clone(),body=player.pos.clone();
+          keys.KeyW=true;updateFoSpectator(.1);keys.KeyW=false;
+          const free=foSpectator.mode==='free'&&camera.position.distanceTo(before)>.2&&
+            player.pos.distanceTo(body)<.001&&!player.alive;
+          setFoSpectatorMode('follow');updateFoSpectator(.05);
+          return {follow,distinct,switched,free,returned:foSpectator.mode==='follow'};
+        },
+        aimCheck:()=>{
+          const stub={pos:new THREE.Vector3(),upperYaw:0,legYaw:Math.PI};
+          const eye=new THREE.Vector3(0,1.45,10);
+          const rejectsSide=!isBotAimAligned(stub,eye);
+          stub.legYaw=.8;
+          const acceptsFront=isBotAimAligned(stub,eye);
+          stub.upperYaw=.3;stub.legYaw=.3;
+          return {rejectsSide,acceptsFront,rejectsOffset:!isBotAimAligned(stub,eye)};
+        },
         defuse:()=>{
           const b=bots.find(b=>b.team==='red'&&b.alive);
           if(!b)throw Error('No defender left');
@@ -60,6 +91,11 @@ try{
  if(state.phase!=='planted'||state.site!=='A')throw Error('Player planting failed');
  const dead=await page.evaluate(()=>window.__foDepotQa.killAndCheck());
  if(!dead.playerDead||!dead.botDead||dead.deathText!=='TEK CAN')throw Error('Deathmatch respawn leaked into bomb mode '+JSON.stringify(dead));
+ const spectate=await page.evaluate(()=>window.__foDepotQa.spectatorCheck());
+ if(Object.values(spectate).some(v=>v!==true))throw Error('Spectator failure '+JSON.stringify(spectate));
+ const aim=await page.evaluate(()=>window.__foDepotQa.aimCheck());
+ if(Object.values(aim).some(v=>v!==true))throw Error('Rendered yaw gate failure '+JSON.stringify(aim));
+ await page.screenshot({path:path.join(output,'depot17-spectator.png')});
  await page.evaluate(()=>window.__foDepotQa.defuse());
  state=await page.evaluate(()=>window.__foDepotQa.snapshot());
  if(!state.ended||state.reason!=='Bomba etkisizleştirildi')throw Error('Defusal did not conclude match');
@@ -70,7 +106,8 @@ try{
  if(restored.mode!=='deathmatch'||!restored.alive||restored.botLives.some(b=>!b.alive)||
      restored.colliders!==original.colliders||restored.meshes!==original.meshes||
      restored.graph!==original.graph||restored.nav!==50)throw Error('Marien restore mismatch');
+ if(await page.evaluate(()=>document.body.classList.contains('fo-spectating')))throw Error('Spectator HUD leaked into new match');
  if(errors.length)throw Error(errors.join(' | '));
- console.log('PASS real WebGL Depot17: separate 50-node map, both sites reachable, plant, no respawn, defuse, exact Marien restoration');
+ console.log('PASS real WebGL Depot17: separate 50-node map, both sites reachable, plant, no respawn, teammate switching, free camera, rendered aim gate, defuse, exact Marien restoration');
 }catch(e){console.error('FAIL Depot17 browser: '+String(e));process.exitCode=1;}
 finally{await browser?.close();await new Promise(r=>server.close(r));}
