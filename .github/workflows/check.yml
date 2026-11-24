@@ -83,3 +83,6 @@ jobs:
 
       - name: Run BOT AI V58 map awareness regression
         run: node tests/bot_ai_v58_regression.cjs
+
+      - name: Run BOT AI V59 combat discipline regression
+        run: node tests/bot_ai_v59_regression.cjs
