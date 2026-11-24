@@ -11869,7 +11869,7 @@ function buildSquadLeadership() {
           if(dist(home)>.38){
             s.elapsed+=dt;
             if(walk(bot.pos,home)&&s.elapsed<2.2)return result('RETURN',home,2.1,1,false);
-            if(s.elapsed>=2.2){bot.coverPhase='MOVE_TO_COVER';bot.combatCoverCycle=null;return {target:null,speed:0,crouch:1,fire:false,phase:'REPLAN'};}
+            if(s.elapsed>=2.2){bot.coverNode=-1;bot.coverPhase='NONE';bot.coverSearchCooldown=1.2;bot.combatCoverCycle=null;return {target:null,speed:0,crouch:1,fire:false,phase:'REPLAN'};}
             return result('RETURN',null,0,1,false);
           }
           s.phase='HOLD';s.elapsed=0;s.peek=null;
