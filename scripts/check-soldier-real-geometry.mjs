@@ -32,9 +32,15 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  let camo=0;m.root.traverse(n=>{if(n.material?.name==='V112 camouflage')camo++;});
  assert(camo>0);
  const head=m.head.children.find(n=>n.name==='v106_face'),other=alt.head.children.find(n=>n.name==='v106_face');
- assert(head.geometry===other.geometry&&head.material!==other.material);
+ assert(head.geometry!==other.geometry&&head.material!==other.material);assert(head.geometry===api.enhanced(team,cls,0).head.children.find(n=>n.name==='v106_face').geometry);
  assert.equal(alt.root.userData.visualVariant,1);assert.equal(alt2.root.userData.visualVariant,2);
  m.root.traverse(n=>{if(!n.isMesh)return;const p=n.geometry.getAttribute('position'),normal=n.geometry.getAttribute('normal');assert(p.array.every(Number.isFinite)&&normal.array.every(Number.isFinite));});
+ const ankles=[m.leftKnee,m.rightKnee].map(n=>n.children.find(c=>c.name==='v132_ankle'));
+ assert(ankles.every(a=>a&&a.children.length===3),'articulated boots');
+ m.setVisualFootPose(.15,-.2);assert.equal(ankles[0].rotation.x,.15);assert.equal(ankles[1].rotation.x,-.2);
+ m.resetVisualCombatPose();assert(ankles.every(a=>a.rotation.x===0));
+ let folds=0,weapon=0;m.root.traverse(n=>{if(n.userData.v129Sculpted)folds++;if(n.userData.v131Refined)weapon++;});
+ assert.equal(folds,10);assert(weapon>=2);
  const near=countVisible(m.root);
  const armBands=m.upperBody.children.filter(n=>n.geometry===api.base(team,cls).upperBody.children.find(c=>c.geometry?.parameters?.height===.065)?.geometry);
  const closeGroups=[m.head.children.find(n=>n.name==='v99_close_face'),m.upperBody.children.find(n=>n.name==='v99_close_rig')];
@@ -51,4 +57,4 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert.equal(m.head.parent,m.upperBody);assert.equal(m.muzzleFlash.parent,m.weaponPivot);
  nearTotal+=near;farTotal+=far;models+=3;
 }
-console.log('V127 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
+console.log('V135 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
