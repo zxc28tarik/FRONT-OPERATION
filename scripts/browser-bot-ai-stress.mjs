@@ -177,6 +177,8 @@ try {
       alternativeSelected:coverCounts('coverAlternativeSelected'),
       stallReroutes:coverCounts('coverStallReroutes'),
       stallFallbacks:coverCounts('coverStallFallbacks'),
+      routeRetentions:coverCounts('coverRouteRetentions'),
+      targetReevaluations:coverCounts('coverTargetReevaluations'),
       stalledApproaches:coverCounts('coverStalledApproaches'),
       orphanSeconds:coverCounts('coverOrphanSeconds'),
       approachSeconds:coverCounts('coverApproachSeconds'),
