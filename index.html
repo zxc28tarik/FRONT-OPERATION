@@ -6463,7 +6463,7 @@
             const branch=FO_RESCUE_BRANCHES[idx%FO_RESCUE_BRANCHES.length];
             const entry={x:idx%4<2?-21:21,z:28};
             const other=FO_RESCUE_ROOMS[branch.room==='A'?1:0];
-            const stages=[entry,branch,branch.approach,branch.search,other];
+            const stages=[entry,branch,branch.approach,...(branch.id==='A_WEST'?[{x:-32,z:-36},{x:-26,z:-36}]:[]),branch.search,other];
             bot.foRescueSearchStage=bot.foRescueSearchStage||0;
             let target=stages[bot.foRescueSearchStage%stages.length];
             if(Math.hypot(bot.pos.x-target.x,bot.pos.z-target.z)<1.8){
