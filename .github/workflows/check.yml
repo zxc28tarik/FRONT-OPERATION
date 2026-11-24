@@ -92,3 +92,6 @@ jobs:
 
       - name: Run BOT AI V61 bomb objective regression
         run: node tests/bot_ai_v61_regression.cjs
+
+      - name: Run BOT AI V62 personality regression
+        run: node tests/bot_ai_v62_regression.cjs
