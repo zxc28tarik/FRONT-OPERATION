@@ -4064,7 +4064,15 @@
         const graph=depotGraph(navSolids);installFoGraph(graph.nodes,graph.edges);
       }
       // V90: independent prison courtyard, no changes to Marien or Tersane.
-      const FO_RESCUE_POINTS=[{id:'1',x:-18,z:-36},{id:'2',x:18,z:-36}];
+      const FO_RESCUE_POINTS=[{id:'1',x:-20.5,z:-36},{id:'2',x:-15.5,z:-36}];
+      const FO_RESCUE_ROOMS=[{id:'A',x:-18,z:-36},{id:'B',x:18,z:-36}];
+      const FO_RESCUE_BRANCHES=[
+        {id:'A_WEST',x:-32,z:-17,room:'A',approach:{x:-32,z:-24},search:{x:-18,z:-36}},
+        {id:'A_FRONT',x:-18,z:-17,room:'A',approach:{x:-18,z:-24},search:{x:-18,z:-36}},
+        {id:'LINK',x:0,z:-17,room:'LINK',approach:{x:0,z:-29},search:{x:0,z:-36}},
+        {id:'B_FRONT',x:18,z:-17,room:'B',approach:{x:18,z:-24},search:{x:18,z:-36}}
+      ];
+      function foRescueSpawnRoom(random=Math.random){return FO_RESCUE_ROOMS[random()<.5?0:1];}
       const FO_RESCUE_EXIT={x:0,z:50,radius:6};
       function foPrisonGraph(solids){
         const nodes=[],edges=[];
@@ -4087,7 +4095,11 @@
           if(walk(x,z)&&!nodes.some(n=>Math.hypot(n.x-x,n.z-z)<1))
             nodes.push({x,y:0,z,tag:z>44?'blue_spawn':z<-44?'red_spawn':x<-12?'west':x>12?'east':'mid'});
         };
-        add(0,50);for(const p of FO_RESCUE_POINTS)add(p.x,p.z);
+        add(0,50);for(const p of FO_RESCUE_ROOMS)add(p.x,p.z);
+        for(const room of FO_RESCUE_ROOMS)for(const off of [-2.5,2.5])add(room.x+off,room.z);
+        for(const x of [-21,21])add(x,28);
+        for(const r of FO_RESCUE_BRANCHES){add(r.x,r.z);add(r.approach.x,r.approach.z);add(r.search.x,r.search.z);}
+        add(-10,-36);add(10,-36);add(-26,-36);
         for(let z=-54;z<=54;z+=6)for(let x=-36;x<=36;x+=6)add(x,z);
         for(const q of low){
           if(q.maxX-q.minX>70||q.maxZ-q.minZ>70)continue;
@@ -4124,19 +4136,35 @@
         addDecoMesh(new THREE.PlaneGeometry(84,126),floor,0,0,0,-Math.PI/2);
         for(const x of [-40,40])box(x,0,1.2,124,6,dark);
         for(const z of [-61,61])box(0,z,81,1.2,6,dark);
-        // Two covered detention wings with open entry portals.
+        // Exactly two lower approaches; exactly four upper gates.
+        const wallGaps=(z,openings)=>{
+          let at=-39.4;
+          for(const [lo,hi] of openings){if(lo>at)box((at+lo)/2,z,lo-at,1.2,4.8,dark);at=hi;}
+          if(at<39.4)box((at+39.4)/2,z,39.4-at,1.2,4.8,dark);
+        };
+        wallGaps(28,[[-25,-17],[17,25]]);
+        box(-7,5.5,1.2,43,4.6,dark);
+        wallGaps(-17,[[-35,-29],[-21,-15],[-3,3],[15,21]]);
+        for(const x of [-25,-9,9])box(x,-22,1.1,8.5,4.2,dark);
+        // Roofed wings, the west wing also has an outer side entrance.
         for(const x of [-18,18]){
-          for(const dx of [-8,8])box(x+dx,-36,1,18,4.8,wall);
+          const inner=x<0?x+8:x-8,outer=x<0?x-8:x+8;
+          for(const z of [-42,-30])box(inner,z,1,6,4.8,wall);
+          if(x<0)for(const z of [-42,-30])box(outer,z,1,6,4.8,wall);
+          else box(outer,-36,1,18,4.8,wall);
           for(const z of [-45,-27])for(const dx of [-5.6,5.6])box(x+dx,z,4.8,1,4.8,wall);
           box(x,-36,17,19,.36,dark,4.98);
           for(const z of [-42,-30])deco(x,4.55,z,9,.12,.22,metal);
-          for(const dx of [-4,4])box(x+dx,-39,1.8,3,1.2,metal);
+          for(const dx of [-4,4])box(x+dx,-40,1.8,2,1.2,metal);
         }
-        // Administration wings and central staggered courtyard.
-        for(const [x,z,w,d,h] of [[-27,3,10,16,5.2],[27,3,10,16,5.2],[-12,15,8,5,3.5],[12,8,8,5,3.5],
-          [-12,-12,9,5,3.6],[12,-18,9,5,3.6],[0,-3,5,12,3.8],[0,-23,5,6,3.8],
-          [-30,29,8,6,3.2],[30,29,8,6,3.2],[-10,33,5,4,3.2],[10,38,5,4,3.2],
-          [-32,-21,5,5,3.2],[32,-21,5,5,3.2],[-7,-48,5,3,3.2],[7,-48,5,3,3.2]]){
+        // Shared interior connector: both inner wing portals open onto it.
+        box(0,-40,20,1,4.8,wall);
+        for(const x of [-6.5,6.5])box(x,-32,7,1,4.8,wall);
+        box(0,-36,20,9,.36,dark,4.98);
+        // Staggered cover outside entrances, without filling gate mouths.
+        for(const [x,z,w,d,h] of [[-30,40,6,4,3.2],[30,40,6,4,3.2],[-9,39,5,3,3.2],[10,39,5,3,3.2],
+          [-30,9,6,8,4.2],[-18,18,5,4,3.2],[-18,-4,5,4,3.2],[24,16,5,4,3.2],[15,3,5,4,3.2],[29,-5,5,4,3.2],
+          [-34,-43,4,4,3.2],[34,-38,5,5,3.2],[-7,-56,4,3,3.2],[7,-56,4,3,3.2]]){
           box(x,z,w,d,h,dark);deco(x,h+.08,z,w+.18,.16,d+.18,metal);
         }
         const exitMat=new THREE.MeshBasicMaterial({color:0x82bba2,transparent:true,opacity:.75,side:THREE.DoubleSide});
@@ -6356,13 +6384,24 @@
       }
       // V90 rescue objective: two protected noncombatant game tokens.
       const FO_RESCUE_RULES=Object.freeze({roundSeconds:180,pickupRadius:2.3,holdSeconds:1});
-      const foRescue={captives:[],reason:''};
+      const foRescue={captives:[],reason:'',roomId:null};
       function isFoRescueMode(){return matchState.mode==='rescue';}
       function foSingleLife(){return isFoBombMode()||isFoRescueMode();}
       function foMapName(mode){return mode==='rescue'?'CEZAEVİ':mode==='bomb'?'TERSANE':'MARIEN';}
-      function resetFoRescue(){
+      function resetFoRescue(random=Math.random){
         foRescue.reason='';
-        foRescue.captives=FO_RESCUE_POINTS.map(p=>({id:p.id,x:p.x,z:p.z,carrier:null,actor:null,progress:0,saved:false}));
+        const room=foRescueSpawnRoom(random);foRescue.roomId=room.id;
+        foRescue.captives=FO_RESCUE_POINTS.map((p,i)=>({id:p.id,x:room.x+(i===0?-2.5:2.5),z:room.z,carrier:null,actor:null,progress:0,saved:false,discovered:false}));
+        syncFoRescueMarkers();
+      }
+      function syncFoRescueMarkers(){
+        for(const p of foRescue.captives){
+          const marker=FO_RESCUE_POINTS.find(q=>q.id===p.id);
+          for(const part of marker.parts||[]){
+            part.mesh.visible=!p.saved&&(!p.carrier||part.y>1.5);
+            part.mesh.position.set(p.x,part.y,p.z);
+          }
+        }
       }
       function stepFoRescue(state,dt,remaining,actors,canPickup){
         if(state.captives.every(p=>p.saved))return {winner:'blue',reason:'İki esir kurtarıldı'};
@@ -6386,25 +6425,25 @@
           if(!a){p.actor=null;p.progress=0;continue;}
           if(p.actor!==a.id){p.actor=a.id;p.progress=0;}
           p.progress+=dt;
-          if(p.progress>=FO_RESCUE_RULES.holdSeconds){p.carrier=a.id;p.actor=null;p.progress=0;}
+          if(p.progress>=FO_RESCUE_RULES.holdSeconds){p.carrier=a.id;p.actor=null;p.progress=0;p.discovered=true;}
         }
         return state.captives.every(p=>p.saved)?{winner:'blue',reason:'İki esir kurtarıldı'}:null;
       }
       function updateFoRescue(dt){
         if(!isFoRescueMode()||matchState.ended)return;
         const actors=foBombActors();
+        for(const p of foRescue.captives){
+          if(p.saved||p.discovered)continue;
+          p.discovered=actors.some(a=>a.alive&&a.team==='blue'&&
+            Math.hypot(a.pos.x-p.x,a.pos.z-p.z)<=12&&
+            hasLineOfSight(new THREE.Vector3(a.pos.x,a.pos.y+1.3,a.pos.z),new THREE.Vector3(p.x,1.1,p.z)));
+        }
         const result=stepFoRescue(foRescue,dt,matchState.timeRemaining,actors,(a,p)=>{
           if(!hasLineOfSight(new THREE.Vector3(a.pos.x,a.pos.y+1.3,a.pos.z),new THREE.Vector3(p.x,1.1,p.z)))return false;
           return a.player?!droneSystem.isPlayerControlling()&&!mouseDownLeft&&Math.hypot(player.vel.x,player.vel.z)<1.3:
             !a.visibleEnemy&&!a.activeDroneId&&Math.hypot(a.moveVelX||0,a.moveVelZ||0)<1;
         });
-        for(const p of foRescue.captives){
-          const marker=FO_RESCUE_POINTS.find(q=>q.id===p.id);
-          for(const part of marker.parts||[]){
-            part.mesh.visible=!p.saved&&(!p.carrier||part.y>1.5);
-            part.mesh.position.set(p.x,part.y,p.z);
-          }
-        }
+        syncFoRescueMarkers();
         const saved=foRescue.captives.filter(p=>p.saved).length;
         const carrying=foRescue.captives.some(p=>p.carrier==='player');
         document.getElementById('fo-bomb-status').textContent='ESİR '+saved+'/2 • '+(carrying?'TAHLİYE BÖLGESİNE DÖN':foRescue.captives.some(p=>p.actor==='player')?'KURTARILIYOR':'ESİRİN YANINDA DUR');
@@ -6417,9 +6456,21 @@
         const idx=Math.max(0,Number(bot.id.split('_')[1])||0);
         let point,role;
         if(bot.team==='blue'){
-          const available=live.filter(p=>!p.carrier);
-          point=carried?FO_RESCUE_EXIT:available.length?available[idx%available.length]:FO_RESCUE_EXIT;
-          role=carried?'ESCORT':'RESCUE';
+          const available=live.filter(p=>!p.carrier&&p.discovered);
+          if(carried){point=FO_RESCUE_EXIT;role='ESCORT';}
+          else if(available.length){point=available[idx%available.length];role='RESCUE';}
+          else if(live.some(p=>!p.carrier)){
+            const branch=FO_RESCUE_BRANCHES[idx%FO_RESCUE_BRANCHES.length];
+            const entry={x:idx%4<2?-21:21,z:28};
+            const other=FO_RESCUE_ROOMS[branch.room==='A'?1:0];
+            const stages=[entry,branch,branch.approach,branch.search,other];
+            bot.foRescueSearchStage=bot.foRescueSearchStage||0;
+            let target=stages[bot.foRescueSearchStage%stages.length];
+            if(Math.hypot(bot.pos.x-target.x,bot.pos.z-target.z)<1.8){
+              bot.foRescueSearchStage++;target=stages[bot.foRescueSearchStage%stages.length];
+            }
+            point=target;role='SEARCH';
+          }else{point=FO_RESCUE_EXIT;role='ESCORT';}
         }else{
           const target=live.filter(p=>!p.carrier)[idx%Math.max(1,live.filter(p=>!p.carrier).length)];
           point=target?{x:target.x+(idx%3-1)*3,z:target.z+6}: {x:(idx%3-1)*8,z:24};
@@ -14452,7 +14503,7 @@
             rctx.font='bold 11px monospace';rctx.fillText(site.id,x-3,z+4);
           }
         }
-        if(isFoRescueMode())for(const p of [...foRescue.captives.filter(p=>!p.saved),{...FO_RESCUE_EXIT,id:'T'}]){
+        if(isFoRescueMode())for(const p of [...foRescue.captives.filter(p=>!p.saved&&p.discovered),{...FO_RESCUE_EXIT,id:'T'}]){
           const x=(p.x-refPos.x)*scale,z=(p.z-refPos.z)*scale;
           if(Math.hypot(x,z)<cx-8){rctx.fillStyle='#a9d5bb';rctx.font='bold 11px monospace';rctx.fillText(p.id,x-3,z+4);}
         }
@@ -14784,6 +14835,7 @@
           clearAllMatchEntities();
           droneSystem.resetAll();
           selectFoMap(selectedMode);
+          if(isFoRescueMode())syncFoRescueMarkers();
           initBots();
         }
         matchState.started = true;
