@@ -22,6 +22,7 @@ on:
       - ai/v49-cover-route-hysteresis
       - mode/v51-bomb-depot
       - ai/v54-behavior-controller
+      - ai/v55-look-controller
   workflow_dispatch:
 
 jobs:
@@ -40,7 +41,7 @@ jobs:
       - name: Run actual WebGL 6v6 match and UI acceptance
         run: node scripts/browser-webgl-smoke.mjs
       - name: Test independent Depot 17 bomb mode
-        if: github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller'
+        if: github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller'
         run: node scripts/browser-bomb-depot-smoke.mjs
       - name: Render V25 versus V25+V11 characters from three angles
         run: node scripts/character-turntable.mjs
