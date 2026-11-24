@@ -11788,7 +11788,8 @@ function buildSquadLeadership() {
           for(let j=0;j<16;j++){
             const yaw=j*Math.PI/8,dx=Math.sin(yaw),dz=Math.cos(yaw);
             let reach=0;
-            for(const r of [.6,1.2,2,3.2,4.8,6.4]){
+            for(let step=1;step<=32;step++){
+              const r=step*.2;
               if(!walk(n.x+dx*r,n.y,n.z+dz*r))break;
               reach=r;
             }
@@ -11796,7 +11797,7 @@ function buildSquadLeadership() {
           }
           const exits=(adj[i]||[]).map(e=>nodes[e.to]).filter(q=>q&&Math.abs(q.y-n.y)<.4);
           const open=arcs.filter(a=>a.reach>=4.8).length;
-          const nearWall=arcs.filter(a=>a.reach<=1.2).length;
+          const nearWall=arcs.filter(a=>a.reach<=1.21).length;
           const tag=n.tag||'';
           const choke=nearWall>=4&&open<=7||/door|entry|exit|gate|portal/.test(tag);
           const corner=nearWall>=2&&open>=2&&open<=11;
@@ -11833,7 +11834,8 @@ function buildSquadLeadership() {
         if(plan.speed<=0){
           if(!profile.guard||d>2.5)return null;
           const phase=Math.floor((now+(bot.animPhase||0)*.1)/1.8);
-          return {owner:'MAP_GUARD',yaw:botMapGuardYaw(profile,forward,phase),pitch:0};
+          const guardForward=bot.team==='blue'?Math.PI:bot.team==='red'?0:forward;
+          return {owner:'MAP_GUARD',yaw:botMapGuardYaw(profile,guardForward,phase),pitch:0};
         }
         if(!leg||!leg.next||d>3.5||d<.45||!(profile.corner||profile.choke))return null;
         if(Math.abs(leg.next.y-node.y)>.4)return null;
