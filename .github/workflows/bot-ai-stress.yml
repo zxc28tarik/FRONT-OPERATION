@@ -1,8 +1,8 @@
-name: V46 accelerated 600s bot engine stress
+name: V47 accelerated 600s bot engine stress
 on:
   push:
     branches:
-      - ai/v46-target-cover-consistency
+      - ai/v47-cover-lifecycle-reliability
     paths:
       - .github/workflows/bot-ai-stress.yml
       - scripts/browser-bot-ai-stress.mjs
@@ -27,7 +27,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: front-operation-bot-v46-600s
+          name: front-operation-bot-v47-600s
           path: test-artifacts/front-operation-bot-stress/
           if-no-files-found: warn
           retention-days: 14
