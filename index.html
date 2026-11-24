@@ -4070,10 +4070,11 @@
         {id:'A_WEST',x:-32,z:-17,room:'A',approach:{x:-32,z:-24},search:{x:-18,z:-36}},
         {id:'A_FRONT',x:-18,z:-17,room:'A',approach:{x:-18,z:-24},search:{x:-18,z:-36}},
         {id:'LINK',x:0,z:-17,room:'LINK',approach:{x:0,z:-29},search:{x:0,z:-36}},
-        {id:'B_FRONT',x:18,z:-17,room:'B',approach:{x:18,z:-24},search:{x:18,z:-36}}
+        {id:'B_FRONT',x:18,z:-17,room:'B',approach:{x:20.5,z:-24},search:{x:18,z:-36}}
       ];
       function foRescueSpawnRoom(random=Math.random){return FO_RESCUE_ROOMS[random()<.5?0:1];}
       const FO_RESCUE_EXIT={x:0,z:50,radius:6};
+      const FO_RESCUE_SNIPER={x:22.5,z:-36};
       function foPrisonGraph(solids){
         const nodes=[],edges=[];
         const low=solids.filter(c=>c.minY<1.55&&c.maxY>.25);
@@ -4099,7 +4100,7 @@
         for(const room of FO_RESCUE_ROOMS)for(const off of [-2.5,2.5])add(room.x+off,room.z);
         for(const x of [-21,21])add(x,28);
         for(const r of FO_RESCUE_BRANCHES){add(r.x,r.z);add(r.approach.x,r.approach.z);add(r.search.x,r.search.z);}
-        add(-10,-36);add(10,-36);add(-26,-36);
+        add(-10,-36);add(10,-36);add(-26,-36);add(FO_RESCUE_SNIPER.x,FO_RESCUE_SNIPER.z);
         for(let z=-54;z<=54;z+=6)for(let x=-36;x<=36;x+=6)add(x,z);
         for(const q of low){
           if(q.maxX-q.minX>70||q.maxZ-q.minZ>70)continue;
@@ -4152,7 +4153,13 @@
           for(const z of [-42,-30])box(inner,z,1,6,4.8,wall);
           if(x<0)for(const z of [-42,-30])box(outer,z,1,6,4.8,wall);
           else box(outer,-36,1,18,4.8,wall);
-          for(const z of [-45,-27])for(const dx of [-5.6,5.6])box(x+dx,z,4.8,1,4.8,wall);
+          for(const z of [-45,-27])for(const dx of [-5.6,5.6]){
+            if(x===18&&z===-27&&dx===5.6){
+              // Narrow game sight window in the east wing's facade.
+              box(21.55,z,.7,1,4.8,wall);box(24.5,z,3,1,4.8,wall);
+              box(22.45,z,1.1,1,1.05,wall);box(22.45,z,1.1,1,2.5,wall,3.55);
+            }else box(x+dx,z,4.8,1,4.8,wall);
+          }
           box(x,-36,17,19,.36,dark,4.98);
           for(const z of [-42,-30])deco(x,4.55,z,9,.12,.22,metal);
           for(const dx of [-4,4])box(x+dx,-40,1.8,2,1.2,metal);
@@ -4166,6 +4173,12 @@
           [-30,9,6,8,4.2],[-18,18,5,4,3.2],[-18,-4,5,4,3.2],[24,16,5,4,3.2],[15,3,5,4,3.2],[29,-5,5,4,3.2],
           [-34,-43,4,4,3.2],[34,-38,5,5,3.2],[-7,-56,4,3,3.2],[7,-56,4,3,3.2]]){
           box(x,z,w,d,h,dark);deco(x,h+.08,z,w+.18,.16,d+.18,metal);
+        }
+        // V92: asymmetrical gameplay. Left middle is screened; the final
+        // west approaches remain open. East entrance uses offset solid cover.
+        for(const [x,z,w,d,ht] of [[-23,5,7,2,3.6],[-33,0,5,2,3.6],[-20,-10,7,2,3.6],
+          [17,-22,3.1,1.5,2.6],[18,-30,3.4,1.5,2.6],[24,-24,2,3,2.4]]){
+          box(x,z,w,d,ht,dark);deco(x,ht+.08,z,w+.14,.16,d+.14,metal);
         }
         const exitMat=new THREE.MeshBasicMaterial({color:0x82bba2,transparent:true,opacity:.75,side:THREE.DoubleSide});
         addDecoMesh(new THREE.RingGeometry(5.8,6,48),exitMat,0,.035,50,-Math.PI/2);
@@ -6473,7 +6486,7 @@
           }else{point=FO_RESCUE_EXIT;role='ESCORT';}
         }else{
           const target=live.filter(p=>!p.carrier)[idx%Math.max(1,live.filter(p=>!p.carrier).length)];
-          point=target?{x:target.x+(idx%3-1)*3,z:target.z+6}: {x:(idx%3-1)*8,z:24};
+          point=bot.classId==='sniper'&&live.some(p=>!p.carrier)?FO_RESCUE_SNIPER:target?{x:target.x+(idx%3-1)*3,z:target.z+6}: {x:(idx%3-1)*8,z:24};
           role='GUARD';
         }
         const goal=findNearestNavNode({x:point.x,y:0,z:point.z});
