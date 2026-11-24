@@ -167,3 +167,6 @@ jobs:
 
       - name: Run V79 sound route ownership regression
         run: node tests/bot_ai_v79_sound_route_regression.cjs
+
+      - name: Run V80 retreat route regression
+        run: node tests/bot_ai_v80_retreat_route_regression.cjs
