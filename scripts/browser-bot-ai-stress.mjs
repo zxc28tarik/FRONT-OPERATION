@@ -41,7 +41,7 @@ try {
   if(!stats||engine.simulatedSec!==600||stats.seconds<595)
     throw Error('600s bot engine clock not observed: '+
       JSON.stringify({sim:engine?.simulatedSec,clock:stats?.seconds}));
-  if(!nav||nav.checked<60||nav.blockedEdges.length<4||
+  if(!nav||nav.checked<60||nav.reachableNodes!==50||nav.blockedEdges.length<4||
       nav.blockedEdges.some(s=>typeof s!=='string'))
     throw Error('V42 physical navigation pruning QA not observed: '+JSON.stringify(nav));
   const difficulties=['normal','hard','expert'];
