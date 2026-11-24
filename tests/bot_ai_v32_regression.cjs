@@ -70,7 +70,7 @@ function runBotAiV32Regression(html) {
     'Sighting expires after simulated-time TTL'));
 
   // Perception regression: disappearing target must not leak new world position.
-  const perceptionSrc = between('      function updateBotPerception(', '      // =========================================================================\n      // 11. HIT FEEDBACK');
+  const perceptionSrc = between('      function botTargetClaimPenalty(', '      // V47: Reacquiring') + '\n' + between('      function updateBotPerception(', '      // =========================================================================\n      // 11. HIT FEEDBACK');
   const actors = {
     redA: {id:'redA', team:'red', alive:true, visible:true, pos:new Vec3(13,0,0), eye:new Vec3(13,1.48,0)},
     redB: {id:'redB', team:'red', alive:true, visible:false, pos:new Vec3(11,0,0), eye:new Vec3(11,1.48,0)}
