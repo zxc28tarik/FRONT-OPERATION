@@ -872,6 +872,7 @@
         <button id="btn-touch-drone-spot" class="px-3 py-2 rounded-lg bg-slate-900/85 border border-amber-400/50 text-xs font-bold text-amber-300">İŞARET</button>
       </div>
       <div class="flex gap-2">
+        <button id="btn-touch-pause" class="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-500/50 text-xs font-bold text-white">DURAKLAT</button>
         <button id="btn-touch-class" class="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-500/50 text-xs font-bold text-amber-300">SINIF</button>
         <button id="btn-touch-roll" class="px-3 py-2 rounded-lg bg-slate-900/80 border border-sky-400/50 text-xs font-bold text-sky-300">TAKLA</button>
         <button id="btn-touch-jump" class="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-500/50 text-xs font-bold text-white">ZIPLA</button>
@@ -887,7 +888,7 @@
   <!-- V29 KISS Pause: one clearly prioritized action, two secondary paths. -->
   <div id="pause-overlay" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="pause-title">
     <div class="fo-pause-panel">
-      <div class="fo-pause-eyebrow">FRONT OPERATION · MARIEN</div>
+      <div class="fo-pause-eyebrow" id="fo-pause-map-name">FRONT OPERATION · MARIEN</div>
       <h2 id="pause-title">DURAKLATILDI</h2>
       <p>Maç beklemede. Hazır olduğunda devam et.</p>
       <div class="fo-pause-score" aria-label="Geçerli maç bilgileri">
@@ -897,6 +898,7 @@
       </div>
       <button type="button" id="btn-pause-resume" class="fo-pause-primary">OYUNA DEVAM ET <span>ESC</span></button>
       <button type="button" id="btn-pause-class" class="fo-pause-secondary">Sınıf Değiştir <span>B</span></button>
+      <button type="button" id="btn-pause-map" class="fo-pause-secondary">Harita Değiştir</button>
       <button type="button" id="btn-pause-score" class="fo-pause-secondary">Skor Tablosu <span>TAB</span></button>
     </div>
   </div>
@@ -907,7 +909,7 @@
       <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
         <div>
           <h2 class="text-lg font-black tracking-wide text-white">SKOR TABLOSU</h2>
-          <p class="text-xs text-slate-400">MARIEN • 6v6 • HEDEF 50</p>
+          <p id="fo-score-map-name" class="text-xs text-slate-400">MARIEN • 6v6 • HEDEF 50</p>
         </div>
         <div class="flex items-center gap-3">
           <span class="mono text-sm font-semibold text-slate-300" id="sb-timer">10:00</span>
@@ -1006,6 +1008,7 @@
         </div>
       </div>
       <button id="btn-deploy" class="fo-deploy" type="button">ÇATIŞMAYA KATIL</button>
+      <button id="btn-map-cancel" type="button" class="hidden" style="width:100%;margin-top:8px;padding:9px;border:1px solid #3c4b55;border-radius:6px;color:#d4dfe1;background:#27343d;">Vazgeç</button>
     </div>
   </div>
 
@@ -6248,6 +6251,7 @@
         const mode=matchState.mode;
         const bomb=mode==='bomb';
         document.getElementById('fo-radar-map').textContent=bomb?'TERSANE • BOMBA':'MARIEN • CQC';
+        document.getElementById('fo-score-map-name').textContent=bomb?'TERSANE • 6v6 • TEK CAN':'MARIEN • 6v6 • HEDEF 50';
         document.getElementById('fo-score-rule').textContent=bomb?'TEK CAN':'HEDEF: 50';
         document.getElementById('fo-bomb-status').classList.toggle('hidden',!bomb);
         const hint=document.getElementById('fo-death-hint');
@@ -14354,6 +14358,7 @@
       // V29: local single-player simulation pause; rendering continues at idle.
       let gamePaused = false;
       let scoreboardReturnToPause = false;
+      let mapSwitchPending = false;
       let suppressUnlockPauseUntil = 0;
       function resetPausedInputs() {
         Object.keys(keys).forEach((key) => { keys[key] = false; });
@@ -14362,6 +14367,8 @@
         isDraggingLook = false;
       }
       function updatePauseSummary() {
+        document.getElementById('fo-pause-map-name').textContent='FRONT OPERATION · '+(matchState.mode==='bomb'?'TERSANE':'MARIEN');
+        document.getElementById('btn-pause-class').disabled=matchState.mode==='bomb';
         document.getElementById('pause-blue-score').textContent = matchState.scoreBlue;
         document.getElementById('pause-red-score').textContent = matchState.scoreRed;
         document.getElementById('pause-timer').textContent =
@@ -14389,8 +14396,39 @@
           try { canvas.requestPointerLock(); } catch (err) {}
         }
       }
+      // V87: select a map while paused; no world or score changes before confirmation.
+      function openPauseMapMenu(){
+        if(!gamePaused||!matchState.started||matchState.ended)return;
+        mapSwitchPending=true;
+        scoreboardReturnToPause=false;
+        resetPausedInputs();
+        document.getElementById('pause-overlay').classList.add('hidden');
+        document.getElementById('scoreboard-overlay').classList.add('hidden');
+        foModeSelect.value=matchState.mode;
+        refreshMapMenuCaption();
+        selectMenuClass(document.querySelector('.class-card[data-class="'+player.classId+'"]'));
+        document.getElementById('fo-mode-picker').style.display='flex';
+        document.getElementById('menu-title').textContent='HARİTA DEĞİŞTİR';
+        const subtitle=document.getElementById('menu-subtitle');
+        subtitle.textContent='Yeni maç başlatılırsa mevcut maçın skoru ve ilerlemesi sıfırlanır.';
+        subtitle.classList.remove('hidden');
+        document.getElementById('btn-deploy').textContent='YENİ MAÇ BAŞLAT';
+        document.getElementById('btn-map-cancel').classList.remove('hidden');
+        document.getElementById('menu-overlay').classList.remove('hidden');
+        foModeSelect.focus();
+      }
+      function cancelPauseMapMenu(){
+        if(!mapSwitchPending)return;
+        mapSwitchPending=false;
+        foModeSelect.value=matchState.mode;
+        refreshMapMenuCaption();
+        document.getElementById('fo-mode-picker').style.display='none';
+        document.getElementById('btn-map-cancel').classList.add('hidden');
+        document.getElementById('menu-overlay').classList.add('hidden');
+        showPauseMenu();
+      }
       function openClassMenu() {
-        if (!matchState.started || matchState.ended || matchState.mode==='bomb') return;
+        if (mapSwitchPending || !matchState.started || matchState.ended || matchState.mode==='bomb') return;
         gamePaused = true;
         scoreboardReturnToPause = false;
         resetPausedInputs();
@@ -14424,6 +14462,9 @@
       document.getElementById('btn-pause-resume').addEventListener('click', resumeFromPause);
       document.getElementById('btn-pause-class').addEventListener('click', openClassMenu);
       document.getElementById('btn-pause-score').addEventListener('click', openPauseScoreboard);
+      document.getElementById('btn-pause-map').addEventListener('click', openPauseMapMenu);
+      document.getElementById('btn-map-cancel').addEventListener('click', cancelPauseMapMenu);
+      document.getElementById('btn-touch-pause').addEventListener('click', showPauseMenu);
       document.getElementById('btn-score-close').addEventListener('click', closeScoreboard);
 
 
@@ -14494,11 +14535,12 @@
       updateClassMenuPreview();
 
       const foModeSelect=document.getElementById('fo-game-mode');
-      foModeSelect.addEventListener('change',()=>{
+      function refreshMapMenuCaption(){
         document.querySelector('.fo-map-caption').textContent=foModeSelect.value==='bomb'?'TERSANE • 6V6':'MARIEN • 6V6';
-      });
+      }
+      foModeSelect.addEventListener('change',refreshMapMenuCaption);
       document.getElementById('btn-deploy').addEventListener('click', (e) => {
-        if(matchState.started&&!matchState.ended&&matchState.mode==='bomb'){
+        if(!mapSwitchPending&&matchState.started&&!matchState.ended&&matchState.mode==='bomb'){
           resumeFromPause();return;
         }
         if (e && e.currentTarget && typeof e.currentTarget.blur === 'function') {
@@ -14511,7 +14553,9 @@
         document.getElementById('scoreboard-overlay').classList.add('hidden');
         document.getElementById('menu-subtitle').classList.add('hidden');
         const selectedMode=foModeSelect.value==='bomb'?'bomb':'deathmatch';
-        const isNewMatch = matchState.ended || (!matchState.started && selectedMode==='bomb');
+        const isNewMatch = mapSwitchPending || matchState.ended || (!matchState.started && selectedMode==='bomb');
+        mapSwitchPending=false;
+        document.getElementById('btn-map-cancel').classList.add('hidden');
         if (isNewMatch) {
           matchState.ended = false;
           matchState.scoreBlue = 0;
@@ -14519,6 +14563,8 @@
           matchState.mode=selectedMode;
           matchState.timeRemaining = selectedMode==='bomb'?FO_BOMB_RULES.roundSeconds:MATCH_DURATION_SEC;
           resetFoBomb();
+          stopFoSpectator();
+          resetPausedInputs();
           matchState.killStreak = 0;
           player.kills = 0;
           player.deaths = 0;
@@ -14569,6 +14615,10 @@
         // Keep ESC's original drone-recall shortcut; P always pauses.
         const pauseVisible = !document.getElementById('pause-overlay').classList.contains('hidden');
         const scoreboardVisible = !document.getElementById('scoreboard-overlay').classList.contains('hidden');
+        if(mapSwitchPending&&(e.code==='Escape'||e.code==='KeyP')){
+          e.preventDefault();if(!e.repeat)cancelPauseMapMenu();keys[e.code]=false;return;
+        }
+        if(mapSwitchPending&&e.code==='KeyB'){keys[e.code]=false;return;}
         if (e.code === 'Escape' && scoreboardVisible) {
           e.preventDefault();
           closeScoreboard();
