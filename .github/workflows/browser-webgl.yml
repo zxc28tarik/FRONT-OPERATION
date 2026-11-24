@@ -20,6 +20,7 @@ on:
       - ai/v47-cover-lifecycle-reliability
       - ai/v48-cover-route-recovery
       - ai/v49-cover-route-hysteresis
+      - mode/v51-bomb-depot
   workflow_dispatch:
 
 jobs:
@@ -37,6 +38,9 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run actual WebGL 6v6 match and UI acceptance
         run: node scripts/browser-webgl-smoke.mjs
+      - name: Test independent Depot 17 bomb mode
+        if: github.ref_name == 'mode/v51-bomb-depot'
+        run: node scripts/browser-bomb-depot-smoke.mjs
       - name: Render V25 versus V25+V11 characters from three angles
         run: node scripts/character-turntable.mjs
       - name: Save browser screenshots and report even if tests fail

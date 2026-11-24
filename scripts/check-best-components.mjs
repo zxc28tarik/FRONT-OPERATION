@@ -108,10 +108,13 @@ test('BOT weapon muzzle is visual tracer origin in 3 firing modes', () => {
   assert.equal((game.match(/getBotVisibleMuzzlePosition\(bot, (?:botEye|botEyeNoTarget)/g) || []).length, 3);
   assert.ok(visual.includes('fallback.clone()'));
 });
-test('V5 fencing is original; six tactical signs exist', () => {
+test('V5 fencing is original; user-approved V7 removes environment signs', () => {
   assert.equal(normalized(func(game,'makeFenceAlphaTexture')),
     normalized(func(v5,'makeFenceAlphaTexture')));
-  assert.equal((game.match(/addV5TacticalSign\(/g) || []).length - 1, 6);
+  assert.equal((game.match(/addV5TacticalSign\(/g) || []).length - 1, 0);
+  assert.equal((game.match(/^\s*createCorridorSign\('/gm) || []).length, 0);
+  assert.equal((game.match(/^\s*sign\(/gm) || []).length, 0);
+  assert.ok(game.includes('site.ring=addDecoMesh(new THREE.RingGeometry'));
 });
 test('V5 four architectural detail families are active', () => {
   for (const n of ['detailShippingContainer','detailJerseyBarrier','detailSniperBuilding']) {
