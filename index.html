@@ -10648,9 +10648,9 @@ function buildSquadLeadership() {
 
           const activeBotDrone = bot.classId === 'engineer' ? droneSystem.getOperatorDrone(bot.id) : null;
           if (activeBotDrone) {
-            observeBotCoverLifecycle(bot,nowSec);
             bot.moveVelX = 0;
             bot.moveVelZ = 0;
+            observeBotCoverLifecycle(bot,nowSec);
             bot.combatStrafeGoal = null;
             bot.crouchAmt += (1.0 - bot.crouchAmt) * Math.min(1, dt * 10);
             bot.mesh.root.position.set(bot.pos.x, bot.pos.y - bot.crouchAmt * 0.32, bot.pos.z);
