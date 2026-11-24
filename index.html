@@ -7330,7 +7330,7 @@
         return count;
       }
 
-      function findBestCoverNode(botPos, threatPos, bot = null, excludedNodes = null) {
+      function findBestCoverNode(botPos, threatPos, bot = null) {
         if (!threatPos) return -1;
         _coverThreatEye.set(threatPos.x, threatPos.y + 1.45, threatPos.z);
 
@@ -7360,7 +7360,6 @@
 
         for (let i = 0; i < NAV_NODES.length; i++) {
           const n = NAV_NODES[i];
-          if (excludedNodes && excludedNodes.has(i)) continue;
           if (Math.abs(n.y - botPos.y) > maxYDiff) continue;
 
           const dxBot = n.x - botPos.x;
@@ -7442,43 +7441,60 @@
         return bestNode;
       }
 
-      // V48: Recovery candidate MUST be concealed, connected to the
-      // physical V42 nav graph and approachable from the actor's V45
-      // reachable start node. The currently failed cover is excluded.
+      // V48: Keep the V20-approved cover scoring function byte-for-byte
+      // intact. This emergency-only alternative selector validates the
+      // same crouched concealment with V42/V45 physical A* reachability.
       function selectAlternativeReachableCover(bot,threatPos,avoidNode) {
         if (!bot || !threatPos) return null;
-        const excluded=new Set(avoidNode>=0?[avoidNode]:[]);
         const start=findNearestNavNode(bot.pos,true);
         const origin=NAV_NODES[start];
         if (!origin) return null;
         if (Math.abs(bot.pos.y)<=0.65 &&
             !isBotDirectWalkingLineClear(bot.pos,origin)) return null;
-        for(let trial=0;trial<6;trial++) {
-          const node=findBestCoverNode(bot.pos,threatPos,bot,excluded);
-          if(node<0) break;
+        const eye=new THREE.Vector3(threatPos.x,threatPos.y+1.45,threatPos.z);
+        let winner=null, best=Infinity;
+        const isWounded=bot.hp < (bot.classId==='heavy'?52:42);
+        for(let node=0;node<NAV_NODES.length;node++) {
+          if(node===avoidNode || (bot.coverAvoidNode===node &&
+             bot.coverAvoidUntil>botAiClockSec)) continue;
+          const point=NAV_NODES[node];
+          const d=Math.hypot(point.x-bot.pos.x,point.z-bot.pos.z);
+          const limit=isWounded?28:25.5;
+          if(d<0.5||d>limit||
+             Math.abs(point.y-bot.pos.y)>(bot.classId==='sniper'?3.8:1.35))
+            continue;
+          const distEnemy=Math.hypot(point.x-threatPos.x,point.z-threatPos.z);
+          if(distEnemy<4.8&&!isWounded)continue;
+          const crouch=new THREE.Vector3(point.x,point.y+0.92,point.z);
+          if(hasLineOfSight(eye,crouch))continue;
+          const stand=new THREE.Vector3(point.x,point.y+1.48,point.z);
+          const isPartial=hasLineOfSight(eye,stand);
           const route=findPathAStar(start,node,bot.blockedNode);
-          let length=Math.hypot(bot.pos.x-origin.x,bot.pos.z-origin.z);
           const valid=route && route.length && route[0]===start &&
             route[route.length-1]===node;
-          if(valid) {
-            for(let j=1;j<route.length;j++) {
-              const a=NAV_NODES[route[j-1]], b=NAV_NODES[route[j]];
-              length+=Math.hypot(b.x-a.x,b.z-a.z,(b.y-a.y)*1.4);
-            }
+          if(!valid) {
+            recordBotMetric(bot,'coverRouteRejected');
+            continue;
           }
-          const target=NAV_NODES[node];
-          const direct=Math.hypot(target.x-bot.pos.x,target.z-bot.pos.z);
-          if(valid && length<=Math.max(18,direct*2.2+8)) {
-            if(trial)recordBotMetric(bot,'coverAlternativeSelected');
-            return {
-              node,route,
-              partial:!!(bot._coverEval && bot._coverEval.isPartialCover)
-            };
+          let routeDistance=Math.hypot(bot.pos.x-origin.x,bot.pos.z-origin.z);
+          for(let j=1;j<route.length;j++) {
+            const a=NAV_NODES[route[j-1]], b=NAV_NODES[route[j]];
+            routeDistance+=Math.hypot(b.x-a.x,b.z-a.z,(b.y-a.y)*1.4);
           }
-          recordBotMetric(bot,'coverRouteRejected');
-          excluded.add(node);
+          if(routeDistance>Math.max(18,d*2.2+8)) {
+            recordBotMetric(bot,'coverRouteRejected');
+            continue;
+          }
+          const occupants=getCoverOccupancyCount(node,bot.team,bot.id);
+          const score=routeDistance*0.7+d*0.3+occupants*24-
+            (isPartial?13:17) +(distEnemy<10?9:0);
+          if(score<best) {
+            best=score;
+            winner={node,route,partial:isPartial};
+          }
         }
-        return null;
+        if(winner) recordBotMetric(bot,'coverAlternativeSelected');
+        return winner;
       }
 
       // Do not wait for the 4th full stuck recovery if an approach hasn't
