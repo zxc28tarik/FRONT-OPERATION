@@ -1,0 +1,4 @@
+# V65 — Takım aralığı ve doğal takip (deneysel)
+V64 sonuçları: Marien hedef değişimi 459→291, hedef değişimi/edinim %14.25→%9.30; isabet %11.01→%10.09, sıkışma 79→76. Tersane 3/3 kurulum korunur fakat sıkışma 1→3. V64 teknik PASS, kalite kapısı açık.
+V65 yalnız hareket eden, aynı yönlü, görüş değil fiziksel yürüyüş açıklığı doğrulanmış takım arkadaşı arkasında hız düzenler. Hedef aralık 2.25 m, düzeltme katsayısı 1.8, asgari takip hızı 1.0; deneysel. Çok yakın, sabit, karşılıklı, farklı kat ve kapalı geçişlerde önceki kaçınma uygulanır. Rota, davranış sahibi ve fizik aynı kalır. Yeni isabet/nişan ayarı yok.
+14 birim kontrolü, V64/V65 eşlenik 12 maç; sıkışma, yakın çift, isabet, hedef tutarlılığı ve doğal bomba kurulumu izlenir. V64 isabet kaybı ve bomba sıkışması henüz çözülmüş sayılmaz. Ana dal birleştirilmez.
