@@ -17,9 +17,9 @@ const hook=`
           meshes:mapEnvironmentMeshes.length,graph:JSON.stringify(NAV_NODES),
           pos:player.pos.toArray(),spawns:bots.map(b=>({team:b.team,z:b.pos.z})),
           bounds:[foWorldX(38.5),foWorldZ(59.5)],
-          outerWalkable:isPositionWalkable(108.8,0,75),
+          outerWalkable:isPositionWalkable(-72.96,0,45),
           navCount:NAV_NODES.length,navEdges:NAV_VALIDATION.activeEdges,
-          sightBlocked:!hasLineOfSight(new THREE.Vector3(0,1.48,75),new THREE.Vector3(0,1.48,42)),
+          sightBlocked:!hasLineOfSight(new THREE.Vector3(0,1.48,45),new THREE.Vector3(0,1.48,25.2)),
           sites:FO_BOMB_SITES.map(s=>({id:s.id,reachable:findPathAStar(2,s.node,-1).at(-1)===s.node,
             walkable:isPositionWalkable(s.x,0,s.z)}))}),
         freeze:()=>{gamePaused=true;canvas.requestPointerLock=()=>{};},
@@ -88,10 +88,10 @@ try{
  await page.locator('#fo-game-mode').selectOption('bomb');
  await page.evaluate(()=>{window.__foDepotQa.freeze();document.getElementById('btn-deploy').click();window.__foDepotQa.freeze();});
  const depot=await page.evaluate(()=>window.__foDepotQa.snapshot());
- if(depot.mode!=='bomb'||depot.nav!==243||depot.navCount!==243||depot.navEdges!==801||!depot.sightBlocked||depot.botLives.length!==11||depot.graph===original.graph||
+ if(depot.mode!=='bomb'||depot.nav!==251||depot.navCount!==251||depot.navEdges!==813||!depot.sightBlocked||depot.botLives.length!==11||depot.graph===original.graph||
      depot.sites.some(s=>!s.walkable||!s.reachable)||depot.colliders===original.colliders)throw Error('Invalid separate map '+JSON.stringify(depot));
- if(depot.bounds[0]<=130||depot.bounds[1]<=89||!depot.outerWalkable||
-     Math.abs(depot.pos[2]-75)>.01||depot.spawns.some(b=>b.team==='blue'?b.z<74:b.z>-74))
+ if(Math.abs(depot.bounds[0]-87.78)>.01||Math.abs(depot.bounds[1]-53.55)>.01||!depot.outerWalkable||
+     Math.abs(depot.pos[2]-45)>.01||depot.spawns.some(b=>b.team==='blue'?b.z<44:b.z>-44))
    throw Error('Expanded arena bounds or spawn failure '+JSON.stringify(depot));
  await page.screenshot({path:path.join(output,'depot17-start.png')});
  await page.evaluate(()=>window.__foDepotQa.plant());
@@ -116,6 +116,6 @@ try{
      restored.graph!==original.graph||restored.nav!==50||restored.bounds[0]!==38.5||restored.bounds[1]!==59.5||restored.outerWalkable)throw Error('Marien restore mismatch');
  if(await page.evaluate(()=>document.body.classList.contains('fo-spectating')))throw Error('Spectator HUD leaked into new match');
  if(errors.length)throw Error(errors.join(' | '));
- console.log('PASS real WebGL Tersane V8: wider arena, blocked spawn sightline, 243-node map, both sites reachable, plant, no respawn, teammate switching, free camera, rendered aim gate, defuse, exact Marien restoration');
+ console.log('PASS real WebGL Tersane V10: compact arena, blocked spawn sightline, 251-node map, both sites reachable, plant, no respawn, teammate switching, free camera, rendered aim gate, defuse, exact Marien restoration');
 }catch(e){console.error('FAIL Depot17 browser: '+String(e));process.exitCode=1;}
 finally{await browser?.close();await new Promise(r=>server.close(r));}
