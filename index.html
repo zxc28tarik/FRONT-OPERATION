@@ -9179,7 +9179,7 @@
         bot.behavior=null;bot.behaviorPlan=null;
         bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
         bot.locomotionMode='HOLD';bot.dodgeMode='HOLD';bot.locomotionSpeed=0;
-        bot.routeProgress=null;bot.investigateRetryAt=0;resetBotCoverCycle(bot);
+        bot.routeProgress=null;bot.investigateRetryAt=0;resetBotCoverCycle(bot);bot.contactOpportunity=null;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -12101,7 +12101,12 @@
               if(walk(home,p)&&see({x:p.x,y:p.y+1.45,z:p.z},{x:threat.x,y:threat.y+1.45,z:threat.z})){s.peek=p;break;}
             }
           }
-          if(!s.peek){s.elapsed=0;return result('HOLD',null,0,1,false);}
+          if(!s.peek){
+            s.failedPeeks=(s.failedPeeks||0)+1;
+            if(s.failedPeeks>=3){bot.coverNode=-1;bot.coverPhase='NONE';bot.coverSearchCooldown=2.4;bot.combatCoverCycle=null;return {target:null,speed:0,crouch:.2,fire:false,phase:'REPLAN'};}
+            s.elapsed=0;return result('HOLD',null,0,1,false);
+          }
+          s.failedPeeks=0;
           s.phase='OUT';s.elapsed=0;
         }
         if(s.phase==='OUT'){
@@ -12120,6 +12125,36 @@
         if(kind==='RETREAT'||kind==='FLANK')return false;
         if(plannedSpeed>3.1||speed>3.4)return false;
         return true;
+      }
+
+      // V63: a newly acquired direct contact gets a bounded firing opportunity.
+      // No hidden coordinates or snap aim; existing reaction, muzzle and LOS gates remain.
+      function updateBotContactOpportunity(bot,enemy,now){
+        const old=bot.contactOpportunity;
+        if(!enemy){
+          if(old&&now-old.lastSeen>1.2)bot.contactOpportunity=null;
+          return null;
+        }
+        if(!old||old.id!==enemy.id||now-old.lastSeen>1.2){
+          bot.contactOpportunity={id:enemy.id,started:now,lastSeen:now,fired:false};
+        }else old.lastSeen=now;
+        return bot.contactOpportunity;
+      }
+      function botShouldHoldContact(bot,enemy,now,clearLane,wounded,tooClose){
+        const contact=bot.contactOpportunity;
+        if(!enemy||!contact||contact.id!==enemy.id||wounded||tooClose||bot.coverNode>=0||
+           bot.teamFlankGoalNode>=0||!clearLane||contact.fired)return false;
+        const elapsed=now-contact.started;
+        return elapsed>=0&&elapsed<1.55;
+      }
+      function botShouldSeekTacticalCover(bot,enemy,dist,clearLane,now){
+        if(!enemy)return false;
+        const threshold=bot.personalityTuning?.coverDistance??11.5;
+        if(botObservedPressure(bot,enemy,dist))return dist>threshold||bot.classId==='sniper'||bot.classId==='heavy';
+        // Clear, unpressured contact should not trigger routine retreat just
+        // because the opponent is distant. A blocked lane remains a reason
+        // to consider a position change, after the initial contact window.
+        return !clearLane&&dist>threshold;
       }
 
       function updateBots(dt) {
@@ -12213,6 +12248,7 @@
           const freshLostContact=!bot.visibleEnemy&&!!bot.lastKnownEnemyPos&&Number.isFinite(bot.lastDirectContactAt)&&nowSec-bot.lastDirectContactAt<.75;
           const bestEnemy = bot.visibleEnemy;
           const currentTarget = bestEnemy ? bestEnemy.id : null;
+          updateBotContactOpportunity(bot,bestEnemy,nowSec);
           if (currentTarget && currentTarget !== previousTarget) recordBotMetric(bot,'sightings');
           recordBotTargetTransition(bot, previousTarget, currentTarget);
           bot.telemetryTargetId = currentTarget;
@@ -12275,6 +12311,8 @@
             const woundedThreshold = bot.classId === 'heavy' ? 52 : 42;
             const isWounded = bot.hp < woundedThreshold;
             const isSniperTooClose = bot.classId === 'sniper' && distToEnemy < 11.5;
+            const initialFireLane=isBotFireLaneClear(bot,bestEnemy.eye);
+            const holdContact=botShouldHoldContact(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
             if (!isWounded && !isSniperTooClose && distToEnemy > 8) {
               refreshBotCoverForMovingEnemy(bot, activeThreatPos, dt);
             }
@@ -12334,8 +12372,8 @@
               }
             } else {
               const wantsTacticalCover = !(bot.teamRole === 'FLANK' &&
-                bot.teamFlankGoalNode >= 0) &&
-                (distToEnemy > (bot.personalityTuning?.coverDistance??11.5) || bot.classId === 'sniper' || bot.classId === 'heavy');
+                bot.teamFlankGoalNode >= 0) && !holdContact &&
+                botShouldSeekTacticalCover(bot,bestEnemy,distToEnemy,initialFireLane,nowSec);
 
               if (wantsTacticalCover && bot.coverNode === -1 && bot.coverSearchCooldown <= 0) {
                 bot.coverSearchCooldown = 1.2;
@@ -12398,6 +12436,7 @@
                     bot.combatStrafeGoal = chooseBotCombatStrafeGoal(bot, desiredUpperYaw);
                   }else bot.combatStrafeGoal=null;
                 }
+                if(holdContact){bot.combatStrafeGoal=null;bot.dodgeMode='HOLD';}
                 const strafeRemaining = bot.combatStrafeGoal ? Math.hypot(bot.combatStrafeGoal.x-bot.pos.x,bot.combatStrafeGoal.z-bot.pos.z) : 0;
                 if (strafeRemaining > 0.48) moveTargetPos = bot.combatStrafeGoal;
                 moveSpeed = moveTargetPos ? (bot.classId === 'sniper' ? 1.8 : 2.7) : 0;
@@ -12407,7 +12446,7 @@
 
             // A single squad flanker can approach the same observed enemy
             // from another navigable lane, without overruling emergency retreat.
-            if (!isWounded && !isSniperTooClose && bot.coverNode < 0 && distToEnemy > 14) {
+            if (!isWounded && !isSniperTooClose && bot.coverNode < 0 && distToEnemy > 14 && !holdContact) {
               const previousFlank = bot.teamFlankGoalNode;
               const flankWp = getTeamFlankWaypoint(bot, nowSec);
               if (previousFlank < 0 && bot.teamFlankGoalNode >= 0)
@@ -12467,6 +12506,7 @@
                 : (bot.classId === 'sniper' ? (distToEnemy < 11 ? 'glock18c' : 'mrad') : 'minimi');
               const bw = WEAPONS[botWeaponId];
               bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && botWeaponId === 'mrad' ? 1.35 : 2.1);
+              if(bot.contactOpportunity)bot.contactOpportunity.fired=true;
               bot.burstCount++;
               if (bot.burstCount > (bot.classId === 'heavy' ? 9 : 5)) {
                 bot.burstCount = 0;
