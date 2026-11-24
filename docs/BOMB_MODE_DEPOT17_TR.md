@@ -27,6 +27,13 @@ Kullanıcı ilk Depo 17 yerleşimini beğenmedi. Yeni harita asimetrik bir endü
 ## Bot davranışı
 Mevcut V49 algı, nişan, hasar ve çatışma sistemi korunur. Yalnız bomba modunda ve görünür düşman yokken botlar A/B hedefi, savunma/koruma noktası ve kurulum sonrası etkisizleştirme görevine göre A* yol kullanır. Normal ölüm maçına bu görevler uygulanmaz. İlk sürümde amaç görev çevriminin tamamlanması; tam bot taktik ve harita dengesi ayrıca doğal maç stresleri ile ölçülmelidir.
 
+## V3 — Onaylı harita üzerine görsel detay katmanı
+Kullanıcı dört güzergâhlı yerleşimi beğendi. Bu nedenle V2 planı, geçitleri, fiziksel siperleri ve bomba bölgeleri kilitlendi; yalnız görsel katman geliştirildi. Hangar makine yüzeyleri, depodaki mevcut kasa yüzeylerine raf benzeri profiller, yüksek boru ve kablo kanalları, servis/ekipman havalandırmaları, dört portalda metal ve uyarı trimleri, vinç bağlantı detayları, yükleme çizgileri, zemin aşınmaları ve çevre duvarı derzleri eklendi.
+- V2 ile V3 doğrudan kaynak karşılaştırması: yeni detay bloğu dışındaki tüm HTML/JS birebir aynı.
+- İzole gerçek harita oluşturucusu karşılaştırması: dekoratif mesh çağrıları 124→385; 70 collider ve tüm 50 düğüm/85 aday kenar aynı.
+- 41/41 bomba/harita regresyonu doğrudan çalıştırıldı ve geçti.
+- V2 dört geçitli sürümün WebGL kabulü başarılı (45387478141); V3 WebGL kabulü ayrı koşuda (45388085605). FPS ölçülmedi.
+
 ## QA
 Önceki Depo 17 sürümünün Chromium/WebGL kabulü başarılıydı. Tersane yeniden tasarımının yeni tarayıcı koşusu ayrı doğrulanacaktır.
 
