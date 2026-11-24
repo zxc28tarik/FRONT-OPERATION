@@ -5760,7 +5760,28 @@
         return floorY;
       }
 
+      // V63: permit a small step onto a landing only at the top of a ramp.
+      // The deck edge projects into the ramp before the feet reach deck height.
+      // Without this transition both sniper ramps can trap a walking actor.
+      function tryRampLandingStep(pos,radius,ramps,colliders){
+        let lift=pos.y;
+        for(const r of ramps){
+          const topAtEnd=r.yEnd>=r.yStart,topZ=topAtEnd?r.zEnd:r.zStart,topY=Math.max(r.yStart,r.yEnd);
+          if(pos.x<r.minX||pos.x>r.maxX||Math.abs(pos.z-topZ)>1.25||pos.y<topY-.55||pos.y>topY+.25)continue;
+          for(const c of colliders){
+            const rise=c.maxY-pos.y;
+            if(rise<=0||rise>.50||Math.abs(c.maxY-topY)>.24||c.maxY-c.minY>.55)continue;
+            if(topZ<c.minZ-.4||topZ>c.maxZ+.4)continue;
+            const dx=pos.x-Math.max(c.minX,Math.min(pos.x,c.maxX));
+            const dz=pos.z-Math.max(c.minZ,Math.min(pos.z,c.maxZ));
+            if(dx*dx+dz*dz<=radius*radius+1e-7)lift=Math.max(lift,c.maxY);
+          }
+        }
+        pos.y=lift;
+      }
+
       function resolveHorizontalCollision(pos, radius, height) {
+        tryRampLandingStep(pos,radius,mapRamps,mapColliders);
         pos.x = Math.max(-foWorldX(39.2), Math.min(foWorldX(39.2), pos.x));
         pos.z = Math.max(-foWorldZ(60.2), Math.min(foWorldZ(60.2), pos.z));
 
@@ -6024,11 +6045,52 @@
         const role=foBotPlan.orders.get(bot.id)?.role;
         return bot.hp>=28||role==='PLANT'||role==='DEFUSE';
       }
+      // V63: live infantry collides as a circle, whereas the conservative
+      // static graph validator uses a square. At obstacle corners a valid
+      // standing soldier can therefore have no square-clear route origin.
+      function foBotRoutePointClear(x,y,z){
+        if(typeof mapColliders==='undefined')return isPositionWalkable(x,y,z);
+        if(Math.abs(x)>foWorldX(38.5)||Math.abs(z)>foWorldZ(59.5))return false;
+        for(const c of mapColliders){
+          if(y+1.7<=c.minY+.05||y>=c.maxY-.28)continue;
+          const dx=x-Math.max(c.minX,Math.min(x,c.maxX));
+          const dz=z-Math.max(c.minZ,Math.min(z,c.maxZ));
+          if(dx*dx+dz*dz<.42*.42-1e-8)return false;
+        }
+        return true;
+      }
       function foBotSegmentClear(pos,n){
         if(!n)return false;
-        const dx=n.x-pos.x,dz=n.z-pos.z,count=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.35));
-        for(let k=1;k<=count;k++)if(!isPositionWalkable(pos.x+dx*k/count,pos.y,pos.z+dz*k/count))return false;
+        const dx=n.x-pos.x,dz=n.z-pos.z,count=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.18));
+        for(let k=1;k<=count;k++)if(!foBotRoutePointClear(pos.x+dx*k/count,pos.y,pos.z+dz*k/count))return false;
         return true;
+      }
+      function foFindObjectiveRoute(bot,goal){
+        const dest=NAV_NODES[goal];
+        if(!dest)return [];
+        // Prefer the existing graph origin when reachable; otherwise try
+        // nearby origins using the actual body footprint, not a wall shortcut.
+        const from=findNearestNavNode(bot.pos,true);
+        const origins=[from,...NAV_NODES.map((n,i)=>({i,d:Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)}))
+          .sort((a,b)=>a.d-b.d).map(n=>n.i)];
+        for(const idx of new Set(origins)){
+          if(!NAV_NODES[idx]||!foBotSegmentClear(bot.pos,NAV_NODES[idx]))continue;
+          const route=findPathAStar(idx,goal,bot.blockedNode);
+          if(route.length&&route[0]===idx&&route[route.length-1]===goal)return route;
+          // Legacy A* uses a singleton on failure. It is usable only
+          // when the full direct movement to the goal is actually clear.
+          if(route.length===1&&route[0]===goal&&foBotSegmentClear(bot.pos,dest))return route;
+        }
+        return foBotSegmentClear(bot.pos,dest)?[goal]:[];
+      }
+      function foFindRouteRecovery(bot){
+        // A short, collision-checked move back onto free ground, never teleport.
+        for(const d of [.7,1.3,2.0])for(let i=0;i<16;i++){
+          const a=i*Math.PI/8,p={x:bot.pos.x+Math.sin(a)*d,y:bot.pos.y,z:bot.pos.z+Math.cos(a)*d};
+          if(!isPositionWalkable(p.x,p.y,p.z)||!foBotSegmentClear(bot.pos,p))continue;
+          if(NAV_NODES.some(n=>Math.hypot(n.x-p.x,n.z-p.z)<12&&foBotSegmentClear(p,n)))return p;
+        }
+        return null;
       }
       function getFoBombBotOrder(bot,dt){
         if(!isFoBombMode()||foBomb.phase==='ended'||!bot.alive||bot.visibleEnemy||bot.activeDroneId)return null;
@@ -6054,7 +6116,7 @@
         const dist=Math.hypot(dest.x-bot.pos.x,dest.z-bot.pos.z);
         const objective=(assigned.role==='PLANT'||assigned.role==='DEFUSE')&&goal===assigned.goal;
         if(dist<(objective?1.2:1.4)){
-          bot.foObjectivePath=[];bot.foObjectiveIndex=0;bot.foObjectiveGoal=goal;
+          bot.foObjectivePath=[];bot.foObjectiveIndex=0;bot.foObjectiveGoal=goal;bot.foRouteRecovery=null;
           // Guards scan the approach, not the floor waypoint; designated
           // operators stop long enough to plant/defuse.
           const approachYaw=bot.team==='red'?0:Math.PI;
@@ -6071,10 +6133,8 @@
           (bot.foObjectiveRepath<=0&&(!wp||!foBotSegmentClear(bot.pos,wp)));
         if(!needs&&bot.foObjectiveRepath<=0)bot.foObjectiveRepath=.65;
         if(needs){
-          const from=findNearestNavNode(bot.pos,true);
-          const candidate=findPathAStar(from,goal,bot.blockedNode);
-          // A* returns [goal] even when disconnected. Never interpret a blocked singleton as a walkable route.
-          bot.foObjectivePath=candidate.length===1&&!foBotSegmentClear(bot.pos,dest)?[]:candidate;
+          bot.foObjectivePath=foFindObjectiveRoute(bot,goal);
+          bot.foRouteRecovery=null;
           bot.foObjectiveIndex=0;bot.foObjectiveGoal=goal;bot.foObjectiveRepath=.65;
         }
         const path=bot.foObjectivePath||[];
@@ -6087,11 +6147,15 @@
             if(next&&Math.hypot(n.x-bot.pos.x,n.z-bot.pos.z)<2.2&&foBotSegmentClear(bot.pos,next)){
               bot.foObjectiveIndex++;continue;
             }
-            if(!foBotSegmentClear(bot.pos,n)){bot.foObjectivePath=[];bot.foObjectiveIndex=0;return {target:null,speed:0,goal,role:assigned.role};}
+            if(!foBotSegmentClear(bot.pos,n)){bot.foObjectivePath=[];bot.foObjectiveIndex=0;bot.foObjectiveRepath=0;break;}
             return {target:new THREE.Vector3(n.x,n.y,n.z),speed:assigned.role==='GUARD'?3.4:4.2,goal,role:assigned.role};
           }
           bot.foObjectiveIndex++;
         }
+        if(foBotSegmentClear(bot.pos,dest))return {target:new THREE.Vector3(dest.x,dest.y,dest.z),speed:2.8,goal,role:assigned.role};
+        if(!bot.foRouteRecovery||Math.hypot(bot.foRouteRecovery.x-bot.pos.x,bot.foRouteRecovery.z-bot.pos.z)<.25){bot.foRouteRecovery=foFindRouteRecovery(bot);}
+        const recovery=bot.foRouteRecovery;
+        if(recovery&&foBotSegmentClear(bot.pos,recovery))return {target:new THREE.Vector3(recovery.x,recovery.y,recovery.z),speed:2.1,goal,role:assigned.role};
         return {target:null,speed:0,goal,role:assigned.role};
       }
       function refreshFoModeUi(){
@@ -7584,7 +7648,8 @@
           }
           if (current >= 0) {
             recordBotMetric(bot,'coverAssignments');
-            if(previous.node >= 0) recordBotMetric(bot,'coverReassignments');
+            // Reassignment is an interrupted approach, not a new choice after arrival.
+            if(previous.node >= 0 && !previous.arrived) recordBotMetric(bot,'coverReassignments');
             const d = distanceTo(current);
             bot._coverAudit = {node:current,arrived:false,since:nowSec,
               // Preserve the V47 decision clock and preferred distance:
@@ -9114,7 +9179,7 @@
         bot.behavior=null;bot.behaviorPlan=null;
         bot.lookControl=null;bot.lookYawVelocity=0;bot.lookPitchVelocity=0;
         bot.locomotionMode='HOLD';bot.dodgeMode='HOLD';bot.locomotionSpeed=0;
-        bot.routeProgress=null;bot.investigateRetryAt=0;resetBotCoverCycle(bot);
+        bot.routeProgress=null;bot.investigateRetryAt=0;resetBotCoverCycle(bot);bot.contactOpportunity=null;
         bot.stepDistance = 0;
         bot.teamRole = 'POINT';
         bot.teamFlankTargetId = null;
@@ -12036,7 +12101,12 @@
               if(walk(home,p)&&see({x:p.x,y:p.y+1.45,z:p.z},{x:threat.x,y:threat.y+1.45,z:threat.z})){s.peek=p;break;}
             }
           }
-          if(!s.peek){s.elapsed=0;return result('HOLD',null,0,1,false);}
+          if(!s.peek){
+            s.failedPeeks=(s.failedPeeks||0)+1;
+            if(s.failedPeeks>=3){bot.coverNode=-1;bot.coverPhase='NONE';bot.coverSearchCooldown=2.4;bot.combatCoverCycle=null;return {target:null,speed:0,crouch:.2,fire:false,phase:'REPLAN'};}
+            s.elapsed=0;return result('HOLD',null,0,1,false);
+          }
+          s.failedPeeks=0;
           s.phase='OUT';s.elapsed=0;
         }
         if(s.phase==='OUT'){
@@ -12055,6 +12125,36 @@
         if(kind==='RETREAT'||kind==='FLANK')return false;
         if(plannedSpeed>3.1||speed>3.4)return false;
         return true;
+      }
+
+      // V63: a newly acquired direct contact gets a bounded firing opportunity.
+      // No hidden coordinates or snap aim; existing reaction, muzzle and LOS gates remain.
+      function updateBotContactOpportunity(bot,enemy,now){
+        const old=bot.contactOpportunity;
+        if(!enemy){
+          if(old&&now-old.lastSeen>1.2)bot.contactOpportunity=null;
+          return null;
+        }
+        if(!old||old.id!==enemy.id||now-old.lastSeen>1.2){
+          bot.contactOpportunity={id:enemy.id,started:now,lastSeen:now,fired:false};
+        }else old.lastSeen=now;
+        return bot.contactOpportunity;
+      }
+      function botShouldHoldContact(bot,enemy,now,clearLane,wounded,tooClose){
+        const contact=bot.contactOpportunity;
+        if(!enemy||!contact||contact.id!==enemy.id||wounded||tooClose||bot.coverNode>=0||
+           bot.teamFlankGoalNode>=0||!clearLane||contact.fired)return false;
+        const elapsed=now-contact.started;
+        return elapsed>=0&&elapsed<1.55;
+      }
+      function botShouldSeekTacticalCover(bot,enemy,dist,clearLane,now){
+        if(!enemy)return false;
+        const threshold=bot.personalityTuning?.coverDistance??11.5;
+        if(botObservedPressure(bot,enemy,dist))return dist>threshold||bot.classId==='sniper'||bot.classId==='heavy';
+        // Clear, unpressured contact should not trigger routine retreat just
+        // because the opponent is distant. A blocked lane remains a reason
+        // to consider a position change, after the initial contact window.
+        return !clearLane&&dist>threshold;
       }
 
       function updateBots(dt) {
@@ -12184,6 +12284,7 @@
             bot.passageStepTimer = 0;
           }
 
+          updateBotContactOpportunity(bot,bestEnemy,nowSec);
           const activeThreatPos = bestEnemy
             ? bestEnemy.pos
             : ((bot.lastKnownEnemyPos && bot.investigateTimer > 0) ? bot.lastKnownEnemyPos : null);
@@ -12210,6 +12311,8 @@
             const woundedThreshold = bot.classId === 'heavy' ? 52 : 42;
             const isWounded = bot.hp < woundedThreshold;
             const isSniperTooClose = bot.classId === 'sniper' && distToEnemy < 11.5;
+            const initialFireLane=isBotFireLaneClear(bot,bestEnemy.eye);
+            const holdContact=botShouldHoldContact(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
             if (!isWounded && !isSniperTooClose && distToEnemy > 8) {
               refreshBotCoverForMovingEnemy(bot, activeThreatPos, dt);
             }
@@ -12269,8 +12372,8 @@
               }
             } else {
               const wantsTacticalCover = !(bot.teamRole === 'FLANK' &&
-                bot.teamFlankGoalNode >= 0) &&
-                (distToEnemy > (bot.personalityTuning?.coverDistance??11.5) || bot.classId === 'sniper' || bot.classId === 'heavy');
+                bot.teamFlankGoalNode >= 0) && !holdContact &&
+                botShouldSeekTacticalCover(bot,bestEnemy,distToEnemy,initialFireLane,nowSec);
 
               if (wantsTacticalCover && bot.coverNode === -1 && bot.coverSearchCooldown <= 0) {
                 bot.coverSearchCooldown = 1.2;
@@ -12333,6 +12436,7 @@
                     bot.combatStrafeGoal = chooseBotCombatStrafeGoal(bot, desiredUpperYaw);
                   }else bot.combatStrafeGoal=null;
                 }
+                if(holdContact){bot.combatStrafeGoal=null;bot.dodgeMode='HOLD';}
                 const strafeRemaining = bot.combatStrafeGoal ? Math.hypot(bot.combatStrafeGoal.x-bot.pos.x,bot.combatStrafeGoal.z-bot.pos.z) : 0;
                 if (strafeRemaining > 0.48) moveTargetPos = bot.combatStrafeGoal;
                 moveSpeed = moveTargetPos ? (bot.classId === 'sniper' ? 1.8 : 2.7) : 0;
@@ -12342,7 +12446,7 @@
 
             // A single squad flanker can approach the same observed enemy
             // from another navigable lane, without overruling emergency retreat.
-            if (!isWounded && !isSniperTooClose && bot.coverNode < 0 && distToEnemy > 14) {
+            if (!isWounded && !isSniperTooClose && bot.coverNode < 0 && distToEnemy > 14 && !holdContact) {
               const previousFlank = bot.teamFlankGoalNode;
               const flankWp = getTeamFlankWaypoint(bot, nowSec);
               if (previousFlank < 0 && bot.teamFlankGoalNode >= 0)
@@ -12402,6 +12506,7 @@
                 : (bot.classId === 'sniper' ? (distToEnemy < 11 ? 'glock18c' : 'mrad') : 'minimi');
               const bw = WEAPONS[botWeaponId];
               bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && botWeaponId === 'mrad' ? 1.35 : 2.1);
+              if(bot.contactOpportunity)bot.contactOpportunity.fired=true;
               bot.burstCount++;
               if (bot.burstCount > (bot.classId === 'heavy' ? 9 : 5)) {
                 bot.burstCount = 0;

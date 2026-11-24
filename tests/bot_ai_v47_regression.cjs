@@ -67,6 +67,10 @@ ok(count('coverAbandons')===3,'Dead bot cannot repeatedly abandon same cover');
 bot.alive=true;bot.coverNode=0;bot.pos.x=0;obs(bot,20);
 ok(count('coverArrivals')===2,
  'Already-standing-at-cover registers immediate real arrival');
+const priorReassignments=count('coverReassignments'),priorAbandons=count('coverAbandons');
+bot.coverNode=1;obs(bot,20.5);
+ok(count('coverReassignments')===priorReassignments&&count('coverAbandons')===priorAbandons,
+ 'New cover after completed arrival is not an interrupted approach');
 for(let i=0;i<160;i++){
   bot.coverNode=i%2?1:2;
   bot.pos.x=-15;
