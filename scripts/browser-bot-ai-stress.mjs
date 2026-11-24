@@ -9,7 +9,40 @@ const inputGame = process.env.FRONT_OPERATION_GAME_FILE || 'index.html';
 const output = path.resolve('test-artifacts/front-operation-bot-stress',
   variant + '-' + seed);
 fs.mkdirSync(output, { recursive: true });
-const source = fs.readFileSync(inputGame);
+// V48 QA-only instrumentation injected into the local server response.
+ // Baseline V47 and candidate V48 both receive EXACTLY the same helper.
+ // Starting and simulating within ONE page task eliminates variable
+ // live-render frames between click and the accelerated engine.
+const raw = fs.readFileSync(inputGame, 'utf8');
+const qaAnchor = '        window.__frontOperationAiQaAdvance = (seconds = 600) => {';
+if(!raw.includes(qaAnchor)) throw Error('Local stress hook missing');
+const qaPrelude = `
+        window.__frontOperationAiQaSeededMatch = (value, seconds = 600) => {
+          const originalRandom = Math.random;
+          const originalLock = canvas.requestPointerLock;
+          let state = value >>> 0;
+          Math.random = () => {
+            state = (Math.imul(1664525, state) + 1013904223) >>> 0;
+            return state / 4294967296;
+          };
+          // No pointer-lock handshake is needed for headless bot logic.
+          canvas.requestPointerLock = () => {};
+          try {
+            // Force normal built-in New Match path to regenerate both teams,
+            // life/difficulty sequence, metrics, player and drone resources.
+            matchState.ended = true;
+            botAiClockSec = 0;
+            document.getElementById('btn-deploy').click();
+            if(!matchState.started || matchState.ended)
+              throw Error('Cannot start deterministic QA match');
+            return window.__frontOperationAiQaAdvance(seconds);
+          } finally {
+            Math.random = originalRandom;
+            canvas.requestPointerLock = originalLock;
+          }
+        };
+`;
+const source = raw.replace(qaAnchor, qaPrelude + qaAnchor);
 const errors = [];
 const server = createServer((req,res) => {
   if(req.url==='/' || req.url==='/index.html') {
@@ -43,13 +76,11 @@ try {
   await page.goto('http://127.0.0.1:'+server.address().port+'/',{
     waitUntil:'load',timeout:80000
   });
-  await page.waitForFunction(()=>window.__frontOperationAiQaAdvance &&
+  await page.waitForFunction(()=>window.__frontOperationAiQaSeededMatch &&
     document.querySelector('#btn-deploy'),null,{timeout:60000});
-  await page.locator('#btn-deploy').click();
-  await page.waitForFunction(()=>document.getElementById('menu-overlay')
-    .classList.contains('hidden'));
   const start=Date.now();
-  const engine=await page.evaluate(() => window.__frontOperationAiQaAdvance(600));
+  const engine=await page.evaluate(seed =>
+    window.__frontOperationAiQaSeededMatch(seed,600),seed);
   const wallTimeMs=Date.now()-start;
   const stats=engine?.report;
   const nav=await page.evaluate(()=>window.__frontOperationAiQaSnapshot()?.navValidation);
