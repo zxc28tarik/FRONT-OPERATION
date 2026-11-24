@@ -21,5 +21,5 @@ const mid=sample(-36,-12,-15,22,left),near=sample(-36,-12,-26,-18,left),east=sam
 assert(mid<.2&&near>.5&&east<.35&&east<near);
 assert(window>.02&&window<.12);
 assert(walk(sniper.x,sniper.z));
-assert(html.includes("bot.classId==='sniper'&&live.some(p=>!p.carrier)?FO_RESCUE_SNIPER"));
+assert(html.includes("bot.classId==='sniper')return [FO_RESCUE_SNIPER"));
 console.log('V92 ASYMMETRY PASS: left mid '+mid.toFixed(3)+', left near '+near.toFixed(3)+', right near '+east.toFixed(3)+', narrow window '+window.toFixed(3));

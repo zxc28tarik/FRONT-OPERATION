@@ -6518,7 +6518,8 @@
         if(!arrived)s.arrival=null;
         else if(s.arrival===null)s.arrival=now;
         const hold=bot.classId==='sniper'?9:bot.classId==='heavy'?5.5:3.4;
-        if(arrived&&now-s.arrival>=hold&&unique.length>1){
+        const failed=s.failedSince!==null&&now-s.failedSince>=2.2;
+        if((failed||arrived&&now-s.arrival>=hold)&&unique.length>1){
           s.goal=unique[(unique.indexOf(s.goal)+1)%unique.length];s.arrival=null;s.failedSince=null;
         }
         return s.goal;
@@ -6539,17 +6540,17 @@
       }
       function foMissionRecovery(bot,goal,role,now){
         const d=NAV_NODES[goal];
-        if(d&&foBotSegmentClear(bot.pos,d))return {goal,role,target:new THREE.Vector3(d.x,d.y,d.z),speed:2.5};
+        if(d&&foBotSegmentClear(bot.pos,d)){if(bot.foGuardPatrol)bot.foGuardPatrol.failedSince=null;return {goal,role,target:new THREE.Vector3(d.x,d.y,d.z),speed:2.5};}
         let recovery=bot.foRouteRecovery;
         if(!recovery||Math.hypot(bot.pos.x-recovery.x,bot.pos.z-recovery.z)<.3||!foBotSegmentClear(bot.pos,recovery)){
           recovery=bot.foRouteRecovery=foFindRouteRecovery(bot);
         }
         bot.foObjectiveRepath=0;
-        if(recovery)return {goal,role,target:new THREE.Vector3(recovery.x,recovery.y,recovery.z),speed:2.1};
+        if(recovery&&foBotSegmentClear(bot.pos,recovery))return {goal,role,target:new THREE.Vector3(recovery.x,recovery.y,recovery.z),speed:2.1};
         const s=bot.foGuardPatrol;
         if(s){
           if(s.failedSince===null)s.failedSince=now;
-          if(now-s.failedSince>2){s.arrival=now-12;s.failedSince=null;}
+          // The next patrol decision can skip an unreachable post, even before arrival.
         }
         return {goal,role,target:null,speed:0,yaw:foGuardScan(bot,now)};
       }
@@ -6619,15 +6620,13 @@
               bot.foObjectiveIndex++;continue;
             }
             if(!foBotSegmentClear(bot.pos,n)){bot.foObjectivePath=[];bot.foObjectiveIndex=0;bot.foObjectiveRepath=0;break;}
+            if(bot.foGuardPatrol)bot.foGuardPatrol.failedSince=null;
             return {target:new THREE.Vector3(n.x,n.y,n.z),speed:assigned.role==='GUARD'?3.4:4.2,goal,role:assigned.role};
           }
           bot.foObjectiveIndex++;
         }
         if(foBotSegmentClear(bot.pos,dest))return {target:new THREE.Vector3(dest.x,dest.y,dest.z),speed:2.8,goal,role:assigned.role};
-        if(!bot.foRouteRecovery||Math.hypot(bot.foRouteRecovery.x-bot.pos.x,bot.foRouteRecovery.z-bot.pos.z)<.25){bot.foRouteRecovery=foFindRouteRecovery(bot);}
-        const recovery=bot.foRouteRecovery;
-        if(recovery&&foBotSegmentClear(bot.pos,recovery))return {target:new THREE.Vector3(recovery.x,recovery.y,recovery.z),speed:2.1,goal,role:assigned.role};
-        return {target:null,speed:0,goal,role:assigned.role};
+        return foMissionRecovery(bot,goal,assigned.role,now);
       }
       // V90 rescue objective: two protected noncombatant game tokens.
       const FO_RESCUE_RULES=Object.freeze({roundSeconds:180,pickupRadius:2.3,holdSeconds:1});

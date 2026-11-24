@@ -15,6 +15,7 @@ assert.equal(api.patrol(bot,'a',[0,1,2],60),2);
 bot.pos={...nodes[2]};assert.equal(api.patrol(bot,'a',[0,1,2],61),2);
 assert.equal(api.patrol(bot,'a',[0,1,2],65),0);
 assert.equal(api.patrol(bot,'new',[1,2],66),1);
+bot.foGuardPatrol.failedSince=66;assert.equal(api.patrol(bot,'new',[1,2],69),2);
 bot.classId='sniper';assert.equal(api.points(bot,true)[0].x,22.5);
 bot.classId='heavy';assert.equal(api.points(bot,true)[0].x,-18);
 assert(api.points(bot,false).every(p=>p.z>0));
