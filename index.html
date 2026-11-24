@@ -7564,7 +7564,11 @@
         'coverAssignments','coverArrivals','coverAbandons','coverReassignments',
         'coverStalledApproaches','coverOrphanSeconds','coverRetentions',
         'coverRouteRejected','coverAlternativeSelected','coverStallReroutes','coverStallFallbacks',
-        'coverRouteRetentions','coverTargetReevaluations'
+        'coverRouteRetentions','coverTargetReevaluations',
+        'ammoRounds','ammoSidearmRounds','ammoWeaponSwitches','ammoReloadStarts',
+        'ammoReloadCompletes','ammoReloadCancels','ammoEmptyAttempts','ammoReloadSeconds',
+        'rolePlantSeconds','roleDefuseSeconds','roleEscortSeconds','roleGuardSeconds',
+        'roleHoldSeconds','roleRetakeSeconds','coverSidearmPreferences','coverDutyPreferences'
       ];
       const newBotMetricBucket = () =>
         Object.fromEntries(BOT_METRIC_FIELDS.map(field => [field, 0]));
@@ -7803,6 +7807,13 @@
           for (const bot of roster) {
             if (!bot.alive) continue;
             recordBotMetric(bot,'aliveSeconds');
+            if(bot.botReload)recordBotMetric(bot,'ammoReloadSeconds');
+            if(typeof isFoBombMode==='function'&&isFoBombMode()){
+              const role=foBotPlan.orders.get(bot.id)?.role;
+              const field={PLANT:'rolePlantSeconds',DEFUSE:'roleDefuseSeconds',ESCORT:'roleEscortSeconds',
+                GUARD:'roleGuardSeconds',HOLD:'roleHoldSeconds',RETAKE:'roleRetakeSeconds'}[role];
+              if(field)recordBotMetric(bot,field);
+            }
             if (bot.visibleEnemy) recordBotMetric(bot,'engagedSeconds');
             if (bot.coverPhase === 'MOVE_TO_COVER') {
               recordBotMetric(bot,'coverApproachSeconds');
@@ -8212,6 +8223,8 @@
         const order=!isWounded&&bot&&isFoBombMode()?foBotPlan.orders.get(bot.id):null;
         const holding=order&&(order.role==='GUARD'||order.role==='HOLD');
         const anchor=holding?NAV_NODES[order.goal]:null;
+        if(sidearm&&typeof recordBotMetric==='function')recordBotMetric(bot,'coverSidearmPreferences');
+        if(anchor&&typeof recordBotMetric==='function')recordBotMetric(bot,'coverDutyPreferences');
         return {range:botCombatRangeBand(classId,weaponId),sidearm,anchor};
       }
       function botCoverDutyPenalty(node,anchor){
@@ -12333,6 +12346,9 @@
 
       // V68: shared finite ammunition state for every bot firearm path.
       function botAmmoSlot(bot,id){
+        // Only the current class's two firearm slots may create inventory.
+        const slots=CLASSES[bot.classId]?.slots;
+        if(!slots||!id||(id!==slots[1]&&id!==slots[2]))return null;
         const w=WEAPONS[id];
         if(!w||!(w.magSize>0)||!(w.reloadTime>0))return null;
         if(!bot.ammoState)bot.ammoState={};
@@ -12351,24 +12367,41 @@
           const a=botAmmoSlot(bot,id);
           if(a&&(a.mag>0||a.reserve>0))return id;
         }
-        return preferred;
+        // Exhausted owned weapon can remain selected, but never allocate an
+        // unowned firearm; all firing paths already check spend success.
+        return s?preferred:(slots?.[1]||null);
+      }
+      function botAmmoAudit(bot,field){
+        if(typeof recordBotMetric==='function')recordBotMetric(bot,field);
+      }
+      function botCancelReload(bot){
+        if(!bot.botReload)return;
+        botAmmoAudit(bot,'ammoReloadCancels');
+        bot.botReload=null;
       }
       function botStartReload(bot,id,optional){
         const s=botAmmoSlot(bot,id),w=WEAPONS[id];
         if(!s||s.mag>=w.magSize||s.reserve<=0||bot.botReload)return false;
         bot.botReload={id,left:w.reloadTime,optional:!!optional};
+        botAmmoAudit(bot,'ammoReloadStarts');
         return true;
       }
       function botTrySpendRound(bot,id){
         const s=botAmmoSlot(bot,id);
         if(!s)return false;
-        if(bot.botReload&&bot.botReload.id!==id)bot.botReload=null;
+        if(bot.botReload&&bot.botReload.id!==id)botCancelReload(bot);
         if(bot.botReload){
-          if(bot.botReload.optional&&s.mag>0)bot.botReload=null;
+          if(bot.botReload.optional&&s.mag>0)botCancelReload(bot);
           else return false;
         }
-        if(s.mag<=0){botStartReload(bot,id,false);return false;}
+        if(s.mag<=0){
+          if(s.reserve<=0)botAmmoAudit(bot,'ammoEmptyAttempts');
+          botStartReload(bot,id,false);return false;
+        }
         s.mag--;
+        botAmmoAudit(bot,'ammoRounds');
+        if(id===CLASSES[bot.classId]?.slots[2])botAmmoAudit(bot,'ammoSidearmRounds');
+        if(bot.lastAmmoWeapon&&bot.lastAmmoWeapon!==id)botAmmoAudit(bot,'ammoWeaponSwitches');
         bot.lastAmmoWeapon=id;
         return true;
       }
@@ -12378,13 +12411,14 @@
         const operator=context.role==='PLANT'||context.role==='DEFUSE';
         if(bot.botReload){
           if((operator&&!context.contact)|| (context.contact&&bot.botReload.optional)){
-            bot.botReload=null;
+            botCancelReload(bot);
           }else{
             bot.botReload.left-=dt;
             if(bot.botReload.left<=0){
               const id=bot.botReload.id,s=botAmmoSlot(bot,id);
               const take=Math.min(WEAPONS[id].magSize-s.mag,s.reserve);
               s.mag+=take;s.reserve-=take;bot.botReload=null;
+              botAmmoAudit(bot,'ammoReloadCompletes');
             }
             return;
           }

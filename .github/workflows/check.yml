@@ -143,3 +143,6 @@ jobs:
 
       - name: Run V72 provisional candidate regression
         run: node tests/bot_ai_v72_candidate_regression.cjs
+
+      - name: Run V73 ammo conservation and ownership audit
+        run: node tests/bot_ai_v73_ammo_audit_regression.cjs
