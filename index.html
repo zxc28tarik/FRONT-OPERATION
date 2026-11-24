@@ -7514,13 +7514,17 @@
         if (!bot || !bot.alive || !bot.visibleEnemy || !audit ||
             bot.coverNode<0 || bot.coverNode!==audit.node || audit.arrived ||
             bot.coverPhase!=='MOVE_TO_COVER' ||
-            // Do not mistake an AI stance change or a necessary detour
-            // for physical blockage. Require multiple actual V40-style
-            // movement failures, not just low cover-goal progress.
-            nowSec-audit.since<4.2 || nowSec-audit.routeLastProgressAt<4.2 ||
-            bot.stuckFailures<1 ||
             (bot.coverRecoveryUntil||0)>nowSec ||
             bot.teamFlankGoalNode>=0) return false;
+        const age=nowSec-audit.since;
+        const noProgress=nowSec-audit.routeLastProgressAt;
+        // Early escape needs a *real* collision-recovery failure as well
+        // as route stagnation. Without a collision, only a prolonged
+        // 7.2-second dead approach merits switching to another cover.
+        const confirmedBlock=age>=4.2 && noProgress>=4.2 &&
+          bot.stuckFailures>=1;
+        const longDeadEnd=age>=7.2 && noProgress>=7.2;
+        if(!confirmedBlock && !longDeadEnd) return false;
         const failed=bot.coverNode;
         bot.coverRecoveryUntil=nowSec+4.5;
         const alternate=selectAlternativeReachableCover(bot,bot.visibleEnemy.pos,failed);
