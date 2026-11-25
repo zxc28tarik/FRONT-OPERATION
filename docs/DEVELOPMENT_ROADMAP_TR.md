@@ -114,3 +114,7 @@ A: 8/8 teknik kabul başarılı (V281, WebGL 45703821239). B: V282–V286 kodlan
 ### C4 aday dalı durum güncellemesi
 
 V291: kullanıcının açık C4 talimatı ile ayrı aday dalda kodlandı. 28.800 sayısal kontrol ve 40.320 prototip karşılaştırması başarılı; gerçek WebGL/FPS ve V287/C1–C3 kabulü açık. Önceki aşamalar tamamlanmış sayılmaz. Ana dal değişmedi. Ayrıntı: docs/V291_DIRECTIONAL_GAIT_DRAFT_TR.md.
+
+### C5 aday dalı durum güncellemesi
+
+C4 düzeltilmiş inline CI run 45712232088 başarılı (V103 dahil). C4 WebGL ve V287/C1–C3 kabulü henüz doğrulanmadı. V292 aday dalında yerel bacak geçiş eğrileri kodlandı; 947.520 sayısal kontrol ve 118.080 prototip eşitliği başarılı. C5 gerçek WebGL/FPS kabulü açık. Ana dal değişmedi.
