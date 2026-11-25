@@ -7221,9 +7221,10 @@
               albedo[i+3]=relief[i+3]=roughness[i+3]=255;
             }
             const maps={albedo:texture(albedo),relief:texture(relief),roughness:texture(roughness)};
-            maps.albedo.repeat.set(2,2);
-            maps.relief.repeat.set(3,3);
-            maps.roughness.repeat.set(2,2);
+            // Lightweight scene mocks omit Texture.repeat; real WebGL textures have it.
+            if(typeof maps.albedo.repeat?.set==='function')maps.albedo.repeat.set(2,2);
+            if(typeof maps.relief.repeat?.set==='function')maps.relief.repeat.set(3,3);
+            if(typeof maps.roughness.repeat?.set==='function')maps.roughness.repeat.set(2,2);
             sets.set(kind,maps);
           }
           G.v249={sets,materials:new Map(),size};
