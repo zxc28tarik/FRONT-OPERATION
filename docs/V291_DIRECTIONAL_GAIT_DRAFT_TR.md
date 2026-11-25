@@ -7,3 +7,7 @@
 - scripts/check-v291-directional-gait-draft.mjs, değişmeyen V287 commitine göre bütün kaynak korumasını ve 69.120 sayısal kontrolü tekrarlanabilir yapar.
 - scripts/browser-v291-directional-gait.mjs: gerçek WebGL'de 5 sınıf × 4 yön × 2 faz = 40 eş kamera poz karşılaştırması, root koruması ve çizim maliyeti. Tarayıcı testi henüz doğrulanmadı. Ayrı oyun içi ayak kayması, üç mod ve gerçek FPS kabulü açık.
 - C4 durum: kodlandı, sayısal kabul başarılı, görsel/WebGL ve önceki aşama kabul kapıları açık. Sonraki C5'e geçilmedi.
+
+## C4 CI düzeltmesi
+
+Run 45711997294: syntax adımı ve önceki BOT AI regresyonları başarılı; V103 görsel gait testi başarısız (eski geri adım simetrisi kuralı). Test gevşetilmedi. Orijinal botVisualGait birebir geri getirildi ve aktif görsel çağrı botVisualGaitV291 olarak ayrıştırıldı. Önceki C4 aday çıktıları değişmedi (28.800 + 40.320 yeniden geçti). V287 kaynak karşılaştırması yalnız yeni saf görsel fonksiyon ve tek çağrı değişimini kabul eder. Tarihsel V103 test dosyası değiştirilmeden doğrudan yürütüldü ve başarılı. Güncel GitHub CI/WebGL henüz doğrulanmadı; C5 entegrasyonu bloke.
