@@ -6733,7 +6733,7 @@
         if(typeof THREE.Float32BufferAttribute==='function'&&G.v164){
           if(!G.v163)G.v163=new Map();
           for(const n of model.upperBody.children){
-            if(!n.userData?.v129Sculpted||Math.abs(n.position.x)>.02||n.position.y>.40)continue;
+            if(![approved.chest,approved.abdomen].some(base=>G.v129.get(V101.anatomy.get(base))===n.geometry))continue;
             const high=n.geometry,low=G.v146.get(high);
             if(!low||!high.getAttribute||!low.getAttribute)continue;
             for(const g of [high,low]){
