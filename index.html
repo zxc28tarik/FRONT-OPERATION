@@ -7537,6 +7537,124 @@
             }
           }
         }
+        // V252: Heavy armor mass and integrated support equipment, replacing
+        // only the existing class geometry surfaces and attachment transforms.
+        // Preserve previous V246 helmet, V249 finishes, weapon and hit volumes.
+        if(classId==='heavy'&&typeof v248Front?.geometry?.getAttribute==='function'){
+          if(!G.v252)G.v252={geometry:new Map()};
+          const moldHeavy=(key,source,fn)=>{
+            let shape=G.v252.geometry.get(key);
+            if(!shape&&source?.getAttribute&&source.clone){
+              shape=source.clone();
+              if(!shape.boundingBox)shape.computeBoundingBox();
+              const b=shape.boundingBox,p=shape.getAttribute('position');
+              const cx=(b.min.x+b.max.x)*.5,cy=(b.min.y+b.max.y)*.5,cz=(b.min.z+b.max.z)*.5;
+              const hx=Math.max(.015,(b.max.x-b.min.x)*.5);
+              const hy=Math.max(.015,(b.max.y-b.min.y)*.5);
+              const hz=Math.max(.015,(b.max.z-b.min.z)*.5);
+              for(let i=0;i<p.count;i++){
+                const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+                const nx=(x-cx)/hx,ny=(y-cy)/hy,nz=(z-cz)/hz;
+                p.setXYZ(i,...fn(x,y,z,nx,ny,nz));
+              }
+              p.needsUpdate=true;shape.computeVertexNormals();
+              shape.computeBoundingBox();shape.computeBoundingSphere();
+              G.v252.geometry.set(key,shape);
+            }
+            return shape;
+          };
+          // Broad, slightly chamfered plate carrier, with a distinct
+          // reinforcement ridge at upper chest. Same mounts and vertex count.
+          for(const n of [v248Front,v248Back]){
+            const forward=n.position.z>0,side=forward?1:-1;
+            const form=moldHeavy('carrier:'+(forward?'front':'rear'),n.geometry,(x,y,z,nx,ny,nz)=>{
+              const upper=Math.max(0,ny),lower=Math.max(0,-ny),edge=Math.min(1,Math.abs(nx));
+              const rib=Math.exp(-((ny-.40)**2)/.12);
+              const shoulder=Math.exp(-((ny-.72)**2)/.18);
+              const broad=1+.039*shoulder+.016*rib-.021*lower*lower;
+              const plate=.0059*(1-edge*.68)*rib+.0019*lower;
+              return [x*broad,y-.0016*edge*shoulder,z+side*plate];
+            });
+            if(form){n.geometry=form;n.userData.v252HeavyCarrier=true;}
+          }
+          // Original shoulder plates gain overlapping, trapezoid mass.
+          // Rear pack clearance is kept by deforming only each plate surface.
+          const shoulderMeshes=model.upperBody.children.filter(n=>
+            n.geometry===H.shapes.get(approved.heavyShoulder));
+          for(const n of shoulderMeshes){
+            const form=moldHeavy('shoulder-pad',n.geometry,(x,y,z,nx,ny,nz)=>{
+              const top=Math.max(0,ny),outside=Math.abs(nx);
+              const bevel=.014*top*(1-outside*.45);
+              const pectoral=.0055*(1-Math.min(1,ny*ny))*(1-outside*.55);
+              return [x*(1+.058*top-.017*Math.max(0,-ny)),
+                y+bevel,z+Math.sign(nz||1)*pectoral];
+            });
+            if(form){
+              n.geometry=form;
+              const sign=Math.sign(n.position.x)||1;
+              n.position.x+=sign*.010;
+              n.scale.x*=1.028;n.scale.z*=1.026;
+              n.userData.v252ShoulderShield=true;
+            }
+          }
+          const collar=model.upperBody.children.find(n=>geomOf(n)===approved.heavyCollar);
+          if(collar){
+            const form=moldHeavy('collar',collar.geometry,(x,y,z,nx,ny,nz)=>{
+              const side=Math.min(1,Math.abs(nx)),front=Math.max(0,nz);
+              const gap=Math.max(0,1-side*side);
+              return [x*(1+.018*Math.max(0,ny)),y+.005*side*Math.max(0,ny),
+                z-.0054*front*gap];
+            });
+            if(form){collar.geometry=form;collar.userData.v252HeavyCollar=true;}
+          }
+          // Three ammo pouches and their admin pocket remain original pieces.
+          for(const n of model.upperBody.children){
+            const type=n.userData?.v176Equipment;
+            if(type==='pouch'||type==='admin'){
+              const side=Math.sign(n.position.x);
+              if(type==='pouch'){
+                n.scale.x*=1.05;n.scale.y*=1.035;
+                n.position.y+=(side===0?-.011:.006);
+                n.position.x+=side*.005;
+              }else{
+                n.scale.x*=1.055;
+                n.position.y+=.008;
+              }
+              n.userData.v252AmmoLoadout=true;
+            }
+            if(n.geometry===G.carrierStrap){
+              n.position.x*=1.045;
+              n.scale.x*=1.045;
+              n.userData.v252Harness=true;
+            }
+          }
+          // Upper rear ammo pack: subtle stacked load silhouette using
+          // the same rounded base volume, and original ammunition-feed link.
+          const pack=model.upperBody.children.find(n=>n.userData?.v149Pack);
+          if(pack){
+            const shape=moldHeavy('heavy:ammo-pack',pack.geometry,(x,y,z,nx,ny,nz)=>{
+              const top=Math.max(0,ny),edge=Math.min(1,Math.abs(nx));
+              const rib=Math.cos(ny*9)*.0018*(1-edge);
+              const bulky=.0043*(1-edge*edge)*(1-Math.abs(ny)*.34);
+              return [x*(1+.029*top-.012*Math.max(0,-ny)),y,
+                z-Math.max(0,-nz)*(bulky+rib)];
+            });
+            if(shape){pack.geometry=shape;pack.userData.v252AmmoPack=true;}
+          }
+          const feed=model.upperBody.children.find(n=>geomOf(n)===approved.ammoFeed);
+          if(feed){
+            const shape=moldHeavy('heavy:feed-link',feed.geometry,(x,y,z,nx,ny,nz)=>{
+              const mid=Math.max(0,1-Math.abs(ny)),lip=Math.max(0,nz);
+              return [x*(1+.025*mid),y,z+.0035*lip*mid];
+            });
+            if(shape){
+              feed.geometry=shape;
+              feed.position.z-=.006;
+              feed.rotation.x-=.028;
+              feed.userData.v252FeedIntegration=true;
+            }
+          }
+        }
         // V170: retain facial shape identity in a cheaper distance mesh.
         if(oldSkull&&G.v130&&typeof F.lowSkull.getAttribute==='function'){
           if(!G.v170)G.v170=new Map();
