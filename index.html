@@ -16849,10 +16849,6 @@ return {createExperimentalRig,createAdaptiveRigController};
             const resolved=botLocomotionPose((bot.pos.x-beforeMoveX)/Math.max(.001,dt),(bot.pos.z-beforeMoveZ)/Math.max(.001,dt),bot.legYaw,actualSpeed);
             const pose=botVisualDirection(bot.visualDirection,resolved.forward,resolved.side,dt);
             bot.visualDirection=pose;
-            // Match contact weights to the newly measured travel direction.
-            bot.visualFootPlants=botVisualFootPlants(bot.visualFootPlants,
-              bot.visualGaitPhase??bot.animPhase,actualSpeed,pose.forward,pose.side,
-              bot.crouchAmt,visualTurnRate,dt,bot.classId);
             // V253: use actual resolved world travel (metres) rather than a
             // smoothed nominal speed, which otherwise drifts against terrain.
             const strideRate=(bot.classId==='heavy'?2.13:bot.classId==='sniper'?2.25:2.35)*(1-.16*bot.crouchAmt);
