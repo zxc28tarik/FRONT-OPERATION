@@ -13154,7 +13154,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
       }
 
-      let damageFlashTimeout = null;
+      // V278: independent visual pulses, so a second hit cannot strand the other overlay.
+      const damageFlashTimeouts = new Map();
       let damageDirTimeout = null;
 
       function applyDamageToPlayer(rawDamage, attackerName, weaponLabel, shotFromPos = null, isBlast = false) {
@@ -13165,11 +13166,15 @@ return {createExperimentalRig,createAdaptiveRigController};
         player.hp = Math.max(0, player.hp - dmg);
 
         const flashEl = document.getElementById(isBlast ? 'blast-flash' : 'damage-flash');
-        flashEl.style.opacity = isBlast ? '0.88' : '0.75';
-        clearTimeout(damageFlashTimeout);
-        damageFlashTimeout = setTimeout(() => {
-          flashEl.style.opacity = '0';
-        }, isBlast ? 240 : 160);
+        clearTimeout(damageFlashTimeouts.get(flashEl));
+        flashEl.style.transitionDuration='35ms';
+        const strength=Math.max(.32,Math.min(isBlast?.88:.75,.30+dmg*.012));
+        flashEl.style.opacity=String(strength);
+        damageFlashTimeouts.set(flashEl,setTimeout(()=>{
+          flashEl.style.transitionDuration=isBlast?'220ms':'170ms';
+          flashEl.style.opacity='0';
+          damageFlashTimeouts.delete(flashEl);
+        },isBlast?150:90));
 
         if (shotFromPos && !droneSystem.isPlayerControlling()) {
           const dx = shotFromPos.x - player.pos.x;
@@ -13402,6 +13407,26 @@ return {createExperimentalRig,createAdaptiveRigController};
       const activeMedkits = [];
       const activeClaymores = [];
 
+      // V279: reuse existing tracer geometry; only the visible width and fade change.
+      // Prebuild shared visual resources before a match; no extra per-shot objects.
+      const V279_TRACER_MATS=[VFX_SHARED.tracerMatDefault,VFX_SHARED.tracerMatSniper].map(base=>
+        [1,.72,.40,.16].map((factor,i)=>{
+          if(i===0)return base;
+          const m=base.clone();m.opacity=base.opacity*factor;m.depthWrite=false;return m;
+        }));
+      const V279_CASING_GEO=VFX_SHARED.casingGeo.clone();
+      {
+        const p=V279_CASING_GEO.getAttribute('position'),colors=[];
+        for(let i=0;i<p.count;i++){
+          const y=p.getY(i),rim=y<-.008||y>.008;
+          const c=rim?[.60,.43,.21]:[.91,.71,.36];
+          colors.push(...c);
+        }
+        V279_CASING_GEO.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+      }
+      const V279_CASING_MAT=VFX_SHARED.casingMat.clone();
+      V279_CASING_MAT.color.setHex(0xffffff);
+      V279_CASING_MAT.vertexColors=true;V279_CASING_MAT.roughness=.42;V279_CASING_MAT.metalness=.72;
       function spawnTracer(startVec, endVec, category = 'rifle') {
         if (!Number.isFinite(startVec.x) || !Number.isFinite(endVec.x)) return;
         const delta = new THREE.Vector3().subVectors(endVec, startVec);
@@ -13419,7 +13444,8 @@ return {createExperimentalRig,createAdaptiveRigController};
           isSniper ? VFX_SHARED.tracerSniperGeo : VFX_SHARED.tracerGeo,
           isSniper ? VFX_SHARED.tracerMatSniper : VFX_SHARED.tracerMatDefault
         );
-        mesh.scale.set(1, streakLen, 1);
+        const visualWidth=isSniper?.68:category==='pistol'?.54:category==='smg'?.60:.75;
+        mesh.scale.set(visualWidth, streakLen, visualWidth);
         const dir = delta.clone().divideScalar(totalDist);
         mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
         mesh.position.copy(startVec).addScaledVector(dir, streakLen * 0.5);
@@ -13434,6 +13460,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           dir,
           totalDist,
           streakLen,
+          visualWidth,visualTracerKind:isSniper?1:0,
           life,
           maxLife: life
         });
@@ -13660,8 +13687,9 @@ return {createExperimentalRig,createAdaptiveRigController};
           const old = activeShellCasings.shift();
           scene.remove(old.mesh);
         }
-        const mesh = new THREE.Mesh(VFX_SHARED.casingGeo, VFX_SHARED.casingMat);
+        const mesh = new THREE.Mesh(V279_CASING_GEO,V279_CASING_MAT);
         mesh.position.copy(ejectPos);
+        mesh.quaternion.copy(camQuat);
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camQuat);
         const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camQuat);
         const vel = new THREE.Vector3()
@@ -13713,6 +13741,12 @@ return {createExperimentalRig,createAdaptiveRigController};
       }
 
       function clearAllMatchEntities() {
+        for(const id of ['damage-flash','blast-flash']){
+          const el=document.getElementById(id);
+          clearTimeout(damageFlashTimeouts.get(el));
+          el.style.transitionDuration='0ms';el.style.opacity='0';
+        }
+        damageFlashTimeouts.clear();
         [activeGrenades, activeRockets, activeMedkits, activeClaymores, activeTracers, activeParticles, activeImpactMarks, activeShellCasings].forEach((list) => {
           for (let i = list.length - 1; i >= 0; i--) {
             if (list[i] && list[i].mesh) scene.remove(list[i].mesh);
@@ -17591,6 +17625,11 @@ return {createExperimentalRig,createAdaptiveRigController};
           const prog = 1 - Math.max(0, tr.life / tr.maxLife);
           const travelDist = prog * Math.max(0, tr.totalDist - tr.streakLen);
           tr.mesh.position.copy(tr.start).addScaledVector(tr.dir, travelDist + tr.streakLen * 0.5);
+          if(tr.life>0){
+            const t=Math.max(0,Math.min(1,tr.life/tr.maxLife)),width=tr.visualWidth*(.58+.42*t);
+            tr.mesh.scale.x=width;tr.mesh.scale.z=width;
+            tr.mesh.material=V279_TRACER_MATS[tr.visualTracerKind][t>.65?0:t>.38?1:t>.13?2:3];
+          }
           if (tr.life <= 0) {
             scene.remove(tr.mesh);
             activeTracers.splice(i, 1);
