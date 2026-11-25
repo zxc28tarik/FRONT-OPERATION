@@ -170,3 +170,26 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
  const dispose=()=>{if(disposed)return;setEnabled(false);root.remove(mesh);geometry.dispose();materials.forEach(m=>m.dispose());skeleton.dispose?.();disposed=true;};
  return {mesh,bones,update,dispose,limbs,geometry,setEnabled,get enabled(){return enabledState;}};
 }
+
+// V228: reusable, opt-in visual quality controller; no gameplay coordinates are written.
+// Distances use hysteresis to prevent switching rapidly around a threshold.
+export function createAdaptiveRigController(rig,{offset=0}={}){
+ let mode='far',active=false,updates=0,switches=0;
+ const choose=d=>{
+  if(!Number.isFinite(d))return 'far';
+  if(mode==='near')return d>=46?'far':d>=25?'mid':'near';
+  if(mode==='mid')return d>=48?'far':d<=21?'near':'mid';
+  return d<=21?'near':d<=42?'mid':'far';
+ };
+ const step=(distance,frame,enabled=true)=>{
+  const next=enabled?choose(distance):'far';
+  const changed=next!==mode;mode=next;
+  if(changed)switches++;
+  if(mode==='far'){if(active){rig.setEnabled(false);active=false;}return mode;}
+  if(!active){rig.setEnabled(true);active=true;updates++;return mode;}
+  if(changed||mode==='near'||(Math.floor(frame)+offset)%2===0){rig.update();updates++;}
+  return mode;
+ };
+ const reset=()=>{if(active)rig.setEnabled(false);active=false;mode='far';};
+ return {step,reset,get mode(){return mode;},get updates(){return updates;},get switches(){return switches;}};
+}

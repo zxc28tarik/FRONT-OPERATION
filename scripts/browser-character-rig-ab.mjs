@@ -21,7 +21,7 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto('http://127.0.0.1:'+server.address().port);
  const report=await page.evaluate(async factory=>{
-  const THREE=await import('/three.module.js'),{createExperimentalRig}=await import('/rig.mjs');
+  const THREE=await import('/three.module.js'),{createExperimentalRig,createAdaptiveRigController}=await import('/rig.mjs');
   const enhanced=new Function('THREE',factory)(THREE);
   const scene=new THREE.Scene();scene.background=new THREE.Color(0x727b84);
   scene.add(new THREE.HemisphereLight(0xe1edff,0x3e454b,1.4));
@@ -33,24 +33,25 @@ try{
    const model=enhanced(i%2?'red':'blue',roles[i%5],i%3);
    model.root.position.set((i%5-2)*.9,0,-Math.floor(i/5)*1.25);
    scene.add(model.root);
-   const rig=createExperimentalRig(model,{radial:12,steps:16});models.push({model,rig});
+   const rig=createExperimentalRig(model,{radial:12,steps:16}),controller=createAdaptiveRigController(rig,{offset:i%2});models.push({model,rig,controller});
   }
   const median=v=>v.slice().sort((a,b)=>a-b)[Math.floor(v.length/2)];
   const rendererInfo=()=>({calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});
   const setPose=(i,enabled,adaptive=false,distance=12)=>{
    for(let j=0;j<models.length;j++){
-    const {model:m,rig:r}=models[j],phase=i*.19+j*.4;
+    const {model:m,rig:r,controller}=models[j],phase=i*.19+j*.4;
     m.leftHip.rotation.x=Math.sin(phase)*.35;m.rightHip.rotation.x=-m.leftHip.rotation.x;
     m.leftKnee.rotation.x=.15+Math.max(0,Math.cos(phase))*.5;
     m.rightKnee.rotation.x=.15+Math.max(0,-Math.cos(phase))*.5;
     m.upperBody.rotation.y=Math.sin(phase*.3)*.24;
     m.weaponPivot.rotation.x=Math.sin(phase*.5)*.25;m.updateVisualGrip(m.weaponPivot.rotation.x);
-    if(enabled&&r.enabled&&(!adaptive||distance<23||(i+j)%2===0))r.update();
+    if(adaptive)controller.step(distance,i,enabled);
+    else if(enabled&&r.enabled)r.update();
    }
   };
   const render=(i,on,adaptive=false,distance=12)=>{setPose(i,on,adaptive,distance);renderer.render(scene,camera);gl.finish();};
   const run=(enabled,distance,adaptive=false)=>{
-   for(const {model,rig} of models){model.setVisualDetailDistance(distance);rig.setEnabled(enabled&&(!adaptive||distance<46));}
+   for(const {model,rig,controller} of models){controller.reset();model.setVisualDetailDistance(distance);rig.setEnabled(!adaptive&&enabled);}
    for(let i=0;i<6;i++)render(i,enabled,adaptive,distance);
    const times=[];
    for(let i=0;i<20;i++){const t=performance.now();render(i,enabled,adaptive,distance);times.push(performance.now()-t);}

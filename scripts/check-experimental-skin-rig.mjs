@@ -2,12 +2,26 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
 import * as THREE from 'three';
-import {createExperimentalRig,rigCenter} from '../modules/experimental/v188-skin-rig.mjs';
+import {createExperimentalRig,rigCenter,createAdaptiveRigController} from '../modules/experimental/v188-skin-rig.mjs';
 const html=fs.readFileSync('index.html','utf8');
 const a=html.indexOf('      let SOLDIER_SHARED = null;'),b=html.indexOf('      // =========================================================================\n      // 8. COLLISION',a);
 const api=new Function('THREE',html.slice(a,b)+'\nreturn {enhanced:createEnhancedBotSoldierMesh};')(THREE);
 let cases=0,maxRestError=0,minRingRatio=Infinity,maxRingRatio=0,maxCenterError=0,maxLongitudinalRatio=0;
 const reps=[];
+// Independent distance hysteresis, staggering and reversibility checks.
+{
+ let enabled=false,updates=0;
+ const mock={setEnabled(v){enabled=v;if(v)updates++;},update(){updates++;}};
+ const c=createAdaptiveRigController(mock);
+ assert.equal(c.step(60,0),'far');assert.equal(enabled,false);
+ assert.equal(c.step(20,1),'near');assert.equal(enabled,true);
+ assert.equal(c.step(24,2),'near');
+ assert.equal(c.step(26,3),'mid');
+ const mid=updates;c.step(32,4);c.step(32,5);assert.equal(updates-mid,1);
+ assert.equal(c.step(46,6),'mid');assert.equal(c.step(49,7),'far');assert.equal(enabled,false);
+ assert.equal(c.step(44,8),'far');assert.equal(c.step(40,9),'mid');
+ c.reset();assert(!enabled&&c.mode==='far');
+}
 // Curve endpoints and straight-segment midpoint are independent reference checks.
 const line=[new THREE.Vector3(0,0,0),new THREE.Vector3(0,1,0),new THREE.Vector3(0,2,0)];
 for(const t of [0,.34,.5,.66,1])assert(rigCenter(line,t).distanceTo(new THREE.Vector3(0,2*t,0))<1e-8);
