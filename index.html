@@ -6353,6 +6353,30 @@
               }
               dense.push(rows[rows.length-1]);g=new THREE.LatheGeometry(dense,20);g.scale(sx,1,sz);
             }
+            // V156–V158: preserve the joint lengths while replacing circular cross-sections
+            // with torso and trouser profiles. The same contour is applied to both LODs.
+            const tailor=(x,y,z)=>{
+              const a=Math.atan2(z,x),r=Math.hypot(x,z);
+              if(r<.0001)return [x,y,z];
+              const chest=base===approved.chest,waist=base===approved.abdomen,thigh=base===approved.thigh,shin=base===approved.shin;
+              if(chest||waist){
+                const t=Math.max(-1,Math.min(1,y/(chest?.18:.09)));
+                const exponent=chest?.88:.94;
+                const px=Math.sign(x)*Math.pow(Math.abs(x)/r,exponent)*r;
+                const pz=Math.sign(z)*Math.pow(Math.abs(z)/r,exponent)*r;
+                const rib=chest?1+.055*Math.cos(t*1.5):1-.045*Math.cos(t*2.1);
+                return [px*rib,y,pz*(chest?1+.035*Math.max(0,t):1)];
+              }
+              if(thigh||shin){
+                const h=thigh?.18:.175,t=Math.max(-1,Math.min(1,y/h));
+                const curve=Math.sin(Math.PI*(t+1)/2);
+                const front=Math.max(0,Math.sin(a));
+                const back=Math.max(0,-Math.sin(a));
+                const fullness=thigh?(.045*front+.025*back):(.025*front+.075*back);
+                return [x*(1+.035*curve),y,z*(1+fullness*curve)];
+              }
+              return [x,y,z];
+            };
             const p=g.getAttribute('position');
             const limb=base===approved.thigh||base===approved.shin||base===approved.upperArm||base===approved.forearm;
             for(let i=0;i<p.count;i++){
@@ -6363,7 +6387,7 @@
               const fold=(Math.sin(y*106+Math.sin(a*3)*1.15)*.0018+
                 Math.sin(y*61-a*2)*.0022)*envelope*(limb?1:.7);
               const f=(r+fold)/r;
-              p.setXYZ(i,x*f,y,z*f);
+              p.setXYZ(i,...tailor(x*f,y,z*f));
             }
             p.needsUpdate=true;g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();
             shapes.set(source,g);
@@ -6375,7 +6399,7 @@
               const a=Math.atan2(z,x),height=limb?.18:.16;
               const envelope=Math.max(0,1-Math.abs(y)/height);
               const fold=(Math.sin(y*106+Math.sin(a*3)*1.15)*.0018+Math.sin(y*61-a*2)*.0022)*envelope*(limb?1:.7);
-              const f=(r+fold)/r;lp.setXYZ(i,x*f,y,z*f);
+              const f=(r+fold)/r;lp.setXYZ(i,...tailor(x*f,y,z*f));
             }
             lp.needsUpdate=true;low.computeVertexNormals();low.computeBoundingBox();low.computeBoundingSphere();lowShapes.set(g,low);
           }
@@ -6386,6 +6410,12 @@
           for(const c of n.children||[])sculpt(c);
         };
         if(model.root.userData)sculpt(model.root);
+        // V157: role-specific trouser cut, with the same joint centers and height.
+        const trouserCut={assault:[1.025,1.02],medic:[.99,.985],engineer:[1.035,1.035],sniper:[.97,.98],heavy:[1.045,1.04]}[classId]||[1,1];
+        for(const pivot of [model.leftHip,model.rightHip,model.leftKnee,model.rightKnee]){
+          const textile=pivot.children.find(n=>n.userData?.v129Sculpted);
+          if(textile){textile.scale.x*=trouserCut[0];textile.scale.z*=trouserCut[1];textile.userData.v157Cut=true;}
+        }
         // V130: three subtle, bounded face shapes, independent of class/team.
         if(!G.v130&&typeof F.skull.clone==='function'&&typeof F.skull.getAttribute==='function'){
           G.v130=[F.skull,...[[-.035,.025],[.038,-.018]].map(([width,height])=>{
@@ -6524,6 +6554,22 @@
           }
         }
         for(const overlay of footOverlays)if(!overlay.group.parent)overlay.boot.add(overlay.group);
+        // V158: the trouser hem and boot collar overlap at the articulated ankle.
+        if(ankles.length===2&&typeof G.v120.boot.getAttribute==='function'){
+          if(!G.v158){
+            const bootToe=G.v120.boot.clone(),p=bootToe.getAttribute('position');
+            for(let i=0;i<p.count;i++){
+              const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+              p.setXYZ(i,x*(1-.08*Math.max(0,z)),y<0?y*.78:y*(1-.16*Math.max(0,z)),z);
+            }
+            p.needsUpdate=true;bootToe.computeVertexNormals();bootToe.computeBoundingBox();bootToe.computeBoundingSphere();
+            G.v158=bootToe;
+          }
+          for(const ankle of ankles){
+            const toe=ankle.children.find(n=>n.name==='v120_boot_toe');
+            if(toe){toe.geometry=G.v158;toe.userData.v158Toe=true;}
+          }
+        }
         // V153–V155: replace the exposed ball joints with tailored textile bridges.
         // Purely visual: preserve pivot centers, collision volumes, and grip targets.
         if(typeof approved.hipJoint.getAttribute==='function'&&typeof THREE.Vector3.prototype.subVectors==='function'){
