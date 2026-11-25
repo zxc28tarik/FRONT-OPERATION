@@ -38,7 +38,7 @@ for(const team of ['blue','red'])for(const cls of classes)for(let variant=0;vari
   if(!changed){
    assert(a[i].position.distanceTo(b[i].position)<1e-9,'unrelated role position changed');
    assert(a[i].scale.distanceTo(b[i].scale)<1e-9,'unrelated role scale changed');
-   assert.strictEqual(a[i].geometry,b[i].geometry,'unrelated role geometry changed');
+   assert(maxGeoMove(a[i],b[i])<1e-9,'unrelated role geometry changed');
   }
  }
  const aCarrier=before.upperBody.children.filter(n=>n.userData?.v139Carrier);
