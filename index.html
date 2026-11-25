@@ -10814,7 +10814,7 @@
       }
 
       // V234 opt-in rig: generated from modules/experimental/v188-skin-rig.mjs.
-      let foExperimentalRigApi=null,foExperimentalRigFrame=0;
+      let foExperimentalRigApi=null,foExperimentalRigFrame=0,foExperimentalRequested=null;
       function getFoExperimentalRigApi(){
         if(!foExperimentalRigApi)foExperimentalRigApi=(()=>{
 // FO_EXPERIMENTAL_RIG_BEGIN
@@ -11043,7 +11043,21 @@ return {createExperimentalRig,createAdaptiveRigController};
         return foExperimentalRigApi;
       }
       function foExperimentalRigRequested(){
-        return typeof location!=='undefined'&&new URLSearchParams(location.search).get('rig')==='experimental';
+        if(typeof location==='undefined')return false;
+        if(foExperimentalRequested===null)foExperimentalRequested=new URLSearchParams(location.search).get('rig')==='experimental';
+        return foExperimentalRequested;
+      }
+      function prepareFoExperimentalBotRig(bot,index){
+        if(!foExperimentalRigRequested())return;
+        try{
+          const api=getFoExperimentalRigApi();
+          bot.experimentalRig=api.createExperimentalRig(bot.mesh,{radial:12,steps:16});
+          bot.experimentalRigController=api.createAdaptiveRigController(bot.experimentalRig,{offset:index%2});
+        }catch(e){
+          bot.experimentalRig?.dispose();bot.experimentalRig=null;
+          bot.experimentalRigController=null;bot.experimentalRigFailed=true;
+          console.warn('Experimental visual rig preparation fallback',e);
+        }
       }
       function updateFoExperimentalBotRigs(){
         if(!foExperimentalRigRequested())return;
@@ -11056,11 +11070,6 @@ return {createExperimentalRig,createAdaptiveRigController};
           const distance=Math.hypot(bot.pos.x-camera.position.x,bot.pos.y-camera.position.y,bot.pos.z-camera.position.z)/scale;
           try{
             if(!bot.alive&&!bot.dying){bot.experimentalRigController?.reset();continue;}
-            if(!bot.experimentalRig&&distance<=42){
-              const api=getFoExperimentalRigApi();
-              bot.experimentalRig=api.createExperimentalRig(bot.mesh,{radial:12,steps:16});
-              bot.experimentalRigController=api.createAdaptiveRigController(bot.experimentalRig,{offset:i%2});
-            }
             bot.experimentalRigController?.step(distance,frame,true);
           }catch(e){
             // The existing visual model is always the fallback. Never affect gameplay.
@@ -11321,7 +11330,9 @@ return {createExperimentalRig,createAdaptiveRigController};
           });
         }
 
-        bots.forEach((b) => {
+        bots.forEach((b,index) => {
+          // Capture a reproducible neutral bind pose at spawn, not during the first combat bend.
+          if(typeof prepareFoExperimentalBotRig==='function')prepareFoExperimentalBotRig(b,index);
           if(foActiveMap==='bomb'){
             b.pos.x=foWorldX(b.pos.x);b.pos.z=foWorldZ(b.pos.z);
             b.lastCheckPos.copy(b.pos);b.mesh.root.position.copy(b.pos);
@@ -16075,7 +16086,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           if(bot.mesh.setVisualSecondary)bot.mesh.setVisualSecondary(bot.visualGaitPhase??0,bot.mesh.visualDetailLevel<2?Math.min(1,visualMotion.speed/4):0);
         }
         sampleBotMetrics(dt,bots);
-        updateFoExperimentalBotRigs();
+        if(typeof updateFoExperimentalBotRigs==='function')updateFoExperimentalBotRigs();
       }
 
       // =========================================================================

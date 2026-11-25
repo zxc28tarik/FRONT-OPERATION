@@ -46,10 +46,12 @@ try{
  const normal=await page.evaluate(()=>window.__foRigQA.inspect());
  assert(!normal.requested&&normal.rigs===0);
  await page.goto(base+'?rig=experimental',{waitUntil:'load',timeout:80000});await page.waitForFunction(()=>window.__foRigQA?.ready());
+ const optIn=await page.evaluate(()=>window.__foRigQA.inspect());
+ assert(optIn.requested&&optIn.rigs===11&&optIn.enabled===0&&optIn.failed===0,JSON.stringify(optIn));
  const life=await page.evaluate(()=>window.__foRigQA.lifecycle());
  assert(Object.values(life).every(v=>v===true),JSON.stringify(life));
  await page.locator('#btn-deploy').click();await page.waitForFunction(()=>document.getElementById('menu-overlay').classList.contains('hidden'));
  const step=await page.evaluate(()=>window.__foRigQA.step());assert.equal(step.failed,0);assert(step.active>0);
  assert.equal(errors.length,0,errors.join(' | '));
- const report={normal,life,step,errors};fs.writeFileSync(path.join(out,'v234-live-rig.json'),JSON.stringify(report,null,2));console.log('PASS optional live rig '+JSON.stringify(report));
+ const report={normal,optIn,life,step,errors};fs.writeFileSync(path.join(out,'v234-live-rig.json'),JSON.stringify(report,null,2));console.log('PASS optional live rig '+JSON.stringify(report));
 }finally{await browser?.close();await new Promise(r=>server.close(r));}
