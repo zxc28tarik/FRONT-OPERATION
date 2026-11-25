@@ -60,6 +60,22 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  let dense=0;m.root.traverse(n=>{if(n.userData.v129Sculpted&&n.geometry.getAttribute('position').count>300)dense++;});
  assert.equal(dense,10);
  const cloth=[];m.root.traverse(n=>{if(n.userData.v129Sculpted)cloth.push({n,high:n.geometry});});
+ const joints=[];m.root.traverse(n=>{if(n.userData.v154Joint)joints.push({n,high:n.geometry,kind:n.userData.v154Joint});});
+ assert.equal(joints.length,8,'two hip, knee, shoulder and elbow textile bridges');
+ for(const kind of ['hip','knee','shoulder','elbow'])assert.equal(joints.filter(j=>j.kind===kind).length,2);
+ for(const j of joints){
+   assert(j.high.boundingBox&&j.high.getAttribute('position').count>100);
+   assert(j.n.material.name==='V112 camouflage','joint fabric matches the adjacent limb');
+   assert(j.n.quaternion.toArray().every(Number.isFinite));
+ }
+ for(const pitch of [-1.1,-.6,0,.6,1.1]){
+   m.weaponPivot.rotation.x=pitch;m.updateVisualGrip(pitch);
+   assert(joints.every(j=>j.n.quaternion.toArray().every(Number.isFinite)));
+   assert(m.muzzleFlash.position.equals(muzzle));
+ }
+ m.weaponPivot.rotation.x=0;m.resetVisualCombatPose();
+ const jointTwin=[];twin.root.traverse(n=>{if(n.userData.v154Joint)jointTwin.push(n.geometry);});
+ assert(joints.every((j,i)=>j.high===jointTwin[i]),'joint geometry shared');
  const near=countVisible(m.root);
  const armBands=m.upperBody.children.filter(n=>n.geometry===api.base(team,cls).upperBody.children.find(c=>c.geometry?.parameters?.height===.065)?.geometry);
  const closeGroups=[m.head.children.find(n=>n.name==='v99_close_face'),m.upperBody.children.find(n=>n.name==='v99_close_rig')];
@@ -70,10 +86,12 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  m.setVisualDetailDistance(24);assert.equal(m.visualDetailLevel,1);const mid=countVisible(m.root);assert(closeGroups.every(g=>!g.visible));
  m.setVisualDetailDistance(22);assert.equal(m.visualDetailLevel,1);
  m.setVisualDetailDistance(50);assert.equal(m.visualDetailLevel,2);const far=countVisible(m.root);assert(cloth.every(c=>c.n.geometry!==c.high&&c.n.geometry.getAttribute('position').count<c.high.getAttribute('position').count));
+ assert(joints.every(j=>j.n.geometry!==j.high&&j.n.geometry.getAttribute('position').count<j.high.getAttribute('position').count));
  assert(near>mid&&mid>far&&m.head.visible&&m.weaponPivot.visible);
  m.setVisualDetailDistance(43);assert.equal(m.visualDetailLevel,2);
  m.setVisualDetailDistance(18);assert.equal(m.visualDetailLevel,0);assert.equal(countVisible(m.root),near);assert(cloth.every(c=>c.n.geometry===c.high));
+ assert(joints.every(j=>j.n.geometry===j.high),'joint geometry returns to close detail');
  assert.equal(m.head.parent,m.upperBody);assert.equal(m.muzzleFlash.parent,m.weaponPivot);
  nearTotal+=near;farTotal+=far;models+=3;
 }
-console.log('V152 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
+console.log('V155 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');

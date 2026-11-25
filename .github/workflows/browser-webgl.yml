@@ -39,6 +39,7 @@ on:
       - art/v135-character-refinement
       - art/v145-character-cohesion
       - art/v152-character-surface-motion
+      - art/v155-character-continuity
   workflow_dispatch:
 
 jobs:
