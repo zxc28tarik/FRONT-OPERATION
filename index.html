@@ -4858,6 +4858,7 @@
       }
 
       function buildViewmodel(weaponId) {
+        if(typeof clearV271PlayerFlash==='function'&&typeof v271FlashLeft!=='undefined')clearV271PlayerFlash();
         if (currentViewmodelMesh) {
           viewmodelGroup.remove(currentViewmodelMesh);
           disposeViewmodel(currentViewmodelMesh);
@@ -5852,16 +5853,16 @@
           const rail = createLimbMesh(G.weaponTopRail, mats.gunSteel, false);
           rail.scale.z = isSniper ? 0.30 : isCompact ? 0.65 : 1;
           rail.position.set(0, isSniper ? 0.041 : 0.053, mainLen * 0.23);
-          rail.userData.v263Part='dark';
+          rail.userData=rail.userData||{};rail.userData.v263Part='dark';
           weapon.add(rail);
           const handguard = createLimbMesh(G.weaponHandguard, mats.vestRig, false);
           handguard.scale.z = isCompact ? 0.68 : isSniper ? 1.1 : 1;
           handguard.position.set(0, 0.009, mainLen * 0.69);
-          handguard.userData.v263Part='guard';
+          handguard.userData=handguard.userData||{};handguard.userData.v263Part='guard';
           weapon.add(handguard);
           const grip = createLimbMesh(G.weaponGrip, mats.bootLeather, false);
           grip.position.set(0, -0.083, -0.014);
-          grip.userData.v263Part='grip';
+          grip.userData=grip.userData||{};grip.userData.v263Part='grip';
           grip.rotation.x = -0.19;
           weapon.add(grip);
           if (!isSniper) {
@@ -7901,8 +7902,8 @@
         const originalWeaponParts=model.weaponPivot.children.slice(0,4);
         const originalPartNames=['body','stock','steel',
           classId==='sniper'?'optic':classId==='heavy'?'painted':'magazine'];
-        originalWeaponParts.forEach((n,i)=>{if(n.isMesh)n.userData.v263Part=originalPartNames[i];});
-        if(magazine&&classId==='sniper')magazine.userData.v263Part='magazine';
+        originalWeaponParts.forEach((n,i)=>{if(n.isMesh){n.userData=n.userData||{};n.userData.v263Part=originalPartNames[i];}});
+        if(magazine&&classId==='sniper'){magazine.userData=magazine.userData||{};magazine.userData.v263Part='magazine';}
         for(const n of model.weaponPivot.children){
           const part=n.userData?.v263Part,finish=worldFinishes[part];
           if(!n.isMesh||!finish||n===model.muzzleFlash)continue;
@@ -13249,13 +13250,111 @@ return {createExperimentalRig,createAdaptiveRigController};
         casingMat: new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.25, metalness: 0.9 })
       };
 
-      const MUZZLE_SHARED = {
-        coreGeo: new THREE.SphereGeometry(0.045, 8, 8),
-        finGeo: new THREE.PlaneGeometry(0.18, 0.045),
-        matRifle: new THREE.MeshBasicMaterial({ color: 0xffb703, transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false }),
-        matSniper: new THREE.MeshBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }),
-        matCore: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.96, depthWrite: false })
-      };
+      // V271: one soft-edged, layered procedural flash texture and six
+      // triangles per visible flash. Shared resources, no new scene lights.
+      let V271_MUZZLE_ASSETS=null;
+      let v271PlayerFlash=null,v271FlashLeft=0,v271FlashSequence=0;
+      const v271LightPosition=new THREE.Vector3();
+      function getV271MuzzleAssets(){
+        if(V271_MUZZLE_ASSETS)return V271_MUZZLE_ASSETS;
+        const width=128,height=64,data=new Uint8Array(width*height*4);
+        const clamp=x=>Math.max(0,Math.min(1,x));
+        const smooth=x=>{x=clamp(x);return x*x*(3-2*x);};
+        for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+          const u=(x+.5)/width,v=((y+.5)/height-.5)*2;
+          const jitter=.92+.08*Math.sin(u*39+Math.sin(u*17)*1.2);
+          const shape=(.12+.78*Math.sin(Math.PI*Math.pow(u,.67)))*jitter;
+          const radial=Math.abs(v)/Math.max(.035,shape);
+          const envelope=smooth(u/.055)*smooth((1-u)/.16);
+          const outer=envelope*Math.exp(-3.3*radial*radial)*smooth((1.1-radial)/.30);
+          const inner=envelope*Math.exp(-12*radial*radial)*smooth((.90-u)/.42);
+          const hot=clamp(inner*1.25);
+          const i=(y*width+x)*4;
+          data[i]=255;data[i+1]=Math.round(102+153*hot);
+          data[i+2]=Math.round(18+237*hot);
+          data[i+3]=Math.round(255*clamp(outer*.78+inner*.50));
+        }
+        const map=new THREE.DataTexture(data,width,height,THREE.RGBAFormat);
+        map.magFilter=THREE.LinearFilter;map.minFilter=THREE.LinearFilter;
+        map.generateMipmaps=false;map.needsUpdate=true;
+        const position=[],uv=[],indices=[];
+        const quad=(points,coords)=>{
+          const base=position.length/3;
+          for(const p of points)position.push(...p);
+          for(const t of coords)uv.push(...t);
+          indices.push(base,base+1,base+2,base,base+2,base+3);
+        };
+        const full=[[0,0],[1,0],[1,1],[0,1]];
+        for(const angle of [0,Math.PI*.5]){
+          const x=Math.cos(angle)*.047,y=Math.sin(angle)*.047;
+          quad([[-x,-y,0],[-x,-y,.19],[x,y,.19],[x,y,0]],full);
+        }
+        quad([[-.040,-.040,.037],[.040,-.040,.037],[.040,.040,.037],[-.040,.040,.037]],
+          [[.08,0],[.68,0],[.68,1],[.08,1]]);
+        const geometry=new THREE.BufferGeometry();
+        geometry.setAttribute('position',new THREE.Float32BufferAttribute(position,3));
+        geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+        geometry.setIndex(indices);geometry.computeBoundingSphere();
+        geometry.userData.v271Muzzle=true;
+        const material=new THREE.MeshBasicMaterial({map,color:0xffffff,transparent:true,
+          opacity:.90,side:THREE.DoubleSide,depthWrite:false,depthTest:true,toneMapped:false});
+        V271_MUZZLE_ASSETS={geometry,material};return V271_MUZZLE_ASSETS;
+      }
+      function v271FlashScale(category){
+        return category==='pistol'?.72:category==='smg'?.80:category==='lmg'?1.12:category==='sniper'?1.18:1;
+      }
+      function clearV271PlayerFlash(){
+        v271FlashLeft=0;
+        if(v271PlayerFlash){
+          v271PlayerFlash.visible=false;
+          if(v271PlayerFlash.parent)v271PlayerFlash.parent.remove(v271PlayerFlash);
+        }
+        muzzleLight.intensity=0;
+      }
+      function triggerV271PlayerFlash(category){
+        const assets=getV271MuzzleAssets();
+        if(!v271PlayerFlash){
+          v271PlayerFlash=new THREE.Mesh(assets.geometry,assets.material.clone());
+          v271PlayerFlash.rotation.y=Math.PI;v271PlayerFlash.frustumCulled=false;
+        }
+        if(v271PlayerFlash.parent!==vmRefs.muzzlePoint)vmRefs.muzzlePoint.add(v271PlayerFlash);
+        const size=v271FlashScale(category);
+        v271PlayerFlash.userData.base=size;
+        v271PlayerFlash.rotation.set(0,Math.PI,(++v271FlashSequence%7)*.19);
+        v271FlashLeft=.050;v271PlayerFlash.visible=true;
+        updateV271PlayerFlash(0);
+      }
+      function updateV271PlayerFlash(dt){
+        if(!v271PlayerFlash||v271FlashLeft<=0)return;
+        if(!matchState.started||matchState.ended||!player.alive){clearV271PlayerFlash();return;}
+        v271FlashLeft=Math.max(0,v271FlashLeft-dt);
+        if(v271FlashLeft<=0){clearV271PlayerFlash();return;}
+        const t=v271FlashLeft/.050,b=v271PlayerFlash.userData.base;
+        v271PlayerFlash.scale.set(b*(.70+.30*t),b*(.70+.30*t),b*(.58+.42*t));
+        v271PlayerFlash.material.opacity=.90*Math.min(1,t*2.8);
+        vmRefs.muzzlePoint.getWorldPosition(v271LightPosition);
+        viewmodelGroup.worldToLocal(v271LightPosition);
+        muzzleLight.position.copy(v271LightPosition);
+        muzzleLight.intensity=1.35*b*t*t;
+      }
+      function triggerV271BotFlash(bot,category){
+        const mesh=bot.mesh.muzzleFlash;
+        if(!mesh.geometry.userData.v271Muzzle){
+          const old=mesh.geometry,assets=getV271MuzzleAssets();
+          mesh.geometry=assets.geometry;mesh.material=assets.material;
+          old.dispose();
+        }
+        const size=v271FlashScale(category);
+        mesh.userData.v271Scale=size;
+        mesh.rotation.z=((mesh.userData.v271Shot=(mesh.userData.v271Shot||0)+1)%7)*.19;
+        mesh.scale.setScalar(size);
+      }
+      function updateV271BotFlash(bot){
+        const mesh=bot.mesh.muzzleFlash,b=mesh.userData?.v271Scale;
+        if(!b||bot.muzzleTimer<=0)return;
+        const t=Math.min(1,bot.muzzleTimer/.055);
+        mesh.scale.set(b*(.45+.55*t),b*(.45+.55*t),b*(.65+.35*t));
+      }
 
       const activeTracers = [];
       const activeParticles = [];
@@ -13265,26 +13364,6 @@ return {createExperimentalRig,createAdaptiveRigController};
       const activeRockets = [];
       const activeMedkits = [];
       const activeClaymores = [];
-
-      function createMuzzleFlashStar(category = 'rifle') {
-        const g = new THREE.Group();
-        const isSniper = category === 'sniper';
-        const finMat = isSniper ? MUZZLE_SHARED.matSniper : MUZZLE_SHARED.matRifle;
-        const scale = isSniper ? 1.45 : category === 'lmg' ? 1.25 : category === 'smg' || category === 'pistol' ? 0.78 : 1.0;
-
-        const core = new THREE.Mesh(MUZZLE_SHARED.coreGeo, MUZZLE_SHARED.matCore);
-        core.scale.setScalar(scale);
-        g.add(core);
-
-        const finCount = isSniper ? 2 : (category === 'lmg' ? 4 : 3);
-        for (let i = 0; i < finCount; i++) {
-          const fin = new THREE.Mesh(MUZZLE_SHARED.finGeo, finMat);
-          fin.rotation.z = (i / finCount) * Math.PI;
-          fin.scale.set(scale, scale, 1);
-          g.add(fin);
-        }
-        return g;
-      }
 
       function spawnTracer(startVec, endVec, category = 'rifle') {
         if (!Number.isFinite(startVec.x) || !Number.isFinite(endVec.x)) return;
@@ -13869,14 +13948,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           (w.category === 'pistol' ? 'pistol' : 'gun'), 'player');
 
         if (w.category !== 'rocket') {
-          const flashStar = createMuzzleFlashStar(w.category);
-          vmRefs.muzzlePoint.add(flashStar);
-          muzzleLight.position.copy(vmRefs.muzzlePoint.position);
-          muzzleLight.intensity = w.category === 'sniper' ? 2.6 : 1.7;
-          setTimeout(() => {
-            if (flashStar.parent) flashStar.parent.remove(flashStar);
-            muzzleLight.intensity = 0;
-          }, 42);
+          triggerV271PlayerFlash(w.category);
 
           const ejectWorld = new THREE.Vector3();
           vmRefs.ejectPoint.getWorldPosition(ejectWorld);
@@ -15982,6 +16054,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           if (bot.muzzleTimer > 0) {
             bot.muzzleTimer -= dt;
             if (bot.muzzleTimer <= 0) bot.mesh.muzzleFlash.visible = false;
+            else updateV271BotFlash(bot);
           }
           bot.hitFlinchPitch *= Math.exp(-16 * dt);
           bot.hitFlinchRoll *= Math.exp(-16 * dt);
@@ -16332,6 +16405,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
               bot.muzzleTimer = 0.055;
               bot.mesh.muzzleFlash.visible = true;
+              triggerV271BotFlash(bot,bw.category);
 
               const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
               const distToPlayer = botEye.distanceTo(camera.position);
@@ -16421,6 +16495,7 @@ return {createExperimentalRig,createAdaptiveRigController};
                 bot.fireTimer = (60 / bw.rpm) * 2.2;
                 bot.muzzleTimer = 0.055;
                 bot.mesh.muzzleFlash.visible = true;
+                triggerV271BotFlash(bot,bw.category);
                 sound.playGunshot(bw.category, botEyeNoTarget.distanceTo(camera.position), bw.id);
                 emitBotNoise(bot.team, bot.pos, bw.category === 'pistol' ? 'pistol' : 'gun', bot.id);
 
@@ -16470,6 +16545,7 @@ return {createExperimentalRig,createAdaptiveRigController};
                   bot.suppressFireTimer = (60 / sw.rpm) * 2.5 + Math.random() * 0.08;
                   bot.muzzleTimer = 0.055;
                   bot.mesh.muzzleFlash.visible = true;
+                  triggerV271BotFlash(bot,bw.category);
 
                   sound.playGunshot(sw.category, botEyeNoTarget.distanceTo(camera.position), sw.id);
                   emitBotNoise(bot.team, bot.pos, 'gun', bot.id);
@@ -17225,6 +17301,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       }
 
       function updateEntitiesAndFX(dt) {
+        updateV271PlayerFlash(dt);
         for (let i = activeGrenades.length - 1; i >= 0; i--) {
           const g = activeGrenades[i];
           g.fuse -= dt;
