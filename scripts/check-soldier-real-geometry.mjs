@@ -51,7 +51,7 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  m.setVisualFootPose(.15,-.2);assert.equal(ankles[0].rotation.x,.15);assert.equal(ankles[1].rotation.x,-.2);
  m.resetVisualCombatPose();assert(ankles.every(a=>a.rotation.x===0));
  let folds=0,weapon=0;m.root.traverse(n=>{if(n.userData.v129Sculpted)folds++;if(n.userData.v131Refined)weapon++;});
- assert.equal(folds,10);assert(weapon>=2);
+ assert.equal(folds,10);assert(weapon>=2);let newAnatomy=0;m.root.traverse(n=>{if(n.userData.v245Anatomy)newAnatomy++;});assert.equal(newAnatomy,10);assert(head.userData.v245Face);assert(m.root.children.some(n=>n.userData.v245Pelvis));
  const carriers=m.upperBody.children.filter(n=>n.userData.v139Carrier);
  assert.equal(carriers.length,2);
  assert(carriers.every(n=>n.geometry.boundingBox&&n.geometry.getAttribute('position').count>100));

@@ -5767,13 +5767,17 @@
                 // V165: cheekbones, jaw angle and temple shape remain under the helmet.
                 const jaw=Math.exp(-((Math.abs(x)-.66)**2*16+(y+.49)**2*12));
                 const temple=Math.exp(-((Math.abs(x)-.85)**2*22+(y-.36)**2*16));
-                p.setXYZ(i,x*(.096+.009*Math.max(0,y)-Math.max(0,-y)*.012+.004*jaw-.004*temple),y*.107,z*.095+nose*.018+cheek*.009+brow*.007-orbit*.009);
+                const chin=Math.exp(-(x*x*14+(y+.74)**2*24))*front;
+                const muzzle=Math.exp(-(x*x*10+(y+.35)**2*18))*front;
+                const cranium=Math.max(0,y),lower=Math.max(0,-y);
+                p.setXYZ(i,x*(.094+.010*cranium-.010*lower+.006*jaw-.006*temple),y*.110,z*.095+nose*.021+cheek*.011+brow*.006-orbit*.012+chin*.011+muzzle*.005);
               }
               else{
                 const chin=Math.exp(-(x*x*12+(y+.62)**2*12))*front;
                 // V166: softer cheek-to-chin transition, shallow fabric relief.
                 const pleat=Math.sin(x*14+y*7)*Math.exp(-((y+.42)**2*10))*front*.0015;
-                p.setXYZ(i,x*(.078-.012*Math.max(0,-y)),y*.068,z*.043+nose*.018+cheek*.008+chin*.008+pleat);
+                const jaw=Math.exp(-((Math.abs(x)-.55)**2*13+(y+.36)**2*9))*front;
+                p.setXYZ(i,x*(.084-.009*Math.max(0,-y)),y*.073,z*.040+nose*.016+cheek*.006+chin*.010+jaw*.005+pleat);
               }
             }
             p.needsUpdate=true;geo.computeVertexNormals();geo.computeBoundingSphere();return geo;
@@ -5786,7 +5790,7 @@
         const geomOf=n=>n.geometry||n.args?.[0];
         const oldSkull=model.head.children.find(n=>geomOf(n)===approved.headSkull);
         const oldJaw=model.head.children.find(n=>geomOf(n)===approved.jaw);
-        if(oldSkull){oldSkull.geometry=F.skull;oldSkull.material=F.skin[variantId];oldSkull.name='v106_face';}
+        if(oldSkull){oldSkull.geometry=F.skull;oldSkull.material=F.skin[variantId];oldSkull.name='v106_face';oldSkull.userData.v245Face=true;}
         if(oldJaw)oldJaw.visible=false;
         for(const n of model.head.children){
           if([approved.goggles,G.goggleLensLeft,G.goggleBridge,G.visorSideGuard,G.visorUpperSeal].includes(geomOf(n)))n.visible=false;
@@ -5795,14 +5799,14 @@
         const mask=classId==='sniper'?D.olive:D.mask;
         // V148: the visible mask follows the same individual facial proportions as the skull.
         const maskProfile=[[1,1,1],[.975,1.018,1.01],[1.032,.987,.99]][variantId];
-        part(face,F.mask,mask,0,-.045,.079,...maskProfile);
-        ell(face,D.maskEdge,0,-.076,.102,.037,.014,.015);
+        part(face,F.mask,mask,0,-.047,.076,...maskProfile);
+        ell(face,D.maskEdge,0,-.084,.104,.042,.006,.008);
         for(const s of [-1,1]){
           const eyewear=classId==='heavy'?[.048,.027]:classId==='sniper'?[.037,.017]:classId==='medic'?[.041,.020]:classId==='engineer'?[.045,.024]:[.043,.022];
-          ell(face,D.rubber,s*.046,.012,.116,eyewear[0],eyewear[1],.023,0,-s*.18);
-          ell(face,D.lens,s*.046,.013,.132,eyewear[0]*.85,eyewear[1]*.77,.013,0,-s*.18);
-          ell(face,D.lensEdge,s*.046,.024,.141,eyewear[0]*.55,.0025,.003,0,-s*.18);
-          ell(face,mask,s*.052,-.022,.086,.027,.034,.022,0,s*.23);
+          ell(face,D.rubber,s*.046,.012,.114,eyewear[0],eyewear[1],.019,0,-s*.18);
+          ell(face,D.lens,s*.046,.013,.128,eyewear[0]*.88,eyewear[1]*.79,.011,0,-s*.18);
+          ell(face,D.lensEdge,s*.046,.024,.137,eyewear[0]*.55,.0025,.003,0,-s*.18);
+          ell(face,mask,s*.058,-.027,.082,.023,.028,.015,0,s*.23);
           // V169: existing retention straps follow the cheek toward the jaw.
           block(face,D.strap,s*.098,-.043,.068,.012,.078,.016,-.15,0,-s*.31);
           ell(face,D.hard,s*.132,.002,-.011,.013,.033,.035);
@@ -5923,13 +5927,13 @@
             return geometry;
           };
           const anatomy=new Map([
-            [geos.thigh,profile([[0,-.18],[.048,-.18],[.063,-.145],[.071,-.09],[.078,.02],[.080,.105],[.068,.16],[.042,.18],[0,.18]],1,.93)],
-            [geos.shin,profile([[0,-.175],[.039,-.175],[.052,-.15],[.054,-.085],[.061,.015],[.065,.080],[.056,.135],[.043,.175],[0,.175]],.94,1.03)],
-            [geos.upperArm,profile([[0,-.12],[.042,-.12],[.053,-.09],[.061,-.035],[.064,.035],[.060,.09],[.038,.12],[0,.12]],1,.96)],
-            [geos.forearm,profile([[0,-.115],[.037,-.115],[.043,-.085],[.052,-.018],[.056,.035],[.051,.083],[.034,.115],[0,.115]],1,.94)],
-            [geos.abdomen,profile([[0,-.09],[.128,-.09],[.151,-.06],[.145,.02],[.149,.065],[.124,.09],[0,.09]],1,.73)],
-            [geos.chest,profile([[0,-.18],[.138,-.18],[.164,-.14],[.181,-.05],[.187,.065],[.174,.12],[.122,.18],[0,.18]],1,.63)],
-            [geos.neck,profile([[0,-.05],[.061,-.05],[.065,-.024],[.056,.026],[.049,.05],[0,.05]])]
+            [geos.thigh,profile([[0,-.18],[.052,-.18],[.061,-.155],[.071,-.105],[.080,-.035],[.086,.045],[.088,.100],[.082,.145],[.063,.172],[.047,.18],[0,.18]],1,.93)],
+            [geos.shin,profile([[0,-.175],[.043,-.175],[.046,-.151],[.050,-.103],[.059,-.038],[.068,.032],[.069,.080],[.061,.125],[.049,.157],[.045,.175],[0,.175]],.94,1.03)],
+            [geos.upperArm,profile([[0,-.12],[.043,-.12],[.049,-.097],[.055,-.066],[.062,-.021],[.068,.034],[.073,.077],[.066,.104],[.048,.12],[0,.12]],1,.96)],
+            [geos.forearm,profile([[0,-.115],[.033,-.115],[.038,-.095],[.044,-.065],[.050,-.025],[.056,.025],[.058,.064],[.052,.095],[.041,.115],[0,.115]],1,.94)],
+            [geos.abdomen,profile([[0,-.09],[.130,-.09],[.143,-.077],[.145,-.042],[.142,.003],[.151,.044],[.157,.075],[.145,.09],[0,.09]],1,.73)],
+            [geos.chest,profile([[0,-.18],[.145,-.18],[.158,-.159],[.170,-.110],[.181,-.045],[.191,.023],[.198,.078],[.188,.116],[.161,.149],[.113,.174],[.080,.18],[0,.18]],1,.63)],
+            [geos.neck,profile([[0,-.05],[.064,-.05],[.066,-.034],[.060,-.010],[.054,.026],[.050,.05],[0,.05]])]
           ]);
           const textileTexture=(coarse)=>{
             const size=128,bytes=new Uint8Array(size*size*4);
@@ -6104,8 +6108,17 @@
         // Replace the approved pelvis primitive only in the enhanced model.
         const pelvisMesh=model.root.children.find(n=>geomOf(n)===approved.pelvis);
         if(pelvisMesh){
-          pelvisMesh.geometry=G.v120.pelvis||approved.pelvis;
-          pelvisMesh.scale.x*=bodyProfile[0];pelvisMesh.name='v120_fitted_waist';
+          if(!G.v245Pelvis&&G.v120.pelvis?.getAttribute){
+            const g=G.v120.pelvis.clone(),p=g.getAttribute('position');
+            for(let i=0;i<p.count;i++){
+              const x=p.getX(i),y=p.getY(i),z=p.getZ(i),t=Math.max(-1,Math.min(1,y/.07));
+              const hips=1+.055*Math.exp(-((t+.30)**2)/.40)-.065*Math.max(0,t);
+              p.setXYZ(i,x*hips,y,z*(1+.065*Math.max(0,-t)-.045*Math.max(0,t)));
+            }
+            p.needsUpdate=true;g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();G.v245Pelvis=g;
+          }
+          pelvisMesh.geometry=G.v245Pelvis||G.v120.pelvis||approved.pelvis;
+          pelvisMesh.scale.x*=bodyProfile[0];pelvisMesh.name='v120_fitted_waist';pelvisMesh.userData.v245Pelvis=true;
         }
         // Side panels form a shaped transition between belt and plate carrier.
         for(const s of [-1,1]){
@@ -6154,10 +6167,11 @@
           const glove=detail(hand,'glove');
           for(let j=0;j<4;j++){
             const x=(j-1.5)*.014;
-            ell(glove,H.knuckle,x,.023,.018,.008,.009,.013);
-            ell(glove,H.palm,x,-.013,.036,.0075,.020,.011,-.42);
+            const finger=[.91,1.04,1.00,.84][j];
+            ell(glove,H.knuckle,x,.021,.018,.008,.008,.012*finger);
+            ell(glove,H.palm,x,-.012,.033,.0078,.019*finger,.0105,-.46);
           }
-          ell(glove,H.palm,left?.028:-.028,-.007,.008,.011,.025,.012,0,0,left?-.45:.45);
+          ell(glove,H.palm,left?.025:-.025,-.006,.010,.011,.023,.011,0,0,left?-.50:.50);
           const rest={x:left?-.031:.028,y:left?-.018:-.034,z:left?(classId==='sniper'?.26:classId==='heavy'?.20:classId==='medic'||classId==='engineer'?.115:.17):.048};
           arms.push({left,hand,fore,elbow,shoulder,upperArm,band,rest,glove,restElbow:{x:elbow.position.x,y:elbow.position.y,z:elbow.position.z}});
         }
@@ -6462,16 +6476,27 @@
                 const exponent=chest?.88:.94;
                 const px=Math.sign(x)*Math.pow(Math.abs(x)/r,exponent)*r;
                 const pz=Math.sign(z)*Math.pow(Math.abs(z)/r,exponent)*r;
-                const rib=chest?1+.055*Math.cos(t*1.5):1-.045*Math.cos(t*2.1);
-                return [px*rib,y,pz*(chest?1+.035*Math.max(0,t):1)];
+                const rib=chest?1+.035*Math.cos(t*1.5):1-.035*Math.cos(t*2.1);
+                const forward=Math.max(0,Math.sin(a)),rear=Math.max(0,-Math.sin(a));
+                const pectoral=chest?Math.exp(-((t-.22)**2)/.32):0;
+                const shoulder=chest?Math.exp(-((t-.58)**2)/.22):0;
+                return [px*rib*(1+.045*shoulder),y,pz*(1+.060*pectoral*forward+.035*shoulder*rear)];
               }
               if(thigh||shin){
                 const h=thigh?.18:.175,t=Math.max(-1,Math.min(1,y/h));
                 const curve=Math.sin(Math.PI*(t+1)/2);
                 const front=Math.max(0,Math.sin(a));
                 const back=Math.max(0,-Math.sin(a));
-                const fullness=thigh?(.045*front+.025*back):(.025*front+.075*back);
-                return [x*(1+.035*curve),y,z*(1+fullness*curve)];
+                const calf=shin?Math.exp(-((t-.35)**2)/.18):0;
+                const quadriceps=thigh?Math.exp(-((t-.18)**2)/.50):0;
+                const fullness=thigh?(.075*front*quadriceps+.050*back*curve):(.020*front*curve+.13*back*calf);
+                return [x*(1+.025*curve+.025*quadriceps),y,z*(1+fullness)];
+              }
+              if(base===approved.upperArm||base===approved.forearm){
+                const upper=base===approved.upperArm,t=Math.max(-1,Math.min(1,y/(upper?.12:.115)));
+                const muscle=Math.exp(-((t-(upper?.30:.20))**2)/.38);
+                const front=Math.max(0,Math.sin(a)),back=Math.max(0,-Math.sin(a));
+                return [x*(1+.035*muscle),y,z*(1+muscle*(upper?.08*front+.035*back:.035*front+.055*back))];
               }
               return [x,y,z];
             };
@@ -6504,7 +6529,7 @@
           G.v129=shapes;G.v146=lowShapes;
         }
         const sculpt=n=>{
-          const g=G.v129.get(n.geometry);if(g){n.geometry=g;n.userData.v129Sculpted=true;}
+          const g=G.v129.get(n.geometry);if(g){n.geometry=g;n.userData.v129Sculpted=true;n.userData.v245Anatomy=true;}
           for(const c of n.children||[])sculpt(c);
         };
         if(model.root.userData)sculpt(model.root);
@@ -6735,7 +6760,7 @@
             const bootToe=G.v120.boot.clone(),p=bootToe.getAttribute('position');
             for(let i=0;i<p.count;i++){
               const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
-              p.setXYZ(i,x*(1-.08*Math.max(0,z)),y<0?y*.78:y*(1-.16*Math.max(0,z)),z);
+              p.setXYZ(i,x*(1-.13*Math.max(0,z)),y<0?Math.max(-.76,y*.80):y*(1-.24*Math.max(0,z)),z);
             }
             p.needsUpdate=true;bootToe.computeVertexNormals();bootToe.computeBoundingBox();bootToe.computeBoundingSphere();
             G.v158=bootToe;
@@ -6836,6 +6861,7 @@
               }
             };
             model.updateVisualGrip(0);
+            model.updateVisualJointFit();
           }
         }
         // V163: approximate contact shading baked into existing torso vertices.
