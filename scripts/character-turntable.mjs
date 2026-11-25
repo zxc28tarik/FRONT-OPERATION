@@ -153,7 +153,7 @@ try {
                 if(!p.array.every(Number.isFinite)||!n.array.every(Number.isFinite)||!o.geometry.boundingBox)invalid++;
               }
             });
-            const h=improved.head.children.find(n=>n.name==='v105_role_helmet');
+            const h=improved.head.children.find(n=>n.name==='v105_role_helmet'||n.name==='v246_integrated_helmet');
             const v=improved.upperBody.children.filter(n=>n.name==='v105_role_vest');
             return {detailInput:input,detailOutput:output,invalidBatches:invalid,roleHelmet:!!h,roleVests:v.length,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};
           })(),
@@ -172,7 +172,7 @@ try {
           { team, role, angle,pose }
         );
         if(stats.detailInput<70||stats.detailOutput>=stats.detailInput*.45||stats.invalidBatches!==0)throw Error('Invalid V104 batches '+JSON.stringify(stats));
-        if(!stats.roleHelmet||stats.roleVests!==2)throw Error('Missing V105 role geometry');
+        if(!stats.roleHelmet||stats.roleVests!==2)throw Error('Missing class helmet or fitted carrier geometry');
         if((!baselineCode&&stats.enhanced<=stats.original)||stats.enhanced>stats.original+105)throw Error('Unexpected '+role+' model size');
         if (Math.abs(stats.headY - 1.54) > 0.001) throw Error('Head geometry regression');
         const image = prefix+'character-' + team + '-' + role + '-' + angle + (pose==='stand'?'':'-'+pose) + '.png';

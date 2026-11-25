@@ -6054,6 +6054,118 @@
           helmetMesh.geometry=G.v105.helmets[classId]||G.v105.helmets.assault;
           helmetMesh.name='v105_role_helmet';
         }
+
+        // V246: integrated helmet/protection pass. Re-sculpt the existing shell and
+        // refit the already-present band, rails, NVG mount, goggles and ear cups.
+        // Only the near chin retention pieces add geometry; gameplay anchors stay fixed.
+        let v246Protection=null;
+        if(helmetMesh){
+          if(!G.v246){
+            const sculptHelmet=(source)=>{
+              const g=source.clone();
+              if(typeof g.getAttribute!=='function')return g;
+              const p=g.getAttribute('position');
+              for(let i=0;i<p.count;i++){
+                const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+                const side=Math.min(1,Math.abs(x)/.135);
+                const front=Math.max(0,z/.145),rear=Math.max(0,-z/.145);
+                const lower=Math.exp(-((y+.020)*(y+.020))/.0019);
+                const crown=Math.max(0,Math.min(1,(y-.018)/.12));
+                const nx=x*(1-.022*side*lower+.008*crown);
+                const ny=y-.0065*rear*lower+.0025*crown;
+                const nz=z*(1+.018*rear)-.0035*front*lower;
+                p.setXYZ(i,nx,ny,nz);
+              }
+              p.needsUpdate=true;g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();
+              return g;
+            };
+            const helmets={},lowHelmets={};
+            for(const role of Object.keys(G.v105.helmets)){
+              helmets[role]=sculptHelmet(G.v105.helmets[role]);
+              lowHelmets[role]=sculptHelmet(G.v105.lowHelmets[role]);
+            }
+            G.v246={
+              helmets,lowHelmets,
+              strap:new THREE.BoxGeometry(.014,.132,.010),
+              chinCup:new THREE.BoxGeometry(.072,.026,.018),
+              cheekPad:new THREE.BoxGeometry(.034,.047,.014)
+            };
+          }
+          helmetMesh.geometry=G.v246.helmets[classId]||G.v246.helmets.assault;
+          helmetMesh.name='v246_integrated_helmet';
+          helmetMesh.userData=helmetMesh.userData||{};
+          helmetMesh.userData.v246Shell=true;
+
+          const headGeos=getSoldierSharedAssets().geos;
+          const v246Band=model.head.children.find(n=>n.geometry===headGeos.helmetBand);
+          const v246Nvg=model.head.children.find(n=>n.geometry===headGeos.nvgMount);
+          const v246Goggles=model.head.children.find(n=>n.geometry===headGeos.goggles);
+          const v246EarCups=model.head.children.filter(n=>n.geometry===headGeos.earCup);
+          const accessoryFit={
+            assault:{band:[1,.72,1],earX:.120,earScale:.96,nvgY:.058,goggleY:.010},
+            medic:{band:[.98,.68,.98],earX:.118,earScale:.94,nvgY:.057,goggleY:.009},
+            engineer:{band:[1.02,.76,1.02],earX:.122,earScale:.98,nvgY:.061,goggleY:.010},
+            sniper:{band:[.97,.62,.98],earX:.116,earScale:.90,nvgY:.055,goggleY:.007},
+            heavy:{band:[1.045,.82,1.04],earX:.126,earScale:1.04,nvgY:.064,goggleY:.011}
+          }[classId]||{band:[1,.72,1],earX:.120,earScale:.96,nvgY:.058,goggleY:.010};
+          if(v246Band){
+            v246Band.scale.set(...accessoryFit.band);
+            v246Band.position.set(0,.027,-.006);
+            v246Band.name='v246_helmet_retention_band';
+          }
+          if(v246Nvg){
+            v246Nvg.position.set(0,accessoryFit.nvgY,.121);
+            v246Nvg.scale.set(classId==='heavy'?1.08:1, classId==='sniper'?.92:1, 1);
+            v246Nvg.name='v246_nvg_mount';
+          }
+          if(v246Goggles){
+            v246Goggles.position.set(0,accessoryFit.goggleY,.108);
+            v246Goggles.scale.set(classId==='heavy'?1.04:.98,.88,1);
+            v246Goggles.name='v246_eye_protection';
+          }
+          v246EarCups.forEach((cup,i)=>{
+            const side=i===0?-1:1;
+            cup.position.set(side*accessoryFit.earX,-.002,-.008);
+            cup.scale.set(accessoryFit.earScale,1,accessoryFit.earScale);
+            cup.name='v246_hearing_protection';
+          });
+          const rim=model.head.children.find(n=>n.geometry===G.helmetRim);
+          if(rim){
+            rim.position.set(0,-.019,-.006);
+            rim.scale.set(classId==='heavy'?1.045:classId==='sniper'?.975:1,1,classId==='engineer'?1.025:1);
+            rim.name='v246_shell_rim';
+          }
+          const rails=model.head.children.filter(n=>n.geometry===G.helmetSideRail);
+          rails.forEach((rail,i)=>{
+            const side=i===0?-1:1;
+            rail.position.set(side*(classId==='heavy'?.132:.127),.018,-.010);
+            rail.scale.set(1,classId==='sniper'?.90:1,classId==='heavy'?1.08:1);
+            rail.name='v246_accessory_rail';
+          });
+
+          v246Protection=new THREE.Group();
+          v246Protection.name='v246_chin_retention';
+          const strapMat=classId==='sniper'?mats.ghillieOlive:mats.gloveDark;
+          for(const side of [-1,1]){
+            const strap=createLimbMesh(G.v246.strap,strapMat,false);
+            strap.position.set(side*.052,-.066,.055);
+            strap.rotation.set(-.18,0,side*.31);
+            v246Protection.add(strap);
+          }
+          const cup=createLimbMesh(G.v246.chinCup,mats.gloveDark,false);
+          cup.position.set(0,-.119,.068);
+          cup.scale.set(classId==='heavy'?1.08:classId==='sniper'?.94:1,1,1);
+          v246Protection.add(cup);
+          if(classId==='heavy'){
+            for(const side of [-1,1]){
+              const pad=createLimbMesh(G.v246.cheekPad,mats.helmetOlive,false);
+              pad.position.set(side*.092,-.052,.082);
+              pad.rotation.z=side*.12;
+              v246Protection.add(pad);
+            }
+          }
+          model.head.add(v246Protection);
+        }
         // Fit the protective vest to the role without touching shoulder/weapon pivots.
         const vestProfile={assault:[1,1,1],medic:[.98,.95,.96],engineer:[1.02,1.02,1.04],sniper:[.94,.94,.91],heavy:[1.10,1.04,1.13]}[classId]||[1,1,1];
         const {geos:baseGeos}=getSoldierSharedAssets();
@@ -6928,12 +7040,12 @@
         // V111: distance-dependent detail visibility. Base silhouette, head, class kit and weapon stay visible.
         // V197: helmet profile remains the same at far distance, at lower tessellation.
         if(helmetMesh&&G.v105.lowHelmets&&G.v146){
-          G.v146.set(helmetMesh.geometry,G.v105.lowHelmets[classId]||G.v105.lowHelmets.assault);
+          G.v146.set(helmetMesh.geometry,G.v246?.lowHelmets?.[classId]||G.v105.lowHelmets[classId]||G.v105.lowHelmets.assault);
           if(helmetMesh.userData)helmetMesh.userData.v197HelmetLod=true;
         }
         const clothLods=[];
         if(G.v146&&typeof model.root.traverse==='function')model.root.traverse(n=>{const low=G.v146.get(n.geometry);if(low)clothLods.push({mesh:n,high:n.geometry,low});});
-        const nearDetails=[...arms.map(a=>a.glove),closeFace,closeRig];
+        const nearDetails=[...arms.map(a=>a.glove),closeFace,closeRig,...(v246Protection?[v246Protection]:[])];
         const midDetails=[...groups.slice(2,6).filter(Boolean),...footOverlays.map(a=>a.group)];
         model.visualDetailLevel=0;
         model.setVisualDetailDistance=d=>{
