@@ -74,7 +74,7 @@ jobs:
           git fetch --depth=1 origin 19a0ab256d7e6f4200cb1121f61e7627efeebac0
           git show 19a0ab256d7e6f4200cb1121f61e7627efeebac0:index.html > /tmp/fo-v240.html
           FO_CHARACTER_BASELINE=/tmp/fo-v240.html node scripts/check-v245-anatomy.mjs
-          FO_CHARACTER_BASELINE=/tmp/fo-v240.html node scripts/character-turntable.mjs
+          FO_CHARACTER_BASELINE=/tmp/fo-v240.html FO_CHARACTER_BASELINE_LABEL=V240 FO_CHARACTER_CANDIDATE_LABEL=V245 FO_CHARACTER_EXPANDED=1 node scripts/character-turntable.mjs
       - name: Test experimental skinned rig bind pose and CPU cost
         if: github.ref_name == 'art/v188-equipment-class-rig' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || (github.ref_name == 'art/v234-optional-live-rig' || github.ref_name == 'art/v240-character-polish' || github.ref_name == 'art/v245-anatomy-face-rebuild')
         run: node scripts/check-experimental-skin-rig.mjs
@@ -85,6 +85,7 @@ jobs:
         if: ${{ !cancelled() && (github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller' || github.ref_name == 'ai/v56-locomotion' || github.ref_name == 'ai/v57-navigation' || github.ref_name == 'ai/v58-map-awareness' || github.ref_name == 'ai/v59-combat-discipline' || github.ref_name == 'ai/v60-team-coordination' || github.ref_name == 'ai/v61-bomb-objectives' || github.ref_name == 'ai/v62-personalities' || github.ref_name == 'ai/v63-integrated-validation' || github.ref_name == 'ai/v72-integrated-acceptance' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || (github.ref_name == 'art/v234-optional-live-rig' || github.ref_name == 'art/v240-character-polish' || github.ref_name == 'art/v245-anatomy-face-rebuild')) }}
         run: node scripts/browser-bomb-depot-smoke.mjs
       - name: Render V25 versus current characters from three angles
+        if: github.ref_name != 'art/v245-anatomy-face-rebuild'
         run: node scripts/character-turntable.mjs
       - name: Render V155 versus V170 at equal camera and lighting
         if: github.ref_name == 'art/v170-anatomy-textile-head'
@@ -93,7 +94,7 @@ jobs:
           git show 5616c88177a7803ab25f39058074d9767fb93e8f:index.html > /tmp/fo-v155.html
           FO_CHARACTER_BASELINE=/tmp/fo-v155.html node scripts/character-turntable.mjs
       - name: Render V155 versus current candidate
-        if: github.ref_name == 'art/v188-equipment-class-rig' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || (github.ref_name == 'art/v234-optional-live-rig' || github.ref_name == 'art/v240-character-polish' || github.ref_name == 'art/v245-anatomy-face-rebuild')
+        if: github.ref_name == 'art/v188-equipment-class-rig' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || (github.ref_name == 'art/v234-optional-live-rig' || github.ref_name == 'art/v240-character-polish')
         run: |
           git fetch --depth=1 origin 5616c88177a7803ab25f39058074d9767fb93e8f
           git show 5616c88177a7803ab25f39058074d9767fb93e8f:index.html > /tmp/fo-v155.html

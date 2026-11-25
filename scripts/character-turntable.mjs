@@ -44,7 +44,10 @@ const makeSoldierFunctions = input => [
 ].join('\n');
 const soldierFunctions=makeSoldierFunctions(source);
 const baselineCode=process.env.FO_CHARACTER_BASELINE?makeSoldierFunctions(fs.readFileSync(process.env.FO_CHARACTER_BASELINE,'utf8')):null;
-const prefix=baselineCode?'v155-compare-':'';
+const baselineLabel=process.env.FO_CHARACTER_BASELINE_LABEL||(baselineCode?'V155':'ORIGINAL V25');
+const candidateLabel=process.env.FO_CHARACTER_CANDIDATE_LABEL||'V200';
+const expanded=process.env.FO_CHARACTER_EXPANDED==='1';
+const prefix=baselineCode?baselineLabel.toLowerCase()+'-compare-':'';
 const pageHtml = '<!doctype html><html><head><meta charset="UTF-8">' +
   '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>' +
   '<style>html,body{margin:0;background:#192232;color:#fff;font-family:Arial,sans-serif;overflow:hidden}' +
@@ -53,8 +56,8 @@ const pageHtml = '<!doctype html><html><head><meta charset="UTF-8">' +
   '#hint{position:absolute;top:65px;left:30px;font-size:14px;color:#dce5f4}' +
   '.caption{position:absolute;bottom:35px;font-size:24px;font-weight:900;background:#111827e6;padding:12px 20px;border-radius:12px;border:2px solid #9aa9bf}' +
   '#left{left:12%}#right{right:12%;border-color:#38bdf8}</style></head><body>' +
-  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V200 DETAILS</div>' +
-  '<div id="left" class="caption">'+(baselineCode?'V155':'ORIGINAL V25')+'</div><div id="right" class="caption">V200</div>' +
+  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • MODEL COMPARISON</div>' +
+  '<div id="left" class="caption">'+baselineLabel+'</div><div id="right" class="caption">'+candidateLabel+'</div>' +
   '</body></html>';
 const server = createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -120,17 +123,23 @@ try {
     scene.add(models);
     const countMeshes = obj => { let n = 0; obj.traverse(o => { if (o.isMesh) n++; }); return n; };
     window.__foCharacterPreview = {
-      change(role, angle, team) {
+      change(role, angle, team, pose='stand') {
         while (models.children.length) models.remove(models.children[0]);
         const original = previous(team, role), improved = enhanced(team, role);
-        const rotation = angle === 'back' ? Math.PI : angle === 'right' ? Math.PI / 2 : 0;
+        const rotation = angle === 'back' ? Math.PI : angle === 'right' ? Math.PI / 2 : angle==='quarter'?Math.PI/4:0;
         original.root.position.x = -0.82;
         improved.root.position.x = 0.82;
         original.root.rotation.y = rotation;
         improved.root.rotation.y = rotation;
+        for(const m of [original,improved]){
+          if(pose==='crouch'){m.root.position.y=-.23;m.leftHip.rotation.x=-.65;m.rightHip.rotation.x=-.65;m.leftKnee.rotation.x=1.25;m.rightKnee.rotation.x=1.25;m.upperBody.rotation.x=.15;}
+          if(pose==='stride'){m.leftHip.rotation.x=-.4;m.rightHip.rotation.x=.42;m.leftKnee.rotation.x=.7;m.rightKnee.rotation.x=.16;}
+          m.updateVisualJointFit?.();
+        }
+        camera.position.set(0,pose==='face'?1.59:1.32,pose==='face'?2.5:4.65);camera.lookAt(0,pose==='face'?1.54:.9,0);
         models.add(original.root, improved.root);
         document.getElementById('title').textContent =
-          'FRONT OPERATION / ' + team.toUpperCase() + ' ' + role.toUpperCase() + ' / ' + angle.toUpperCase();
+          'FRONT OPERATION / ' + team.toUpperCase() + ' ' + role.toUpperCase() + ' / ' + angle.toUpperCase()+' / '+pose.toUpperCase();
         renderer.render(scene, camera);
         return {
           original: countMeshes(original.root),
@@ -156,20 +165,20 @@ try {
   }, {soldierCode:soldierFunctions,baselineCode});
   for (const team of ['blue', 'red']) {
     for (const role of ['assault', 'medic', 'engineer', 'sniper', 'heavy']) {
-      const views = ['front', 'right', 'back'];
-      for (const angle of views) {
+      const views=expanded?[['front','stand'],['right','stand'],['back','stand'],['quarter','stand'],['quarter','crouch'],['right','stride'],['front','face']]:[['front','stand'],['right','stand'],['back','stand']];
+      for (const [angle,pose] of views) {
         const stats = await page.evaluate(
-          args => window.__foCharacterPreview.change(args.role, args.angle, args.team),
-          { team, role, angle }
+          args => window.__foCharacterPreview.change(args.role, args.angle, args.team,args.pose),
+          { team, role, angle,pose }
         );
         if(stats.detailInput<70||stats.detailOutput>=stats.detailInput*.45||stats.invalidBatches!==0)throw Error('Invalid V104 batches '+JSON.stringify(stats));
         if(!stats.roleHelmet||stats.roleVests!==2)throw Error('Missing V105 role geometry');
         if((!baselineCode&&stats.enhanced<=stats.original)||stats.enhanced>stats.original+105)throw Error('Unexpected '+role+' model size');
         if (Math.abs(stats.headY - 1.54) > 0.001) throw Error('Head geometry regression');
-        const image = prefix+'character-' + team + '-' + role + '-' + angle + '.png';
+        const image = prefix+'character-' + team + '-' + role + '-' + angle + (pose==='stand'?'':'-'+pose) + '.png';
         await page.screenshot({ path: path.join(output, image), animations: 'disabled' });
         report.images.push(image);
-        report.models.push({ team, role, angle, ...stats });
+        report.models.push({ team, role, angle, pose, ...stats });
       }
     }
   }
