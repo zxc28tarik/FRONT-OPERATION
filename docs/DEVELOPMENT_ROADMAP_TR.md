@@ -109,4 +109,4 @@ Başlangıç: V273, PR #63, dal art/v273-distinct-muzzle-designs, commit 2d60406
 
 ## 4. Başlangıç durum kaydı
 
-A–I: planlandı, 0/62. Önce V274 doğrulama. Bot zekâsı: KİLİTLİ — açık kullanıcı izni olmadan başlanmayacak.
+A: V274–V277 teknik testleri başarılı; V278–V279 kodlandı, V280–V281 test altyapısı kayıtlı ve son kabul bekliyor. A paketi 8/8 kod/test altyapısı, 4/8 doğrulanmış önceki aşama. B–I: planlandı. Sonraki V282, V281 kabulünden sonra. Bot zekâsı: KİLİTLİ — açık kullanıcı izni olmadan başlanmayacak.
