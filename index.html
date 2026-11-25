@@ -14034,6 +14034,50 @@ return {createExperimentalRig,createAdaptiveRigController};
         });
       }
 
+      function foRocketSurface(pos,dx,dy,dz,colliders,boundX,boundZ){
+       let best=foGrenadeSweep(pos,dx,dy,dz,colliders,0);
+       const offer=(t,nx,ny,nz)=>{
+        if(t>=0&&t<=1&&(!best||t<best.t))best={t,nx,ny,nz,push:.0001};
+       };
+       if(dy<0&&pos.y+dy<=.05)offer(Math.max(0,(.05-pos.y)/dy),0,1,0);
+       if(dx>0&&pos.x+dx>=boundX)offer(Math.max(0,(boundX-pos.x)/dx),-1,0,0);
+       if(dx<0&&pos.x+dx<=-boundX)offer(Math.max(0,(-boundX-pos.x)/dx),1,0,0);
+       if(dz>0&&pos.z+dz>=boundZ)offer(Math.max(0,(boundZ-pos.z)/dz),0,0,-1);
+       if(dz<0&&pos.z+dz<=-boundZ)offer(Math.max(0,(-boundZ-pos.z)/dz),0,0,1);
+       return best;
+      }
+      function foPlaceRocketContact(out,pos,dx,dy,dz,hit){
+       const push=Math.max(.005,hit.push||0);
+       out.set(pos.x+dx*hit.t+hit.nx*push,pos.y+dy*hit.t+hit.ny*push,pos.z+dz*hit.t+hit.nz*push);
+       return out;
+      }
+      function foAdvanceCasing(sc,dt,colliders,floorAt){
+       const p=sc.mesh.position,v=sc.vel;
+       v.y-=14.5*dt;
+       const dx=v.x*dt,dy=v.y*dt,dz=v.z*dt,oldY=p.y;
+       let t=1,land=null;
+       if(dy<0){
+        // Sweep the descending casing against the tops of actual solid decks.
+        for(const c of colliders){
+         const y=c.maxY+.02,k=(y-oldY)/dy;
+         if(k<0||k>t)continue;
+         const x=p.x+dx*k,z=p.z+dz*k;
+         if(x>=c.minX&&x<=c.maxX&&z>=c.minZ&&z<=c.maxZ){t=k;land=y;}
+        }
+        const y=floorAt(p.x+dx,p.z+dz,oldY)+.02;
+        const k=(y-oldY)/dy;
+        if(k>=0&&k<=t){t=k;land=y;}
+        if(land===null&&oldY+dy<=.02){t=Math.max(0,Math.min(1,(.02-oldY)/dy));land=.02;}
+       }
+       p.x+=dx*t;p.y+=dy*t;p.z+=dz*t;
+       if(land!==null){p.y=land;v.y=Math.abs(v.y)*.35;v.x*=.6;v.z*=.6;}
+      }
+      function foMedkitReachable(mk,actor,colliders){
+       if(Math.hypot(actor.x-mk.x,actor.y-mk.y,actor.z-mk.z)>2.5)return false;
+       const start={x:mk.x,y:mk.y+.25,z:mk.z};
+       return !foGrenadeSweep(start,actor.x-start.x,actor.y+.9-start.y,actor.z-start.z,colliders,0);
+      }
+
       function fireRocket(origin, dir, ownerName, team) {
         const g = new THREE.Group();
         const body = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.34, 8), WEAPON_MATS.olivePaint);
@@ -14044,8 +14088,12 @@ return {createExperimentalRig,createAdaptiveRigController};
         nose.position.z = 0.22;
         g.add(nose);
 
-        g.position.copy(origin);
         const nDir = dir.clone().normalize();
+        const offset=ownerName===player.name?.75:.7;
+        const launchBase=origin.clone().addScaledVector(nDir,-offset);
+        const launchHit=foRocketSurface(launchBase,nDir.x*offset,nDir.y*offset,nDir.z*offset,mapColliders,foWorldX(39.5),foWorldZ(60.5));
+        if(launchHit)origin=foPlaceRocketContact(origin.clone(),launchBase,nDir.x*offset,nDir.y*offset,nDir.z*offset,launchHit);
+        g.position.copy(origin);
         g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nDir);
         scene.add(g);
 
@@ -14055,7 +14103,8 @@ return {createExperimentalRig,createAdaptiveRigController};
           vel: nDir.multiplyScalar(44.0),
           ownerName,
           team,
-          life: 3.5
+          life: 3.5,
+          launchBlocked:!!launchHit
         });
       }
 
@@ -17694,9 +17743,11 @@ return {createExperimentalRig,createAdaptiveRigController};
           const step = r.vel.clone().multiplyScalar(dt);
           const nextPos = r.pos.clone().add(step);
 
-          let detonated = r.life <= 0 || nextPos.y <= 0.05 || Math.abs(nextPos.x) > foWorldX(39.5) || Math.abs(nextPos.z) > foWorldZ(60.5);
-          if (!detonated && !hasLineOfSight(r.pos, nextPos)) {
-            detonated = true;
+          let detonated = r.life<=0||r.launchBlocked;
+          if(r.launchBlocked)nextPos.copy(r.pos);
+          else{
+            const hit=foRocketSurface(r.pos,step.x,step.y,step.z,mapColliders,foWorldX(39.5),foWorldZ(60.5));
+            if(hit){foPlaceRocketContact(nextPos,r.pos,step.x,step.y,step.z,hit);detonated=true;}
           }
           if (!detonated && player.alive && player.team !== r.team) {
             const pCenter = new THREE.Vector3(player.pos.x, player.pos.y + (player.crouching ? 0.65 : 0.95), player.pos.z);
@@ -17766,7 +17817,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
           if (mk.healTick <= 0) {
             mk.healTick = 0.5;
-            if (player.alive && player.team === mk.team && player.hp < player.maxHp && player.pos.distanceTo(mk.pos) <= 2.5) {
+            if (player.alive && player.team === mk.team && player.hp < player.maxHp && foMedkitReachable(mk.pos,player.pos,mapColliders)) {
               player.hp = Math.min(player.maxHp, player.hp + 10);
               sound.playHeal();
               const hf = document.getElementById('heal-flash');
@@ -17776,7 +17827,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             }
             for (let b = 0; b < bots.length; b++) {
               const ally = bots[b];
-              if (ally.alive && ally.team === mk.team && ally.hp < ally.maxHp && ally.pos.distanceTo(mk.pos) <= 2.5) {
+              if (ally.alive && ally.team === mk.team && ally.hp < ally.maxHp && foMedkitReachable(mk.pos,ally.pos,mapColliders)) {
                 ally.hp = Math.min(ally.maxHp, ally.hp + 10);
               }
             }
@@ -17886,16 +17937,9 @@ return {createExperimentalRig,createAdaptiveRigController};
         for (let i = activeShellCasings.length - 1; i >= 0; i--) {
           const sc = activeShellCasings[i];
           sc.life -= dt;
-          sc.vel.y -= 14.5 * dt;
-          sc.mesh.position.addScaledVector(sc.vel, dt);
+          foAdvanceCasing(sc,dt,mapColliders,getFloorHeightAt);
           sc.mesh.rotation.x += sc.rotVel.x * dt;
           sc.mesh.rotation.y += sc.rotVel.y * dt;
-          if (sc.mesh.position.y <= 0.02) {
-            sc.mesh.position.y = 0.02;
-            sc.vel.y = Math.abs(sc.vel.y) * 0.35;
-            sc.vel.x *= 0.6;
-            sc.vel.z *= 0.6;
-          }
           if (sc.life <= 0) {
             scene.remove(sc.mesh);
             activeShellCasings.splice(i, 1);
@@ -18177,6 +18221,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       let mapSwitchPending = false;
       let suppressUnlockPauseUntil = 0;
       function resetPausedInputs() {
+        foTimeDebt=0;lastFrameTime=performance.now();
         Object.keys(keys).forEach((key) => { keys[key] = false; });
         mouseDownLeft = false;
         mouseDownRight = false;
@@ -18812,54 +18857,60 @@ return {createExperimentalRig,createAdaptiveRigController};
       // =========================================================================
       let lastFrameTime = performance.now();
       let hudSyncTimer = 0;
-      let foClockVisibilityChanged=false;
+      let foClockVisibilityChanged=false,foTimeDebt=0;
       document.addEventListener('visibilitychange',()=>{foClockVisibilityChanged=true;});
       function foMatchElapsed(rawDt,hidden,visibilityChanged){
        return hidden||visibilityChanged?0:Number.isFinite(rawDt)&&rawDt>=0?rawDt:0;
+      }
+
+      function foFrameBudget(elapsed,debt){
+       const total=Math.max(0,Number.isFinite(elapsed)?elapsed:0)+Math.max(0,Number.isFinite(debt)?debt:0);
+       const span=Math.min(total,.5),count=Math.ceil(span/.05-1e-10);
+       return {count,dt:count>0?span/count:0,debt:Math.max(0,total-span)};
       }
 
       function animate(now) {
         requestAnimationFrame(animate);
         const rawDt = (now - lastFrameTime) / 1000;
         lastFrameTime = now;
-        const dt = Number.isFinite(rawDt) ? Math.min(0.05, Math.max(0.001, rawDt)) : 0.016;
-        const clockDt=foMatchElapsed(rawDt,document.hidden,foClockVisibilityChanged);
+        const elapsed=foMatchElapsed(rawDt,document.hidden,foClockVisibilityChanged);
+        const visibilityChanged=foClockVisibilityChanged;
         foClockVisibilityChanged=false;
-
-        if(gamePaused||!matchState.started||matchState.ended||!player.alive)clearV271PlayerFlash();
-        else updateV273PlayerFlash(dt);
-        if (matchState.started && !matchState.ended && !gamePaused) {
+        const active=matchState.started&&!matchState.ended&&!gamePaused&&!document.hidden&&!visibilityChanged;
+        const budget=active?foFrameBudget(elapsed,foTimeDebt):foFrameBudget(0,0);
+        foTimeDebt=budget.debt;
+        const renderDt=Math.min(.05,elapsed);
+        if(!active||!player.alive)clearV271PlayerFlash();
+        if(active){
           recordBotFrameTiming(rawDt);
-          matchState.timeRemaining = Math.max(0, matchState.timeRemaining - clockDt);
+          for(let sub=0;sub<budget.count&&!matchState.ended&&!gamePaused;sub++){
+            const dt=budget.dt,clockDt=dt;
+            if(player.alive)updateV273PlayerFlash(dt);
+            else clearV271PlayerFlash();
+            matchState.timeRemaining = Math.max(0, matchState.timeRemaining - clockDt);
+            if (matchState.timeRemaining <= 0 && !foSingleLife()) {
+              const winner = matchState.scoreBlue > matchState.scoreRed ? 'blue' : (matchState.scoreRed > matchState.scoreBlue ? 'red' : 'draw');
+              endMatch(winner);break;
+            }
+            updatePlayer(dt);
+            droneSystem.update(dt);
+            updateBots(dt);
+            updateEntitiesAndFX(dt);
+            updateFoBomb(dt,clockDt);
+            updateFoRescue(dt);
+            hudSyncTimer+=dt;
+          }
+          if(matchState.ended||gamePaused)foTimeDebt=0;
           const displayedTime=matchState.mode==='bomb'&&foBomb.phase==='planted'?foBomb.seconds:matchState.timeRemaining;
-          const mins = Math.floor(displayedTime / 60);
-          const secs = Math.floor(displayedTime % 60);
+          const mins=Math.floor(displayedTime/60),secs=Math.floor(displayedTime%60);
           document.getElementById('match-timer').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-
-          if (matchState.timeRemaining <= 0 && !foSingleLife()) {
-            const winner = matchState.scoreBlue > matchState.scoreRed ? 'blue' : (matchState.scoreRed > matchState.scoreBlue ? 'red' : 'draw');
-            endMatch(winner);
-          }
-
-          updatePlayer(dt);
-          droneSystem.update(dt);
-          updateBots(dt);
-          updateEntitiesAndFX(dt);
-          updateFoBomb(dt,clockDt);
-          updateFoRescue(dt);
-
-          hudSyncTimer += dt;
-          if (hudSyncTimer >= 0.12) {
-            hudSyncTimer = 0;
-            updateHUD();
-            renderRadar();
-          }
+          if(hudSyncTimer>=.12){hudSyncTimer%=.12;updateHUD();renderRadar();}
         }
 
         // V287: isolate presentation transforms from simulation and all aim queries.
         try{
           if(matchState.started&&!matchState.ended&&!gamePaused&&!droneSystem.isPlayerControlling())
-            beginV287RenderPose(vmRefs,player,dt,!!v271PlayerFlash?.visible);
+            beginV287RenderPose(vmRefs,player,renderDt,!!v271PlayerFlash?.visible);
           else if(vmRefs.v287Pose)vmRefs.v287Pose.sprint=0;
           renderer.render(scene, camera);
         }finally{
