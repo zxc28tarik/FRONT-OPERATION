@@ -84,17 +84,17 @@ try{
   return {renderer:gl.getParameter(gl.RENDERER),webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL1',botCount:15,boneCount:models[0].rig.bones.length,clothDrawGroups:models[0].rig.geometry.groups.length,bands,softwareGate:bands.every(x=>x.ratio<=1.10),adaptiveGate:bands.every(x=>x.adaptiveRatio<=1.10),hardwareGate:'NOT_MEASURED',activeRig:'legacy'};
  },factory);
  // Persist measurements before optional screenshots, even if image capture fails.
- fs.writeFileSync(path.join(out,'v228-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+ fs.writeFileSync(path.join(out,'v234-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
  if(errors.length)throw Error(errors.join(' | '));
  if(report.bands.some(x=>!Number.isFinite(x.ratio)||x.candidateCalls<=0||x.baselineCalls<=0))throw Error('Invalid render measurement');
  for(const enabled of [false,true]){
   const data=await page.evaluate(on=>window.previewRig(on),enabled);
   if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid canvas capture');
-  fs.writeFileSync(path.join(out,'v228-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+  fs.writeFileSync(path.join(out,'v234-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
  }
  for(const pose of ['side','aim','crouch'])for(const on of [false,true]){
   const data=await page.evaluate(({on,pose})=>window.previewPose(on,pose),{on,pose});
   if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid pose capture '+pose);
-  fs.writeFileSync(path.join(out,'v228-'+pose+'-'+(on?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+  fs.writeFileSync(path.join(out,'v234-'+pose+'-'+(on?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
  }
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

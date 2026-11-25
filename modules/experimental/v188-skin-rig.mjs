@@ -1,4 +1,4 @@
-// V223–V228 adaptive experimental visual-only rig. Not imported by index.html.
+// V229–V234 experimental visual-only rig; embedded in opt-in HTML build.
 import * as THREE from 'three';
 const Y=new THREE.Vector3(0,1,0);
 const ease=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
@@ -34,10 +34,35 @@ function chains(model){
   return torsoPoints;
  }}];
 }
-function segmentBasis(a,b){
+// A stable transverse reference prevents the almost-downward leg direction from
+// flipping its frame around the antipodal direction of setFromUnitVectors(Y,d).
+const AXES=[new THREE.Vector3(1,0,0),Y,new THREE.Vector3(0,0,1)];
+function selectReference(p,kind){
+ if(kind!=='arm')return AXES[0];
+ const a=p[1].clone().sub(p[0]).normalize(),b=p[2].clone().sub(p[1]).normalize();
+ return AXES.reduce((best,x)=>Math.max(Math.abs(x.dot(a)),Math.abs(x.dot(b)))<
+ Math.max(Math.abs(best.dot(a)),Math.abs(best.dot(b)))?x:best,AXES[0]);
+}
+function frame(dir,ref){
+ const y=dir.clone().normalize(),x=ref.clone().addScaledVector(y,-ref.dot(y));
+ if(x.lengthSq()<.0001){
+  const fallback=AXES.reduce((a,b)=>Math.abs(a.dot(y))<Math.abs(b.dot(y))?a:b,AXES[0]);
+  x.copy(fallback).addScaledVector(y,-fallback.dot(y));
+ }
+ x.normalize();const z=x.clone().cross(y).normalize();
+ return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z));
+}
+function segmentBasis(a,b,ref){
  const d=b.clone().sub(a),length=d.length();
- if(length<.0001)throw Error('V188 degenerate segment');
- return {length,q:new THREE.Quaternion().setFromUnitVectors(Y,d.normalize())};
+ if(length<.0001)throw Error('V234 degenerate segment');
+ return {length,d,q:frame(d,ref)};
+}
+function ringFrame(a,b,t,ref){
+ if(t<=startBend)return a.q.clone();
+ if(t>=endBend)return b.q.clone();
+ const u=(t-startBend)/(endBend-startBend);
+ const tangent=a.d.clone().multiplyScalar(1-u).addScaledVector(b.d,u);
+ return tangent.lengthSq()>.000001?frame(tangent,ref):a.q.clone().slerp(b.q,u);
 }
 // Round the joint centerline rather than forcing each ring through a sharp kink.
 const startBend=.34,endBend=.66;
@@ -57,13 +82,13 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
  const limbs=chains(model),bones=[],pos=[],uv=[],skinIndex=[],skinWeight=[],indices=[],groups=[],seams=[],plans=[];
  for(const limb of limbs){
   const p=limb.points(),base=bones.length;
-  const ba=segmentBasis(p[0],p[1]),bb=segmentBasis(p[1],p[2]),qa=ba.q,qb=bb.q;
+  const ref=selectReference(p,limb.kind),ba=segmentBasis(p[0],p[1],ref),bb=segmentBasis(p[1],p[2],ref),qa=ba.q,qb=bb.q;
   const makeBone=(name,center,q)=>{
    const bone=new THREE.Bone();bone.name=name;bone.position.copy(center);bone.quaternion.copy(q);bones.push(bone);return bones.length-1;
   };
   const first=makeBone('v222_'+limb.kind+'_proximal',p[0],qa),last=makeBone('v222_'+limb.kind+'_distal',p[1],qb);
   const jointBones=[],ringIds=[];
-  plans.push({limb,first,last,jointBones,lengths:[ba.length,bb.length]});
+  plans.push({limb,ref,first,last,jointBones,lengths:[ba.length,bb.length]});
   const offset=pos.length/3,indexStart=indices.length;
   const source=limb.kind==='leg'?model.leftHip.children.find(n=>n.userData.v129Sculpted):model.upperBody.children.find(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)>.1);
   const torsoSources=model.upperBody.children.filter(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)<.02&&n.position.y>.05);
@@ -74,10 +99,10 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
   for(let j=0;j<=steps;j++){
    const t=j/steps,seg=t<=.5?0:1,u=seg===0?t*2:(t-.5)*2;
    const center=rigCenter(p,t);
-   const bend=ease((t-startBend)/(endBend-startBend)),q=qa.clone().slerp(qb,bend);
+   const q=ringFrame(ba,bb,t,ref);
    // Straight portions share one length-scaled bone. Only the curved transition needs ring bones.
    let id=t<=startBend?first:t>=endBend?last:makeBone('v222_'+limb.kind+'_bend_'+j,center,q);
-   if(id!==first&&id!==last)jointBones.push({id,t,bend});
+   if(id!==first&&id!==last)jointBones.push({id,t});
    ringIds.push(id);
    const joint=Math.exp(-(((t-.5)/.15)**2));
    const fullness=limb.kind==='arm'?.075:limb.kind==='leg'?.085:.025;
@@ -137,7 +162,7 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
  const hidden=[];
  root.traverse(n=>{
   if(n===mesh||!n.isMesh)return;
-  if(n.userData.v154Joint||n.userData.v129Sculpted)hidden.push({n,visible:n.visible});
+  if(['knee','elbow'].includes(n.userData.v154Joint)||n.userData.v129Sculpted)hidden.push({n,visible:n.visible});
  });
  let enabledState=false,disposed=false;
  const setEnabled=enabled=>{
@@ -153,13 +178,13 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
  const update=()=>{
   root.updateWorldMatrix(true,false);
   for(const plan of plans){
-   const p=plan.limb.points(),a=segmentBasis(p[0],p[1]),b=segmentBasis(p[1],p[2]);
+   const p=plan.limb.points(),a=segmentBasis(p[0],p[1],plan.ref),b=segmentBasis(p[1],p[2],plan.ref);
    const first=bones[plan.first],last=bones[plan.last];
    first.position.copy(p[0]);first.quaternion.copy(a.q);first.scale.y=a.length/plan.lengths[0];
    last.position.copy(p[1]);last.quaternion.copy(b.q);last.scale.y=b.length/plan.lengths[1];
    for(const ring of plan.jointBones){
     const bone=bones[ring.id];rigCenter(p,ring.t,bone.position);
-    bone.quaternion.copy(a.q).slerp(b.q,ring.bend);
+    bone.quaternion.copy(ringFrame(a,b,ring.t,plan.ref));
    }
   }
   // Explicit diagnostic updates work when detached as well; retain the original bind frame.

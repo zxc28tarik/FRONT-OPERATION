@@ -6,7 +6,7 @@ import {createExperimentalRig,rigCenter,createAdaptiveRigController} from '../mo
 const html=fs.readFileSync('index.html','utf8');
 const a=html.indexOf('      let SOLDIER_SHARED = null;'),b=html.indexOf('      // =========================================================================\n      // 8. COLLISION',a);
 const api=new Function('THREE',html.slice(a,b)+'\nreturn {enhanced:createEnhancedBotSoldierMesh};')(THREE);
-let cases=0,maxRestError=0,minRingRatio=Infinity,maxRingRatio=0,maxCenterError=0,maxLongitudinalRatio=0;
+let cases=0,maxRestError=0,minRingRatio=Infinity,maxRingRatio=0,maxCenterError=0,maxLongitudinalRatio=0;const longitudinal=[];
 const reps=[];
 // Independent distance hysteresis, staggering and reversibility checks.
 {
@@ -51,7 +51,8 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert(maxRestError<.0001,'bind pose equivalence');
  const muzzle=m.muzzleFlash.position.clone();
  r.setEnabled(true);assert(r.mesh.visible&&m.head.visible&&m.weaponPivot.visible&&r.mesh.parent===m.root&&r.enabled);
- const cloth=[];m.root.traverse(n=>{if(n.userData.v129Sculpted)cloth.push(n);});
+ const cloth=[],bridges=[];m.root.traverse(n=>{if(n.userData.v129Sculpted)cloth.push(n);if(['hip','shoulder'].includes(n.userData.v154Joint))bridges.push(n);});
+ assert.equal(bridges.length,4);assert(bridges.every(n=>n.visible),'proximal bridges must remain');
  assert(cloth.length===10&&cloth.every(n=>!n.visible));
  r.setEnabled(false);assert(!r.mesh.visible&&cloth.every(n=>n.visible)&&r.mesh.parent===null&&!r.enabled);
  for(const angle of [0,.45,Math.PI/2,-.65]){
@@ -94,7 +95,7 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
      const a=new THREE.Vector3().fromBufferAttribute(p,i+k),b=new THREE.Vector3().fromBufferAttribute(p,i+k+17),rest=a.distanceTo(b);
      if(rest<.002)continue;
      r.mesh.boneTransform(i+k,a);r.mesh.boneTransform(i+k+17,b);
-     maxLongitudinalRatio=Math.max(maxLongitudinalRatio,a.distanceTo(b)/rest);
+     const stretch=a.distanceTo(b)/rest;assert(Number.isFinite(stretch));maxLongitudinalRatio=Math.max(maxLongitudinalRatio,stretch);longitudinal.push(stretch);
     }
    }
   }
@@ -109,5 +110,6 @@ const frames=120,run=()=>{for(let i=0;i<frames;i++)for(const {m,r} of reps){
  m.rightKnee.rotation.x=Math.cos(phase)*.55;r.update();
 }};
 run();const start=performance.now();run();const elapsed=performance.now()-start;
-console.log(JSON.stringify({cases,bones:45,maxRestError,minRingRatio,maxRingRatio,maxCenterError,maxLongitudinalRatio,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
+longitudinal.sort((a,b)=>a-b);const p95LongitudinalRatio=longitudinal[Math.floor(longitudinal.length*.95)];
+console.log(JSON.stringify({cases,bones:45,p95LongitudinalRatio,maxRestError,minRingRatio,maxRingRatio,maxCenterError,maxLongitudinalRatio,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
 for(const {r} of reps)r.dispose();

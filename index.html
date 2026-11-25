@@ -10813,11 +10813,268 @@
         bot.pathIndex = 0;
       }
 
+      // V234 opt-in rig: generated from modules/experimental/v188-skin-rig.mjs.
+      let foExperimentalRigApi=null,foExperimentalRigFrame=0;
+      function getFoExperimentalRigApi(){
+        if(!foExperimentalRigApi)foExperimentalRigApi=(()=>{
+// FO_EXPERIMENTAL_RIG_BEGIN
+// V229–V234 experimental visual-only rig; embedded in opt-in HTML build.
+const Y=new THREE.Vector3(0,1,0);
+const ease=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+// Read root-local positions without walking every accessory and weapon mesh.
+function localPoint(root,node,out){
+ out.set(0,0,0);
+ for(let n=node;n&&n!==root;n=n.parent){
+  if(n.matrixAutoUpdate)n.updateMatrix();
+  out.applyMatrix4(n.matrix);
+ }
+ return out;
+}
+function chains(model){
+ const root=model.root;
+ const arm=side=>{
+  const sign=side==='left'?-1:1;
+  const shoulder=model.upperBody.children.find(n=>n.userData.v154Joint==='shoulder'&&Math.sign(n.position.x)===sign);
+  const elbow=model.upperBody.children.find(n=>n.userData.v154Joint==='elbow'&&Math.sign(n.position.x)===sign);
+  const hand=model.upperBody.children.find(n=>n.name===(side==='left'?'v107_support_hand':'v107_trigger_hand'));
+  return [shoulder,elbow,hand];
+ };
+ const leg=side=>[model[side+'Hip'],model[side+'Knee'],model[side+'Knee'].children.find(n=>n.name==='v132_ankle')];
+ const extremities=[...['left','right'].map(side=>({kind:'leg',nodes:leg(side),radii:[.073,.059,.048]})),...['left','right'].map(side=>({kind:'arm',nodes:arm(side),radii:[.057,.049,.035]}))].map(c=>{
+  if(c.nodes.some(n=>!n))throw Error('V188 rig missing '+c.kind+' pivot');
+  const points=c.nodes.map(()=>new THREE.Vector3());
+  return {...c,points:()=>c.nodes.map((n,i)=>localPoint(root,n,points[i]))};
+ });
+ const torsoPoints=[new THREE.Vector3(0,.88,0),new THREE.Vector3(),new THREE.Vector3()];
+ return [...extremities,{kind:'torso',radii:[.135,.159,.129],points:()=>{
+  if(model.upperBody.matrixAutoUpdate)model.upperBody.updateMatrix();
+  torsoPoints[1].set(0,.15,0).applyMatrix4(model.upperBody.matrix);
+  torsoPoints[2].set(0,.45,0).applyMatrix4(model.upperBody.matrix);
+  return torsoPoints;
+ }}];
+}
+// A stable transverse reference prevents the almost-downward leg direction from
+// flipping its frame around the antipodal direction of setFromUnitVectors(Y,d).
+const AXES=[new THREE.Vector3(1,0,0),Y,new THREE.Vector3(0,0,1)];
+function selectReference(p,kind){
+ if(kind!=='arm')return AXES[0];
+ const a=p[1].clone().sub(p[0]).normalize(),b=p[2].clone().sub(p[1]).normalize();
+ return AXES.reduce((best,x)=>Math.max(Math.abs(x.dot(a)),Math.abs(x.dot(b)))<
+ Math.max(Math.abs(best.dot(a)),Math.abs(best.dot(b)))?x:best,AXES[0]);
+}
+function frame(dir,ref){
+ const y=dir.clone().normalize(),x=ref.clone().addScaledVector(y,-ref.dot(y));
+ if(x.lengthSq()<.0001){
+  const fallback=AXES.reduce((a,b)=>Math.abs(a.dot(y))<Math.abs(b.dot(y))?a:b,AXES[0]);
+  x.copy(fallback).addScaledVector(y,-fallback.dot(y));
+ }
+ x.normalize();const z=x.clone().cross(y).normalize();
+ return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z));
+}
+function segmentBasis(a,b,ref){
+ const d=b.clone().sub(a),length=d.length();
+ if(length<.0001)throw Error('V234 degenerate segment');
+ return {length,d,q:frame(d,ref)};
+}
+function ringFrame(a,b,t,ref){
+ if(t<=startBend)return a.q.clone();
+ if(t>=endBend)return b.q.clone();
+ const u=(t-startBend)/(endBend-startBend);
+ const tangent=a.d.clone().multiplyScalar(1-u).addScaledVector(b.d,u);
+ return tangent.lengthSq()>.000001?frame(tangent,ref):a.q.clone().slerp(b.q,u);
+}
+// Round the joint centerline rather than forcing each ring through a sharp kink.
+const startBend=.34,endBend=.66;
+function rigCenter(points,t,out=new THREE.Vector3()){
+ const [a,b,c]=points;
+ if(t<=startBend)return out.copy(a).lerp(b,t*2);
+ if(t>=endBend)return out.copy(b).lerp(c,(t-.5)*2);
+ const u=(t-startBend)/(endBend-startBend),v=1-u;
+ // Quadratic Bezier endpoints lie on the two segments. A bent elbow remains continuous.
+ return out.copy(a).multiplyScalar((1-startBend*2)*v*v)
+  .addScaledVector(b,startBend*2*v*v+2*u*v+(2-endBend*2)*u*u)
+  .addScaledVector(c,(endBend*2-1)*u*u);
+}
+function createExperimentalRig(model,{radial=16,steps=24}={}){
+ if(radial<8||steps<12||steps%2)throw Error('Invalid rig resolution');
+ const root=model.root;root.updateMatrixWorld(true);
+ const limbs=chains(model),bones=[],pos=[],uv=[],skinIndex=[],skinWeight=[],indices=[],groups=[],seams=[],plans=[];
+ for(const limb of limbs){
+  const p=limb.points(),base=bones.length;
+  const ref=selectReference(p,limb.kind),ba=segmentBasis(p[0],p[1],ref),bb=segmentBasis(p[1],p[2],ref),qa=ba.q,qb=bb.q;
+  const makeBone=(name,center,q)=>{
+   const bone=new THREE.Bone();bone.name=name;bone.position.copy(center);bone.quaternion.copy(q);bones.push(bone);return bones.length-1;
+  };
+  const first=makeBone('v222_'+limb.kind+'_proximal',p[0],qa),last=makeBone('v222_'+limb.kind+'_distal',p[1],qb);
+  const jointBones=[],ringIds=[];
+  plans.push({limb,ref,first,last,jointBones,lengths:[ba.length,bb.length]});
+  const offset=pos.length/3,indexStart=indices.length;
+  const source=limb.kind==='leg'?model.leftHip.children.find(n=>n.userData.v129Sculpted):model.upperBody.children.find(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)>.1);
+  const torsoSources=model.upperBody.children.filter(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)<.02&&n.position.y>.05);
+  const torsoWidth=torsoSources.length?Math.max(...torsoSources.map(n=>n.scale.x)):1;
+  const torsoDepth=torsoSources.length?Math.max(...torsoSources.map(n=>n.scale.z)):1;
+  const width=limb.kind==='torso'?torsoWidth:(source?.scale.x||1);
+  const depth=limb.kind==='torso'?torsoDepth:(source?.scale.z||1);
+  for(let j=0;j<=steps;j++){
+   const t=j/steps,seg=t<=.5?0:1,u=seg===0?t*2:(t-.5)*2;
+   const center=rigCenter(p,t);
+   const q=ringFrame(ba,bb,t,ref);
+   // Straight portions share one length-scaled bone. Only the curved transition needs ring bones.
+   let id=t<=startBend?first:t>=endBend?last:makeBone('v222_'+limb.kind+'_bend_'+j,center,q);
+   if(id!==first&&id!==last)jointBones.push({id,t});
+   ringIds.push(id);
+   const joint=Math.exp(-(((t-.5)/.15)**2));
+   const fullness=limb.kind==='arm'?.075:limb.kind==='leg'?.085:.025;
+   const proximal=limb.kind==='arm'?.055:limb.kind==='leg'?.045:0;
+   const r=THREE.MathUtils.lerp(limb.radii[seg],limb.radii[seg+1],u)*(1+.018*Math.sin(t*Math.PI*10)+fullness*joint+proximal*Math.exp(-((t/.14)**2)));
+   for(let k=0;k<=radial;k++){
+    const angle=k/radial*Math.PI*2;
+    const v=new THREE.Vector3(Math.cos(angle)*r*width,0,Math.sin(angle)*r*depth*(limb.kind==='torso'?.70:.94)).applyQuaternion(q).add(center);
+    pos.push(v.x,v.y,v.z);uv.push(k/radial,t);
+    skinIndex.push(id,0,0,0);skinWeight.push(1,0,0,0);
+    if(j<steps&&k<radial){
+     const a=offset+j*(radial+1)+k,b=a+radial+1;
+     indices.push(a,b,a+1,b,b+1,a+1);
+    }
+   }
+   seams.push([offset+j*(radial+1),offset+j*(radial+1)+radial]);
+  }
+  // Close both tube ends; existing armor and boots still overlap these surfaces.
+  for(const end of [0,steps]){
+   const ring=offset+end*(radial+1),center=pos.length/3;
+   const v=p[end===0?0:2];pos.push(v.x,v.y,v.z);uv.push(.5,end===0?0:1);
+   skinIndex.push(ringIds[end],0,0,0);skinWeight.push(1,0,0,0);
+   for(let k=0;k<radial;k++){
+    if(end===0)indices.push(center,ring+k,ring+k+1);
+    else indices.push(center,ring+k+1,ring+k);
+   }
+  }
+  const materialIndex=limb.kind==='leg'?0:1;
+  const prev=groups.at(-1);
+  if(prev&&prev.materialIndex===materialIndex)prev.count+=indices.length-indexStart;
+  else groups.push({start:indexStart,count:indices.length-indexStart,materialIndex});
+ }
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+ geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+ geometry.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(skinIndex,4));
+ geometry.setAttribute('skinWeight',new THREE.Float32BufferAttribute(skinWeight,4));
+ geometry.setIndex(indices);geometry.computeVertexNormals();
+ const normal=geometry.getAttribute('normal'),n1=new THREE.Vector3(),n2=new THREE.Vector3();
+ for(const [a,b] of seams){
+  n1.fromBufferAttribute(normal,a);n2.fromBufferAttribute(normal,b);
+  n1.add(n2).normalize();normal.setXYZ(a,n1.x,n1.y,n1.z);normal.setXYZ(b,n1.x,n1.y,n1.z);
+ }
+ normal.needsUpdate=true;geometry.computeBoundingSphere();
+ for(const g of groups)geometry.addGroup(g.start,g.count,g.materialIndex);
+ const pants=model.leftHip.children.find(n=>n.userData.v129Sculpted).material;
+ const jacket=model.upperBody.children.find(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)>.1).material;
+ const materials=[pants,jacket].map(source=>{const m=source.clone();m.skinning=true;m.vertexColors=false;return m;});
+ const mesh=new THREE.SkinnedMesh(geometry,materials);
+ mesh.name='v188_experimental_skin';mesh.frustumCulled=false;
+ for(const bone of bones)mesh.add(bone);
+ root.add(mesh);root.updateMatrixWorld(true);
+ const skeleton=new THREE.Skeleton(bones);mesh.bind(skeleton);
+ // Attached binding keeps root transforms independent from the visual pose.
+ mesh.visible=false;
+ // Toggle only the cloth replacement. Armor, head, hands, boots, IFF, and weapon stay attached.
+ const hidden=[];
+ root.traverse(n=>{
+  if(n===mesh||!n.isMesh)return;
+  if(['knee','elbow'].includes(n.userData.v154Joint)||n.userData.v129Sculpted)hidden.push({n,visible:n.visible});
+ });
+ let enabledState=false,disposed=false;
+ const setEnabled=enabled=>{
+  if(disposed)throw Error('Disposed experimental rig');
+  enabled=!!enabled;
+  if(enabled===enabledState)return;
+  enabledState=enabled;
+  if(enabled){root.add(mesh);mesh.visible=true;for(const item of hidden)item.n.visible=false;update();}
+  else{mesh.visible=false;root.remove(mesh);for(const item of hidden)item.n.visible=item.visible;}
+ };
+ // Disabled comparison must not traverse the experimental skeleton.
+ root.remove(mesh);
+ const update=()=>{
+  root.updateWorldMatrix(true,false);
+  for(const plan of plans){
+   const p=plan.limb.points(),a=segmentBasis(p[0],p[1],plan.ref),b=segmentBasis(p[1],p[2],plan.ref);
+   const first=bones[plan.first],last=bones[plan.last];
+   first.position.copy(p[0]);first.quaternion.copy(a.q);first.scale.y=a.length/plan.lengths[0];
+   last.position.copy(p[1]);last.quaternion.copy(b.q);last.scale.y=b.length/plan.lengths[1];
+   for(const ring of plan.jointBones){
+    const bone=bones[ring.id];rigCenter(p,ring.t,bone.position);
+    bone.quaternion.copy(ringFrame(a,b,ring.t,plan.ref));
+   }
+  }
+  // Explicit diagnostic updates work when detached as well; retain the original bind frame.
+  if(mesh.parent)mesh.updateMatrixWorld(true);
+  else{root.add(mesh);mesh.updateMatrixWorld(true);root.remove(mesh);}
+  skeleton.update();
+ };
+ const dispose=()=>{if(disposed)return;setEnabled(false);root.remove(mesh);geometry.dispose();materials.forEach(m=>m.dispose());skeleton.dispose?.();disposed=true;};
+ return {mesh,bones,update,dispose,limbs,geometry,setEnabled,get enabled(){return enabledState;}};
+}
+
+// V228: reusable, opt-in visual quality controller; no gameplay coordinates are written.
+// Distances use hysteresis to prevent switching rapidly around a threshold.
+function createAdaptiveRigController(rig,{offset=0}={}){
+ let mode='far',active=false,updates=0,switches=0;
+ const choose=d=>{
+  if(!Number.isFinite(d))return 'far';
+  if(mode==='near')return d>=46?'far':d>=25?'mid':'near';
+  if(mode==='mid')return d>=48?'far':d<=21?'near':'mid';
+  return d<=21?'near':d<=42?'mid':'far';
+ };
+ const step=(distance,frame,enabled=true)=>{
+  const next=enabled?choose(distance):'far';
+  const changed=next!==mode;mode=next;
+  if(changed)switches++;
+  if(mode==='far'){if(active){rig.setEnabled(false);active=false;}return mode;}
+  if(!active){rig.setEnabled(true);active=true;updates++;return mode;}
+  if(changed||mode==='near'||(Math.floor(frame)+offset)%2===0){rig.update();updates++;}
+  return mode;
+ };
+ const reset=()=>{if(active)rig.setEnabled(false);active=false;mode='far';};
+ return {step,reset,get mode(){return mode;},get updates(){return updates;},get switches(){return switches;}};
+}
+// FO_EXPERIMENTAL_RIG_END
+return {createExperimentalRig,createAdaptiveRigController};
+        })();
+        return foExperimentalRigApi;
+      }
+      function foExperimentalRigRequested(){
+        return typeof location!=='undefined'&&new URLSearchParams(location.search).get('rig')==='experimental';
+      }
+      function updateFoExperimentalBotRigs(){
+        if(!foExperimentalRigRequested())return;
+        const frame=++foExperimentalRigFrame;
+        const opticalScale=Math.tan(74*Math.PI/360)/Math.tan(Math.max(10,Math.min(120,camera.fov||74))*Math.PI/360);
+        const scale=Math.max(.5,Math.min(8,opticalScale*(camera.zoom||1)));
+        for(let i=0;i<bots.length;i++){
+          const bot=bots[i];
+          if(bot.experimentalRigFailed)continue;
+          const distance=Math.hypot(bot.pos.x-camera.position.x,bot.pos.y-camera.position.y,bot.pos.z-camera.position.z)/scale;
+          try{
+            if(!bot.alive&&!bot.dying){bot.experimentalRigController?.reset();continue;}
+            if(!bot.experimentalRig&&distance<=42){
+              const api=getFoExperimentalRigApi();
+              bot.experimentalRig=api.createExperimentalRig(bot.mesh,{radial:12,steps:16});
+              bot.experimentalRigController=api.createAdaptiveRigController(bot.experimentalRig,{offset:i%2});
+            }
+            bot.experimentalRigController?.step(distance,frame,true);
+          }catch(e){
+            // The existing visual model is always the fallback. Never affect gameplay.
+            bot.experimentalRigController?.reset();bot.experimentalRig?.dispose();
+            bot.experimentalRig=null;bot.experimentalRigController=null;bot.experimentalRigFailed=true;
+            console.warn('Experimental visual rig fallback',e);
+          }
+        }
+      }
       function initBots() {
         resetTeamIntel();
         resetBotNoiseEvents();
         resetBotMetrics();
-        bots.forEach((b) => scene.remove(b.mesh.root));
+        bots.forEach((b) => {b.experimentalRigController?.reset();b.experimentalRig?.dispose();scene.remove(b.mesh.root);});
         bots.length = 0;
         // A fresh match starts a fresh per-five/per-fifteen spawn cycle.
         botLifeSequence = 0;
@@ -15818,6 +16075,7 @@
           if(bot.mesh.setVisualSecondary)bot.mesh.setVisualSecondary(bot.visualGaitPhase??0,bot.mesh.visualDetailLevel<2?Math.min(1,visualMotion.speed/4):0);
         }
         sampleBotMetrics(dt,bots);
+        updateFoExperimentalBotRigs();
       }
 
       // =========================================================================

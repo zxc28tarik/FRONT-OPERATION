@@ -1,0 +1,5 @@
+# V234 — İsteğe bağlı oyun içi iskelet
+V228 son birleşik CI 45598182147 başarılı; yazılım A/B tam ve adaptif sınırları geçti; CPU poz güncellemesi 0.241 ms / 15 bot. Maksimum boyuna kenar oranı 5.868; görsel kalite ve donanım FPS kabulü açık.
+V229–232: kök yerel sabit enine referansla eklem çerçevesi, eğri teğetine göre kesit yönü, kalça/omuz köprülerinin korunması, p95 ve maksimum boyuna gerilme tanısı. Önceki setFromUnitVectors antipodal yön kararsızlığı önlenmeye çalışılır; sonuç ölçülmeden iyileşme varsayılmaz.
+V233: index.html tek dosya içinde modülün eş kopyası; yalnız ?rig=experimental ile etkinleşir. Varsayılan kapalı, uzak mesafede eski model, hata durumunda eski modele dönüş, bot sıfırlamada dispose. Oyunun AI, hasar, koordinat ve silah mekanikleri değişmez.
+V234: test gerçek oyun yüklemesi, opt-in, yakın/uzak geçiş, görünür ekipman, bot pozisyon ve HP değişmezliği, yeniden maç başlangıcı ve canlı adım. Modül/HTML eşitliği kontrol edilir. Testler ve gerçek görsel inceleme açık; varsayılan entegrasyon yok.
