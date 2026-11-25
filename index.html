@@ -6852,6 +6852,16 @@
           }
           G.v146.set(oldSkull.geometry,low);oldSkull.userData.v170Head=true;
         }
+        // V195: subtle secondary movement on existing independent attachments.
+        const secondary=model.upperBody.children.filter(n=>[approved.radioAnt,approved.sniperCape,approved.ammoFeed].includes(geomOf(n)))
+          .map(n=>({n,x:n.rotation.x,z:n.rotation.z}));
+        model.setVisualSecondary=(phase,amount)=>{
+          const a=Math.max(0,Math.min(1,Number.isFinite(amount)?amount:0));
+          for(const {n,x,z} of secondary){
+            n.rotation.x=x+Math.sin(phase)*a*.018;
+            n.rotation.z=z+Math.cos(phase*.5)*a*.014;
+          }
+        };
         // V144: reuse existing silhouette and animation hierarchy, with no added draw calls.
         model.setVisualFootPose=(left,right)=>{
           if(ankles.length===2){ankles[0].rotation.x=Number.isFinite(left)?left:0;ankles[1].rotation.x=Number.isFinite(right)?right:0;}
@@ -11076,6 +11086,8 @@
         if(bot.mesh.resetVisualCombatPose)bot.mesh.resetVisualCombatPose();
         bot.visualCarry=0;bot.lastVisualLegYaw=null;bot.visualTransition=null;
         bot.visualAnkleLeft=0;bot.visualAnkleRight=0;bot.visualBob=0;bot.visualGaitPhase=null;
+        bot.visualDirection=null;bot.visualGroundSample=null;bot.visualDeathStart=null;
+        if(bot.mesh.setVisualSecondary)bot.mesh.setVisualSecondary(0,0);
         if(bot.mesh.setVisualDetailDistance)bot.mesh.setVisualDetailDistance(0);
         bot.stuckTimer = 0;
         bot.stuckFailures = 0;
@@ -11733,6 +11745,10 @@
           bot.alive = false;
           bot.dying = true;
           bot.deathAnimTimer = 0.65;
+          // V196: begin the visual fall from the last actual pose, not an upright template.
+          bot.visualDeathStart={pitch:bot.mesh.root.rotation.x,roll:bot.mesh.root.rotation.z,y:bot.mesh.root.position.y,
+            leftHip:bot.mesh.leftHip.rotation.x,rightHip:bot.mesh.rightHip.rotation.x,
+            leftKnee:bot.mesh.leftKnee.rotation.x,rightKnee:bot.mesh.rightKnee.rotation.x,head:bot.mesh.head.rotation.z};
           bot.respawnTimer = 3.5;
           bot.deaths++;
           recordBotMetric(bot, 'deaths');
@@ -14459,6 +14475,27 @@
         const c=Math.max(0,Math.min(1,crouch||0)),weight=role==='heavy'?.8:1;
         return {speed:next,cover:coverBlend,accel,hipBias:accel*.045*weight,kneeBias:coverBlend*c*.10,footDamp:1-coverBlend*.32};
       }
+      // V189–V195: visual-only contact fitting and direction/stance smoothing.
+      function botVisualLegContact(hip,knee,rootOffset,floorDelta,weight){
+        const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+        const a=.37,b=.36;
+        const w=clamp(Number.isFinite(weight)?weight:0,0,1);
+        if(!w)return {hip,knee,foot:0};
+        const z=-a*Math.sin(hip)-b*Math.sin(hip+knee);
+        const y=clamp(-.73+(Number.isFinite(rootOffset)?rootOffset:0)+(Number.isFinite(floorDelta)?floorDelta:0),-.73,-.39);
+        const reach=clamp(Math.hypot(y,z),.43,.729);
+        const k=Math.acos(clamp((reach*reach-a*a-b*b)/(2*a*b),-1,1));
+        const h=Math.atan2(-z,-y)-Math.atan2(b*Math.sin(k),a+b*Math.cos(k));
+        const nextHip=hip+(clamp(h,-1.15,1.05)-hip)*w;
+        const nextKnee=knee+(clamp(k,0,1.85)-knee)*w;
+        return {hip:nextHip,knee:nextKnee,foot:clamp(-(nextHip+nextKnee),-.48,.48)*w};
+      }
+      function botVisualDirection(previous,forward,side,dt){
+        const a=1-Math.exp(-Math.max(0,Math.min(.12,dt||0))*14);
+        const f=Number.isFinite(previous?.forward)?previous.forward:forward;
+        const s=Number.isFinite(previous?.side)?previous.side:side;
+        return {forward:f+(forward-f)*a,side:s+(side-s)*a};
+      }
       function botVisualCombatPose(muzzleTimer,reloadLeft,reloadDuration,role){
         const phase=reloadDuration>0?Math.max(0,Math.min(1,1-reloadLeft/reloadDuration)):0;
         const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
@@ -14499,12 +14536,15 @@
             bot.deathAnimTimer -= dt;
             const fallProg = Math.min(1, 1 - bot.deathAnimTimer / 0.65);
             const fall=botVisualFall(fallProg,bot.deathFallDir);
-            bot.mesh.root.rotation.x=fall.pitch;
-            bot.mesh.root.rotation.z=fall.roll;
-            bot.mesh.root.position.y=bot.pos.y-fall.drop;
-            bot.mesh.leftKnee.rotation.x=fall.knee;
-            bot.mesh.rightKnee.rotation.x=fall.knee*.7;
-            bot.mesh.head.rotation.z=fall.head*bot.deathFallDir;
+            const start=bot.visualDeathStart,remain=(1-fallProg)**2;
+            bot.mesh.root.rotation.x=fall.pitch+(start?.pitch||0)*remain;
+            bot.mesh.root.rotation.z=fall.roll+(start?.roll||0)*remain;
+            bot.mesh.root.position.y=bot.pos.y-fall.drop+((start?.y??bot.pos.y)-bot.pos.y)*remain;
+            bot.mesh.leftHip.rotation.x=(start?.leftHip||0)*remain-fall.knee*.30;
+            bot.mesh.rightHip.rotation.x=(start?.rightHip||0)*remain-fall.knee*.16;
+            bot.mesh.leftKnee.rotation.x=fall.knee+(start?.leftKnee||0)*remain;
+            bot.mesh.rightKnee.rotation.x=fall.knee*.7+(start?.rightKnee||0)*remain;
+            bot.mesh.head.rotation.z=fall.head*bot.deathFallDir+(start?.head||0)*remain;
             if (bot.deathAnimTimer <= 0) {
               bot.dying = false;
               bot.mesh.root.visible = false;
@@ -14562,6 +14602,8 @@
             bot.mesh.upperBody.rotation.z = bot.hitFlinchRoll;
             if(bot.mesh.resetVisualCombatPose)bot.mesh.resetVisualCombatPose();
             bot.visualAnkleLeft=0;bot.visualAnkleRight=0;bot.visualBob=0;bot.visualCarry=0;bot.visualTransition=null;
+            bot.visualDirection=null;bot.visualGroundSample=null;
+            if(bot.mesh.setVisualSecondary)bot.mesh.setVisualSecondary(0,0);
             bot.mesh.leftHip.rotation.x *= Math.exp(-10 * dt);
             bot.mesh.rightHip.rotation.x *= Math.exp(-10 * dt);
             bot.mesh.leftKnee.rotation.x = bot.crouchAmt * 0.45;
@@ -15671,8 +15713,11 @@
           if (actualSpeed > 0.4) {
             bot.mesh.upperBody.position.y = 0.93;
             bot.animPhase += dt * actualSpeed * 2.35;
-            const pose=botLocomotionPose((bot.pos.x-beforeMoveX)/Math.max(.001,dt),(bot.pos.z-beforeMoveZ)/Math.max(.001,dt),bot.legYaw,actualSpeed);
-            bot.visualGaitPhase=((bot.visualGaitPhase??bot.animPhase)+dt*actualSpeed*(bot.classId==='heavy'?2.13:2.35))%(Math.PI*2);
+            const resolved=botLocomotionPose((bot.pos.x-beforeMoveX)/Math.max(.001,dt),(bot.pos.z-beforeMoveZ)/Math.max(.001,dt),bot.legYaw,actualSpeed);
+            const pose=botVisualDirection(bot.visualDirection,resolved.forward,resolved.side,dt);
+            bot.visualDirection=pose;
+            const strideRate=(bot.classId==='heavy'?2.13:2.35)*(1-.16*bot.crouchAmt);
+            bot.visualGaitPhase=((bot.visualGaitPhase??bot.animPhase)+dt*visualMotion.speed*strideRate)%(Math.PI*2);
             const gait=botVisualGait(bot.visualGaitPhase,visualMotion.speed,pose.forward,pose.side,bot.crouchAmt,bot.classId);
             const grade=(bot.pos.y-beforeMoveY)/Math.max(.04,actualSpeed*dt);
             const ground=botVisualGroundMotion(bot.visualGaitPhase,actualSpeed,pose.forward,pose.side,bot.crouchAmt,grade,bot.classId);
@@ -15696,6 +15741,7 @@
             bot.visualAnkleLeft=(bot.visualAnkleLeft||0)*Math.exp(-Math.max(0,dt)*16);
             bot.visualAnkleRight=(bot.visualAnkleRight||0)*Math.exp(-Math.max(0,dt)*16);
             if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(bot.visualAnkleLeft,bot.visualAnkleRight);
+            bot.visualDirection=botVisualDirection(bot.visualDirection,0,0,dt);
             const stanceBlend=1-Math.exp(-dt*12);
             bot.mesh.leftHip.rotation.z+=(-visualStance.stanceWidth-bot.mesh.leftHip.rotation.z)*stanceBlend;
             bot.mesh.rightHip.rotation.z+=(visualStance.stanceWidth-bot.mesh.rightHip.rotation.z)*stanceBlend;
@@ -15708,6 +15754,31 @@
             bot.visualBob=quietCarry?oldBob+(breath-oldBob)*(1-Math.exp(-dt*12)):0;
             bot.mesh.upperBody.position.y = .93+bot.visualBob;
           }
+          // Near/medium visual contact only. Never change bot.pos, collision, speed or aim.
+          if(bot.mesh.visualDetailLevel<2&&Math.abs(bot.pos.y-targetFloorY)<.12){
+            const phase=bot.visualGaitPhase??0,step=actualSpeed>.4?Math.sin(phase):0;
+            const rootOffset=bot.crouchAmt*.32;
+            const groundSample=bot.visualGroundSample;
+            if(!groundSample||nowSec-groundSample.at>.10){
+              const yaw=bot.legYaw,c=Math.cos(yaw),s=Math.sin(yaw);
+              const sample=hip=>{
+                const k=hip===bot.mesh.leftHip?bot.mesh.leftKnee:bot.mesh.rightKnee;
+                const x=hip.position.x,z=-.37*Math.sin(hip.rotation.x)-.36*Math.sin(hip.rotation.x+k.rotation.x);
+                return Math.max(-.10,Math.min(.10,getFloorHeightAt(bot.pos.x+x*c+z*s,bot.pos.z-x*s+z*c,bot.pos.y+.30)-targetFloorY));
+              };
+              bot.visualGroundSample={at:nowSec,left:sample(bot.mesh.leftHip),right:sample(bot.mesh.rightHip)};
+            }
+            const g=bot.visualGroundSample;
+            const contact=(hip,knee,delta,plant)=>{
+              const w=(actualSpeed<.4?.75:Math.max(0,plant)*.48);
+              const p=botVisualLegContact(hip.rotation.x,knee.rotation.x,rootOffset,delta,w);
+              hip.rotation.x=p.hip;knee.rotation.x=p.knee;return p.foot;
+            };
+            const lf=contact(bot.mesh.leftHip,bot.mesh.leftKnee,g.left,step);
+            const rf=contact(bot.mesh.rightHip,bot.mesh.rightKnee,g.right,-step);
+            if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(bot.visualAnkleLeft+lf,bot.visualAnkleRight+rf);
+          }else bot.visualGroundSample=null;
+          if(bot.mesh.setVisualSecondary)bot.mesh.setVisualSecondary(bot.visualGaitPhase??0,bot.mesh.visualDetailLevel<2?Math.min(1,visualMotion.speed/4):0);
         }
         sampleBotMetrics(dt,bots);
       }
