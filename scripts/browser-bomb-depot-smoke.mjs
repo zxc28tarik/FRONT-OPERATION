@@ -105,10 +105,10 @@ try{
  await page.locator('#fo-game-mode').selectOption('bomb');
  await page.evaluate(()=>{window.__foDepotQa.freeze();document.getElementById('btn-deploy').click();window.__foDepotQa.freeze();});
  const depot=await page.evaluate(()=>window.__foDepotQa.snapshot());
- if(depot.mode!=='bomb'||depot.nav!==251||depot.navCount!==251||depot.navEdges!==813||!depot.sightBlocked||depot.botLives.length!==11||depot.graph===original.graph||
-     depot.sites.some(s=>!s.walkable||!s.reachable)||depot.colliders===original.colliders)throw Error('Invalid separate map '+JSON.stringify(depot));
- if(Math.abs(depot.bounds[0]-87.78)>.01||Math.abs(depot.bounds[1]-53.55)>.01||!depot.outerWalkable||
-     Math.abs(depot.pos[2]-45)>.01||depot.spawns.some(b=>b.team==='blue'?b.z<44:b.z>-44))
+ if(depot.mode!=='bomb'||depot.nav!==208||depot.navCount!==208||depot.navEdges!==653||!depot.sightBlocked||depot.botLives.length!==11||depot.graph===original.graph||
+     depot.sites.some(s=>!s.walkable||!s.reachable)||depot.colliders===original.colliders)throw Error('Invalid separate map '+JSON.stringify({...depot,graph:'[omitted]'}));
+ if(Math.abs(depot.bounds[0]-52.668)>.01||Math.abs(depot.bounds[1]-45.5175)>.01||depot.outerWalkable||
+     Math.abs(depot.pos[2]-38.25)>.01||depot.spawns.some(b=>Math.abs(b.z-(b.team==='blue'?38.25:-38.25))>.01))
    throw Error('Expanded arena bounds or spawn failure '+JSON.stringify(depot));
  await page.screenshot({path:path.join(output,'depot17-start.png')});
  await page.evaluate(()=>window.__foDepotQa.plant());
@@ -142,6 +142,6 @@ try{
  if(opening.moved.filter(b=>b.dist>5).length<7)throw Error('Most bots failed to advance in natural opening');
  if(opening.mission.some(b=>!b.role))throw Error('Living bot has no mission');
  if(errors.length)throw Error(errors.join(' | '));
- console.log('PASS real WebGL Tersane V10: compact arena, blocked spawn sightline, 251-node map, both sites reachable, plant, no respawn, teammate switching, free camera, rendered aim gate, defuse, exact Marien restoration');
+ console.log('PASS real WebGL Tersane V10: compact arena, blocked spawn sightline, 208-node map, both sites reachable, plant, no respawn, teammate switching, free camera, rendered aim gate, defuse, exact Marien restoration');
 }catch(e){console.error('FAIL Depot17 browser: '+String(e));process.exitCode=1;}
 finally{await browser?.close();await new Promise(r=>server.close(r));}

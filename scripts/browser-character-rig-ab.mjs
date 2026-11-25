@@ -68,12 +68,12 @@ try{
   return {renderer:gl.getParameter(gl.RENDERER),webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL1',botCount:15,bands,softwareGate:bands.every(x=>x.ratio<=1.10),hardwareGate:'NOT_MEASURED',activeRig:'legacy'};
  },factory);
  // Persist measurements before optional screenshots, even if image capture fails.
- fs.writeFileSync(path.join(out,'v205-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+ fs.writeFileSync(path.join(out,'v210-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
  if(errors.length)throw Error(errors.join(' | '));
  if(report.bands.some(x=>!Number.isFinite(x.ratio)||x.candidateCalls<=0||x.baselineCalls<=0))throw Error('Invalid render measurement');
  for(const enabled of [false,true]){
   const data=await page.evaluate(on=>window.previewRig(on),enabled);
   if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid canvas capture');
-  fs.writeFileSync(path.join(out,'v205-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+  fs.writeFileSync(path.join(out,'v210-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
  }
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

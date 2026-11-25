@@ -38,19 +38,30 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
   }
   const offset=pos.length/3,indexStart=indices.length;
   const source=limb.kind==='leg'?model.leftHip.children.find(n=>n.userData.v129Sculpted):model.upperBody.children.find(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)>.1);
-  const width=source?.scale.x||1,depth=source?.scale.z||1;
+  const torsoSources=model.upperBody.children.filter(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)<.02&&n.position.y>.05);
+  const torsoWidth=torsoSources.length?Math.max(...torsoSources.map(n=>n.scale.x)):1;
+  const torsoDepth=torsoSources.length?Math.max(...torsoSources.map(n=>n.scale.z)):1;
+  const width=limb.kind==='torso'?torsoWidth:(source?.scale.x||1);
+  const depth=limb.kind==='torso'?torsoDepth:(source?.scale.z||1);
   for(let j=0;j<=steps;j++){
    const t=j/steps,seg=t<=.5?0:1,u=seg===0?t*2:(t-.5)*2;
    const center=p[seg].clone().lerp(p[seg+1],u);
    const qa=segmentBasis(p[0],p[1]).q,qb=segmentBasis(p[1],p[2]).q;
    const bend=ease((t-.36)/.28),q=qa.clone().slerp(qb,bend);
-   const r=THREE.MathUtils.lerp(limb.radii[seg],limb.radii[seg+1],u)*(1+.026*Math.sin(j*2.4));
-   const w=ease((t-.34)/.32);
+   const joint=Math.exp(-(((t-.5)/.15)**2));
+   const fullness=limb.kind==='arm'?.075:limb.kind==='leg'?.085:.025;
+   const proximal=limb.kind==='arm'?.055:limb.kind==='leg'?.045:0;
+   const r=THREE.MathUtils.lerp(limb.radii[seg],limb.radii[seg+1],u)*(1+.018*Math.sin(t*Math.PI*10)+fullness*joint+proximal*Math.exp(-((t/.14)**2)));
+   // Keep blend narrower around the elbow/knee to avoid dragging the entire sleeve.
+   const w=ease((t-.38)/.24);
    for(let k=0;k<=radial;k++){
     const angle=k/radial*Math.PI*2;
     const v=new THREE.Vector3(Math.cos(angle)*r*width,0,Math.sin(angle)*r*depth*(limb.kind==='torso'?.70:.94)).applyQuaternion(q).add(center);
     pos.push(v.x,v.y,v.z);uv.push(k/radial,t);
-    skinIndex.push(base,base+1,0,0);skinWeight.push(1-w,w,0,0);
+    // A small proximal blend links the sleeve to the upper torso, trousers to the waist.
+    const anchor=limb.kind==='arm'?9:8;
+    const anchorWeight=limb.kind==='torso'?0:.16*(1-ease(t/.18));
+    skinIndex.push(base,base+1,anchor,0);skinWeight.push((1-w)*(1-anchorWeight),w*(1-anchorWeight),anchorWeight,0);
     if(j<steps&&k<radial){
      const a=offset+j*(radial+1)+k,b=a+radial+1;
      indices.push(a,b,a+1,b,b+1,a+1);
@@ -62,7 +73,8 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
   for(const end of [0,steps]){
    const ring=offset+end*(radial+1),center=pos.length/3;
    const v=p[end===0?0:2];pos.push(v.x,v.y,v.z);uv.push(.5,end===0?0:1);
-   skinIndex.push(base,base+1,0,0);skinWeight.push(end===0?1:0,end===0?0:1,0,0);
+   const anchor=limb.kind==='arm'?9:8,anchorWeight=end===0&&limb.kind!=='torso'?.16:0;
+   skinIndex.push(base,base+1,anchor,0);skinWeight.push(end===0?1-anchorWeight:0,end===0?0:1,anchorWeight,0);
    for(let k=0;k<radial;k++){
     if(end===0)indices.push(center,ring+k,ring+k+1);
     else indices.push(center,ring+k+1,ring+k);

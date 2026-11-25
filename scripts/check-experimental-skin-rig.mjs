@@ -6,7 +6,7 @@ import {createExperimentalRig} from '../modules/experimental/v188-skin-rig.mjs';
 const html=fs.readFileSync('index.html','utf8');
 const a=html.indexOf('      let SOLDIER_SHARED = null;'),b=html.indexOf('      // =========================================================================\n      // 8. COLLISION',a);
 const api=new Function('THREE',html.slice(a,b)+'\nreturn {enhanced:createEnhancedBotSoldierMesh};')(THREE);
-let cases=0,maxRestError=0;
+let cases=0,maxRestError=0,minRingRatio=Infinity,maxRingRatio=0;
 const reps=[];
 for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer','sniper','heavy'])for(let variant=0;variant<3;variant++){
  const m=api.enhanced(team,cls,variant),r=createExperimentalRig(m);
@@ -26,7 +26,7 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  }
  for(let i=0;i<p.count;i++){
   assert(Math.abs(w.getX(i)+w.getY(i)+w.getZ(i)+w.getW(i)-1)<1e-6);
-  assert(idx.getX(i)<10&&idx.getY(i)<10);
+  assert(idx.getX(i)<10&&idx.getY(i)<10&&idx.getZ(i)<10&&idx.getW(i)<10);
   const v=new THREE.Vector3().fromBufferAttribute(p,i),deformed=v.clone();
   r.mesh.boneTransform(i,deformed);
   maxRestError=Math.max(maxRestError,v.distanceTo(deformed));
@@ -47,6 +47,18 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
    const v=new THREE.Vector3().fromBufferAttribute(p,i);r.mesh.boneTransform(i,v);
    assert(v.toArray().every(Number.isFinite));assert(v.length()<3);
   }
+  // Quantify ring compression during bends. Preserve a finite noncollapsed ring.
+  for(let limb=0;limb<5;limb++)for(const ring of [9,12,15]){
+   let rest=0,deformed=0;
+   for(let k=0;k<16;k++){
+    const i=limb*stride+ring*17+k,j=i+1;
+    const a=new THREE.Vector3().fromBufferAttribute(p,i),b=new THREE.Vector3().fromBufferAttribute(p,j);
+    rest+=a.distanceTo(b);r.mesh.boneTransform(i,a);r.mesh.boneTransform(j,b);deformed+=a.distanceTo(b);
+   }
+   const ratio=deformed/rest;
+   assert(Number.isFinite(ratio)&&ratio>.25&&ratio<3,'collapsed or stretched joint ring '+ratio);
+   minRingRatio=Math.min(minRingRatio,ratio);maxRingRatio=Math.max(maxRingRatio,ratio);
+  }
   assert(m.muzzleFlash.position.equals(muzzle));
  }
  if(reps.length<15)reps.push({m,r});else r.dispose();
@@ -58,5 +70,5 @@ const frames=120,run=()=>{for(let i=0;i<frames;i++)for(const {m,r} of reps){
  m.rightKnee.rotation.x=Math.cos(phase)*.55;r.update();
 }};
 run();const start=performance.now();run();const elapsed=performance.now()-start;
-console.log(JSON.stringify({cases,bones:10,maxRestError,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
+console.log(JSON.stringify({cases,bones:10,maxRestError,minRingRatio,maxRingRatio,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
 for(const {r} of reps)r.dispose();
