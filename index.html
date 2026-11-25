@@ -7103,6 +7103,82 @@
             n.userData.v174Harness=true;
           }
         }
+        // V248: seat existing armor, magazine/admin pouches and class packs
+        // against the actual tailored plate-carrier envelope. No new mesh,
+        // attachment pivot, hit volume, weapon part or per-frame operation.
+        const v248Front=model.upperBody.children.find(n=>n.name==='v105_role_vest'&&n.position.z>0);
+        const v248Back=model.upperBody.children.find(n=>n.name==='v105_role_vest'&&n.position.z<0);
+        const v248Bounds=n=>{
+          if(!n?.geometry)return null;
+          if(!n.geometry.boundingBox)n.geometry.computeBoundingBox();
+          return n.geometry.boundingBox;
+        };
+        if(v248Front&&v248Back){
+          const fb=v248Bounds(v248Front),bb=v248Bounds(v248Back);
+          const frontFace=v248Front.position.z+fb.max.z*v248Front.scale.z;
+          const backFace=v248Back.position.z+bb.min.z*v248Back.scale.z;
+          const torsoHalfWidth=fb.max.x*v248Front.scale.x;
+          const clampFit=(n,target,max)=>{
+            const delta=Math.max(-max,Math.min(max,target-n.position.z));
+            n.position.z+=delta;
+            return delta;
+          };
+          // Existing three magazine pouches and one admin pouch must sit
+          // on the front shell instead of floating or burying their rear faces.
+          for(const n of model.upperBody.children){
+            if(!['pouch','admin'].includes(n.userData?.v176Equipment))continue;
+            const b=v248Bounds(n);
+            if(!b)continue;
+            const rear=b.min.z*n.scale.z;
+            const target=frontFace-rear+.0015;
+            clampFit(n,target,.055);
+            const available=Math.max(0,torsoHalfWidth-Math.abs(b.max.x*n.scale.x)-.007);
+            n.position.x=Math.max(-available,Math.min(available,n.position.x));
+            n.userData.v248CarrierMounted=true;
+            n.userData.v248PanelClearance=n.position.z+rear-frontFace;
+          }
+          // Keep existing two cross-body shoulder straps long enough to
+          // meet both carrier faces; their pivot and material are unchanged.
+          for(const strap of model.upperBody.children.filter(n=>n.geometry===G.carrierStrap)){
+            const b=v248Bounds(strap);
+            const span=b.max.z-b.min.z;
+            if(span>0){
+              const required=(frontFace-backFace+.006)/span;
+              strap.scale.z=Math.max(strap.scale.z,Math.min(1.32,required));
+              strap.userData.v248HarnessFit=true;
+            }
+          }
+          // Locate the role backpack after V149 shaping and V174 harness scale.
+          // Keep its existing medical insignia, engineering tools or heavy
+          // ammunition link at exactly the same relative placement.
+          const pack=model.upperBody.children.find(n=>n.userData?.v149Pack);
+          if(pack){
+            const b=v248Bounds(pack);
+            const target=backFace-b.max.z*pack.scale.z-.002;
+            const shift=clampFit(pack,target,.065);
+            pack.userData.v248BackMounted=true;
+            pack.userData.v248PanelClearance=backFace-(pack.position.z+b.max.z*pack.scale.z);
+            const followers=classId==='medic'
+              ?[approved.medCrossH,approved.medCrossV]:
+              classId==='engineer'
+                ?[approved.engTube,approved.claymoreBack]:
+                classId==='heavy'?[approved.ammoFeed]:[];
+            for(const accessory of model.upperBody.children){
+              if(followers.includes(geomOf(accessory))){
+                accessory.position.z+=shift;
+                accessory.userData.v248PackFollower=true;
+              }
+            }
+          }
+          // Belt width should follow the established character waist,
+          // without shifting the buckle, hip joints or root-level equipment.
+          const belt=model.root.children.find(n=>n.userData?.v176Equipment==='belt');
+          if(belt){
+            const targetScale=bodyProfile[0]*({heavy:1.025,engineer:1.01,sniper:.99}[classId]||1);
+            belt.scale.x*=targetScale;
+            belt.userData.v248WaistFit=true;
+          }
+        }
         // V170: retain facial shape identity in a cheaper distance mesh.
         if(oldSkull&&G.v130&&typeof F.lowSkull.getAttribute==='function'){
           if(!G.v170)G.v170=new Map();
