@@ -7,9 +7,11 @@ const old=process.env.FO_V287_BASELINE?fs.readFileSync(process.env.FO_V287_BASEL
 const cut=s=>{const a=s.indexOf("      function botVisualGait("),b=s.indexOf("      // V58: derive map awareness",a);if(a<0||b<a)throw Error("anchor");return {pre:s.slice(0,a),body:s.slice(a,b),post:s.slice(b)}};
 const a=cut(old),b=cut(html);
 assert.equal(a.pre,b.pre,'protected prefix changed');
-assert.equal(a.post,b.post,'protected suffix changed');
+assert.equal(a.post,b.post.replace("const gait=botVisualGaitV291(bot.visualGaitPhase,visualMotion.speed,pose.forward,pose.side,bot.crouchAmt,bot.classId);","const gait=botVisualGait(bot.visualGaitPhase,visualMotion.speed,pose.forward,pose.side,bot.crouchAmt,bot.classId);"),'protected suffix changed');
+assert(b.body.startsWith(a.body),'historical V103 gait changed');
+assert.equal(b.post.split("const gait=botVisualGaitV291(bot.visualGaitPhase,visualMotion.speed,pose.forward,pose.side,bot.crouchAmt,bot.classId);").length,2,'expected exactly one live V291 gait call');
 const baseline=new Function(a.body+';return botVisualGait;')();
-const live=new Function(b.body+';return botVisualGait;')();
+const live=new Function(b.body+';return botVisualGaitV291;')();
 function directionalGait(base,phase,speed,forward,side,crouch,role){
   const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number.isFinite(v)?v:0));
   const f=clamp(forward,-1,1),s=clamp(side,-1,1),c=clamp(crouch);
