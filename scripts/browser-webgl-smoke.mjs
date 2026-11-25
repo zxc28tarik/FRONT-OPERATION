@@ -153,10 +153,21 @@ try {
     // First click may acquire pointer lock. A held follow-up click
     // spans game animation frames and confirms actual firing input.
     await page.mouse.click(700, 440, { button: 'left' });
+    // A fixed 280ms hold can fall entirely between frames on SwiftShader.
+    // Keep the trigger down until a REAL acoustic event is reported by the
+    // running game. This does not generate an event or bypass gameplay.
     await page.mouse.down({ button: 'left' });
-    await delay(280);
-    await page.mouse.up({ button: 'left' });
-    await delay(100);
+    try {
+      await page.waitForFunction(() => {
+        const state = window.__frontOperationAiQaSnapshot?.();
+        return !!state?.soundEvents?.some(e =>
+          e.sourceId === 'player' && e.team === 'blue' &&
+          ['gun', 'sniper', 'pistol'].includes(e.kind) &&
+          e.age >= 0 && e.age < 1.4);
+      }, null, { timeout: 10000, polling: 100 });
+    } finally {
+      await page.mouse.up({ button: 'left' });
+    }
     const state = await page.evaluate(() => window.__frontOperationAiQaSnapshot?.());
     if (!state) throw Error('Local V39 acoustic QA snapshot missing');
     const sounds = state.soundEvents.filter(e =>
