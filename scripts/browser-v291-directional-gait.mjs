@@ -30,7 +30,7 @@ window.__fo291 = {
    const t=performance.now();renderer.render(stage,cam);renderer.getContext().finish();
    return {image:canvas.toDataURL('image/png'),ms:performance.now()-t,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};
   };
-  const before=capture(baseline),after=capture(botVisualGait);
+  const before=capture(baseline),after=capture(botVisualGaitV291);
   const rootUnchanged=rootBefore===JSON.stringify([model.root.position.toArray(),model.root.rotation.toArray()]);
   stage.remove(model.root);
   return {before,after,rootUnchanged};
