@@ -230,6 +230,7 @@ jobs:
           git show 1b99db408570ea48d1dc9652ab582dddf7edfbc6:index.html > /tmp/fo-v281.html
           FO_V281_BASELINE=/tmp/fo-v281.html node scripts/check-v287-animation.mjs
           node scripts/check-v273-muzzle-profiles.mjs
+          node scripts/browser-v287-animation.mjs
       - name: V281 combat continuity and three-mode scene acceptance
         if: github.ref_name == 'art/v281-combat-acceptance'
         run: |
