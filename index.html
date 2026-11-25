@@ -4731,6 +4731,19 @@
         tex.generateMipmaps=true;tex.needsUpdate=true;V259_DETAIL_TEXTURES.set(kind,tex);
         return tex;
       }
+      // V266: refine only the larger glove pads, leaving finger poses intact.
+      function refineV266GloveSurfaces(root){
+        root.traverse(n=>{
+          if(!n.isMesh||n.geometry.type!=='BoxGeometry')return;
+          if(n.material!==WEAPON_MATS.gloveLeather&&n.material!==WEAPON_MATS.glovePad)return;
+          const {width,height,depth}=n.geometry.parameters;
+          if(width<.035||depth<.015)return;
+          const old=n.geometry;
+          n.geometry=createV256ChamferedBox(width,height,depth,.0011,'pad');
+          n.geometry.userData.v266Glove=true;
+          old.dispose();
+        });
+      }
       function applyV259ViewmodelDetail(root){
         root.traverse(node=>{
           if(!node.isMesh||!node.geometry.userData.v256Chamfer)return;
@@ -4769,20 +4782,31 @@
         mesh.position.copy(rest.position);mesh.rotation.copy(rest.rotation);
         mesh.position.y-=amount*rest.travel;
         mesh.rotation.z+=amount*rest.tilt;
+        // V267: small support-hand follow-through; the right-hand grip and all
+        // gameplay timers remain untouched. Always restore the exact rest pose.
+        const support=refs.supportRest;
+        if(support){
+          support.mesh.position.copy(support.position);
+          support.mesh.rotation.copy(support.rotation);
+          support.mesh.position.y-=amount*rest.travel*.55;
+          support.mesh.rotation.z+=amount*rest.tilt*.45;
+        }
       }
 
       function disposeViewmodel(group) {
         if (!group) return;
         const sharedSet = new Set([...Object.values(WEAPON_MATS),...V259_DETAIL_MATERIALS.values()]);
+        // V268: release each unique per-viewmodel resource only once.
+        const disposedGeometries=new Set(),disposedMaterials=new Set();
         group.traverse((obj) => {
-          if (obj.geometry && typeof obj.geometry.dispose === 'function') {
-            obj.geometry.dispose();
+          if (obj.geometry && !disposedGeometries.has(obj.geometry) && typeof obj.geometry.dispose === 'function') {
+            disposedGeometries.add(obj.geometry);obj.geometry.dispose();
           }
           if (obj.material) {
             const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
             mats.forEach((m) => {
-              if (m && !sharedSet.has(m) && typeof m.dispose === 'function') {
-                m.dispose();
+              if (m && !sharedSet.has(m) && !disposedMaterials.has(m) && typeof m.dispose === 'function') {
+                disposedMaterials.add(m);m.dispose();
               }
             });
           }
@@ -4986,6 +5010,7 @@
 
           const leftHand = createFirstPersonHandArm('left', 'foregrip_horizontal');
           leftHand.position.set(-0.014, -0.016, -0.205);
+          leftHand.userData.v267SupportHand=true;
           root.add(leftHand);
 
           vmRefs.muzzlePoint.position.set(0, 0.015, -0.48);
@@ -5070,6 +5095,7 @@
 
           const leftHand = createFirstPersonHandArm('left', 'pistol_grip');
           leftHand.position.set(-0.006, -0.048, -0.105);
+          leftHand.userData.v267SupportHand=true;
           root.add(leftHand);
 
           vmRefs.muzzlePoint.position.set(0, 0.010, -0.26);
@@ -5157,6 +5183,7 @@
 
           const leftHand = createFirstPersonHandArm('left', 'foregrip_horizontal');
           leftHand.position.set(-0.014, -0.018, -0.185);
+          leftHand.userData.v267SupportHand=true;
           root.add(leftHand);
 
           vmRefs.muzzlePoint.position.set(0, 0.014, -0.64);
@@ -5270,6 +5297,7 @@
 
           const leftHand = createFirstPersonHandArm('left', 'foregrip_horizontal');
           leftHand.position.set(-0.016, -0.024, -0.215);
+          leftHand.userData.v267SupportHand=true;
           root.add(leftHand);
 
           vmRefs.muzzlePoint.position.set(0, 0.014, -0.53);
@@ -5363,6 +5391,7 @@
           const leftHand = createFirstPersonHandArm('left', 'pistol_grip');
           leftHand.position.set(-0.012, -0.046, 0.036);
           leftHand.rotation.y = 0.28;
+          leftHand.userData.v267SupportHand=true;
           root.add(leftHand);
 
           vmRefs.muzzlePoint.position.set(0, 0.026, -0.105);
@@ -5382,7 +5411,7 @@
           fuller.position.set(0, 0.015, -0.098);
           root.add(fuller);
 
-          const guard = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.042, 0.010), WEAPON_MATS.metalDark);
+          const guard = new THREE.Mesh(createV256ChamferedBox(0.034, 0.042, 0.010, .0015, 'service'), WEAPON_MATS.metalDark);
           guard.position.set(0, 0.010, -0.038);
           root.add(guard);
 
@@ -5391,7 +5420,7 @@
           handle.position.set(0, 0.010, 0.024);
           root.add(handle);
 
-          const pommel = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.030, 0.016), WEAPON_MATS.metalSteel);
+          const pommel = new THREE.Mesh(createV256ChamferedBox(0.026, 0.030, 0.016, .0015, 'compact'), WEAPON_MATS.metalSteel);
           pommel.position.set(0, 0.010, 0.086);
           root.add(pommel);
 
@@ -5461,17 +5490,18 @@
 
           const leftHand = createFirstPersonHandArm('left', 'pistol_grip');
           leftHand.position.set(-0.022, -0.056, -0.225);
+          leftHand.userData.v267SupportHand=true;
           root.add(leftHand);
 
           vmRefs.muzzlePoint.position.set(0, 0.012, -0.44);
           root.position.set(0.200, -0.150, -0.22);
 
         } else if (weaponId === 'drone') {
-          const ctrlBody = new THREE.Mesh(new THREE.BoxGeometry(0.145, 0.024, 0.095), WEAPON_MATS.polymerBlack);
+          const ctrlBody = new THREE.Mesh(createV256ChamferedBox(0.145, 0.024, 0.095, .0015, 'compact'), WEAPON_MATS.polymerBlack);
           ctrlBody.rotation.x = -0.32;
           root.add(ctrlBody);
 
-          const screenFrame = new THREE.Mesh(new THREE.BoxGeometry(0.112, 0.066, 0.010), WEAPON_MATS.metalDark);
+          const screenFrame = new THREE.Mesh(createV256ChamferedBox(0.112, 0.066, 0.010, .0015, 'service'), WEAPON_MATS.metalDark);
           screenFrame.position.set(0, 0.042, -0.032);
           screenFrame.rotation.x = -0.18;
           root.add(screenFrame);
@@ -5510,6 +5540,7 @@
 
           const leftHand = createFirstPersonHandArm('left', 'knife_grip');
           leftHand.position.set(-0.056, -0.018, 0.012);
+          leftHand.userData.v267SupportHand=true;
           root.add(leftHand);
 
           root.position.set(0.06, -0.16, -0.28);
@@ -5528,13 +5559,13 @@
             ring.position.set(-0.016, 0.042, 0);
             root.add(ring);
           } else if (weaponId === 'medkit') {
-            const bag = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.076, 0.092), WEAPON_MATS.medRed);
+            const bag = new THREE.Mesh(createV256ChamferedBox(0.115, 0.076, 0.092, .0015, 'pad'), WEAPON_MATS.medRed);
             root.add(bag);
             const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.012, 0.095), WEAPON_MATS.medWhite);
             const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.042, 0.095), WEAPON_MATS.medWhite);
             root.add(crossH, crossV);
           } else {
-            const mine = new THREE.Mesh(new THREE.BoxGeometry(0.115, 0.068, 0.028), WEAPON_MATS.olivePaint);
+            const mine = new THREE.Mesh(createV256ChamferedBox(0.115, 0.068, 0.028, .0015, 'service'), WEAPON_MATS.olivePaint);
             root.add(mine);
             const frontLabel = new THREE.Mesh(new THREE.BoxGeometry(0.088, 0.016, 0.030), WEAPON_MATS.polymerBlack);
             frontLabel.position.set(0, 0.014, 0);
@@ -5546,6 +5577,7 @@
           root.position.set(0.16, -0.17, -0.28);
         }
 
+        refineV266GloveSurfaces(root);
         applyV259ViewmodelDetail(root);
         if(vmRefs.magazineMesh){
           vmRefs.magazineRest={
@@ -5554,6 +5586,11 @@
             travel:weaponId==='minimi'?.030:weaponId==='mp7'?.024:.020,
             tilt:weaponId==='minimi'?.035:.045
           };
+        }
+        if(vmRefs.magazineRest){
+          const support=root.children.find(n=>n.userData.v267SupportHand);
+          if(support)vmRefs.supportRest={mesh:support,position:support.position.clone(),
+            rotation:support.rotation.clone()};
         }
         root.add(vmRefs.muzzlePoint);
         root.add(vmRefs.ejectPoint);
@@ -7859,6 +7896,12 @@
           guard:classId==='assault'?[0x877254,.73,.08]:[0x30363d,.85,.03],
           magazine:classId==='assault'?[0x30363d,.85,.03]:[0x262c32,.56,.66]
         };
+        // V265 regression repair: tag the original four visual slots here,
+        // without editing the approved V25 base soldier constructor.
+        const originalWeaponParts=model.weaponPivot.children.slice(0,4);
+        const originalPartNames=['body','stock','steel',
+          classId==='sniper'?'optic':classId==='heavy'?'painted':'magazine'];
+        originalWeaponParts.forEach((n,i)=>{if(n.isMesh)n.userData.v263Part=originalPartNames[i];});
         if(magazine&&classId==='sniper')magazine.userData.v263Part='magazine';
         for(const n of model.weaponPivot.children){
           const part=n.userData?.v263Part,finish=worldFinishes[part];
@@ -8199,12 +8242,10 @@
           mats.gunMetal
         );
         wBody.position.z = receiverLen * 0.22;
-          wBody.userData.v263Part='body';
         weaponPivot.add(wBody);
 
         const wStock = createLimbMesh(new THREE.BoxGeometry(0.044, 0.082, 0.20), mats.bootLeather, false);
         wStock.position.set(0, -0.01, -0.14);
-          wStock.userData.v263Part='stock';
         weaponPivot.add(wStock);
 
         const wBarrel = createLimbMesh(
@@ -8213,25 +8254,21 @@
           false
         );
         wBarrel.rotation.x = Math.PI / 2;
-          wBarrel.userData.v263Part='steel';
         wBarrel.position.set(0, 0.014, receiverLen * 0.72 + barrelLen * 0.45);
         weaponPivot.add(wBarrel);
 
         if (classId === 'sniper') {
           const wScope = createLimbMesh(new THREE.CylinderGeometry(0.024, 0.026, 0.28, 10), mats.bootLeather, false);
           wScope.rotation.x = Math.PI / 2;
-          wScope.userData.v263Part='optic';
           wScope.position.set(0, 0.062, 0.14);
           weaponPivot.add(wScope);
         } else if (classId === 'heavy') {
           const wBox = createLimbMesh(new THREE.BoxGeometry(0.11, 0.13, 0.13), mats.ghillieOlive, false);
           wBox.position.set(-0.07, -0.06, 0.12);
-          wBox.userData.v263Part='painted';
           weaponPivot.add(wBox);
         } else {
           const wMag = createLimbMesh(new THREE.BoxGeometry(0.032, 0.14, 0.052), mats.bootLeather, false);
           wMag.position.set(0, -0.085, 0.16);
-          wMag.userData.v263Part='magazine';
           wMag.rotation.x = -0.16;
           weaponPivot.add(wMag);
         }
