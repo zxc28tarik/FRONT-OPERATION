@@ -1,0 +1,4 @@
+# V235–V240 karakter kalite paketi
+V234 ilk gerçek geometri, deformasyon, maç ve yazılım A/B geçti. p95 boyuna gerilme 1.02845, maksimum 1.2863, CPU 0.287 ms. Canlı opt-in testinin son kontrolünde aktif bot yoktu; önceki kontrollü lifecycle başarılıydı. V235: gerçek updateBots 150 adım, kamera yaşayan bota yakın, aktif rig tepe sayısı ve hata kontrolü.
+V236: mevcut karakterlerde omuz/kalça geçiş yakası. V237: bükülmede eklem hacmi, ölüm ve drone pozunda da güncellenir. V238: sınıfa göre omuz/kalça kumaş kesimi. V239: yakın eklem geometri 24 radyal dilim, 15 profil noktası; uzak geometri 10 dilimde kalır. V240: yürüyüş pozlu A/B, p95 <1.10 ve maksimum <1.45 gerilme regresyon sınırları, geometri kabulü. 
+Normal oyun korunur; deneysel mod ?rig=experimental. Sonuçlar bu commit ile tetiklenir. Görüntülerin insan gözüyle kabulü ve donanım FPS ölçümü ayrı gerekliliklerdir.

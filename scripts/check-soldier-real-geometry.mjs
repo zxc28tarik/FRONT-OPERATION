@@ -64,7 +64,7 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert.equal(joints.length,8,'two hip, knee, shoulder and elbow textile bridges');
  for(const kind of ['hip','knee','shoulder','elbow'])assert.equal(joints.filter(j=>j.kind===kind).length,2);
  for(const j of joints){
-   assert(j.high.boundingBox&&j.high.getAttribute('position').count>100);
+   assert(j.high.boundingBox&&j.high.getAttribute('position').count>=375&&j.n.userData.v240TextileBridge);
    assert(j.n.material.name==='V112 camouflage','joint fabric matches the adjacent limb');
    assert(j.n.quaternion.toArray().every(Number.isFinite));
  }

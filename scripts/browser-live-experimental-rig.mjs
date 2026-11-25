@@ -32,7 +32,21 @@ const hook=`window.__foRigQA={
   initBots();const disposed=rig?.mesh.parent===null;
   return {enabled,attached,hidden,bridgeOK,intact,restored,reenabled,disposed};
  },
- step:()=>{updateBots(.016);renderer.render(scene,camera);return {failed:bots.filter(b=>b.experimentalRigFailed).length,active:bots.filter(b=>b.experimentalRig?.enabled).length}}
+ step:()=>{
+  gamePaused=true;
+  const seen=new Set();let peak=0,frames=0;
+  for(let n=0;n<150;n++){
+   const b=bots.find(b=>b.alive);if(!b)break;
+   camera.fov=74;camera.zoom=1;camera.updateProjectionMatrix();
+   camera.position.copy(b.pos).add(new THREE.Vector3(0,1.2,4));
+   updateBots(.05);updateFoExperimentalBotRigs();frames++;
+   const active=bots.filter(b=>b.experimentalRig?.enabled);peak=Math.max(peak,active.length);
+   for(const x of active)seen.add(x.id);
+   if(n%30===0)renderer.render(scene,camera);
+  }
+  renderer.render(scene,camera);
+  return {failed:bots.filter(b=>b.experimentalRigFailed).length,active:peak,frames,seen:seen.size};
+ }
 };\n`;
 const source=html.replace(anchor,hook+anchor);
 const server=createServer((req,res)=>{res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(source);});
@@ -51,7 +65,7 @@ try{
  const life=await page.evaluate(()=>window.__foRigQA.lifecycle());
  assert(Object.values(life).every(v=>v===true),JSON.stringify(life));
  await page.locator('#btn-deploy').click();await page.waitForFunction(()=>document.getElementById('menu-overlay').classList.contains('hidden'));
- const step=await page.evaluate(()=>window.__foRigQA.step());assert.equal(step.failed,0);assert(step.active>0);
+ const step=await page.evaluate(()=>window.__foRigQA.step());assert.equal(step.failed,0);assert(step.active>0&&step.frames>=100&&step.seen>0,JSON.stringify(step));
  assert.equal(errors.length,0,errors.join(' | '));
- const report={normal,optIn,life,step,errors};fs.writeFileSync(path.join(out,'v234-live-rig.json'),JSON.stringify(report,null,2));console.log('PASS optional live rig '+JSON.stringify(report));
+ const report={normal,optIn,life,step,errors};fs.writeFileSync(path.join(out,'v240-live-rig.json'),JSON.stringify(report,null,2));console.log('PASS optional live rig '+JSON.stringify(report));
 }finally{await browser?.close();await new Promise(r=>server.close(r));}

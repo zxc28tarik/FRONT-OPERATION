@@ -76,6 +76,7 @@ try{
     const crouch=pose==='crouch';m.root.position.y=crouch?-.26:0;
     m.leftHip.rotation.set(crouch?-.70:0,0,0);m.rightHip.rotation.set(crouch?-.70:0,0,0);
     m.leftKnee.rotation.x=crouch?1.35:0;m.rightKnee.rotation.x=crouch?1.35:0;
+    if(pose==='stride'){m.leftHip.rotation.x=-.40;m.rightHip.rotation.x=.42;m.leftKnee.rotation.x=.70;m.rightKnee.rotation.x=.16;}
     m.upperBody.rotation.set(crouch?.20:0,0,0);m.weaponPivot.rotation.x=pose==='aim'?.55:0;m.updateVisualGrip(m.weaponPivot.rotation.x);
     m.updateVisualJointFit?.();if(on)r.update();
    }
@@ -84,17 +85,17 @@ try{
   return {renderer:gl.getParameter(gl.RENDERER),webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL1',botCount:15,boneCount:models[0].rig.bones.length,clothDrawGroups:models[0].rig.geometry.groups.length,bands,softwareGate:bands.every(x=>x.ratio<=1.10),adaptiveGate:bands.every(x=>x.adaptiveRatio<=1.10),hardwareGate:'NOT_MEASURED',activeRig:'legacy'};
  },factory);
  // Persist measurements before optional screenshots, even if image capture fails.
- fs.writeFileSync(path.join(out,'v234-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+ fs.writeFileSync(path.join(out,'v240-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
  if(errors.length)throw Error(errors.join(' | '));
  if(report.bands.some(x=>!Number.isFinite(x.ratio)||x.candidateCalls<=0||x.baselineCalls<=0))throw Error('Invalid render measurement');
  for(const enabled of [false,true]){
   const data=await page.evaluate(on=>window.previewRig(on),enabled);
   if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid canvas capture');
-  fs.writeFileSync(path.join(out,'v234-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+  fs.writeFileSync(path.join(out,'v240-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
  }
- for(const pose of ['side','aim','crouch'])for(const on of [false,true]){
+ for(const pose of ['side','aim','crouch','stride'])for(const on of [false,true]){
   const data=await page.evaluate(({on,pose})=>window.previewPose(on,pose),{on,pose});
   if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid pose capture '+pose);
-  fs.writeFileSync(path.join(out,'v234-'+pose+'-'+(on?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+  fs.writeFileSync(path.join(out,'v240-'+pose+'-'+(on?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
  }
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

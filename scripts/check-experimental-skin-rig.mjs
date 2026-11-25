@@ -111,5 +111,6 @@ const frames=120,run=()=>{for(let i=0;i<frames;i++)for(const {m,r} of reps){
 }};
 run();const start=performance.now();run();const elapsed=performance.now()-start;
 longitudinal.sort((a,b)=>a-b);const p95LongitudinalRatio=longitudinal[Math.floor(longitudinal.length*.95)];
+assert(p95LongitudinalRatio<1.10,'p95 stretch regression');assert(maxLongitudinalRatio<1.45,'maximum stretch regression');
 console.log(JSON.stringify({cases,bones:45,p95LongitudinalRatio,maxRestError,minRingRatio,maxRingRatio,maxCenterError,maxLongitudinalRatio,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
 for(const {r} of reps)r.dispose();

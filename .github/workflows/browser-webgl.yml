@@ -49,6 +49,7 @@ on:
       - art/v222-compact-rig
       - art/v228-adaptive-rig
       - art/v234-optional-live-rig
+      - art/v240-character-polish
   workflow_dispatch:
 
 jobs:
@@ -67,13 +68,13 @@ jobs:
       - name: Validate real geometry and visual arm/LOD
         run: node scripts/check-soldier-real-geometry.mjs
       - name: Test experimental skinned rig bind pose and CPU cost
-        if: github.ref_name == 'art/v188-equipment-class-rig' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || github.ref_name == 'art/v234-optional-live-rig'
+        if: github.ref_name == 'art/v188-equipment-class-rig' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || (github.ref_name == 'art/v234-optional-live-rig' || github.ref_name == 'art/v240-character-polish')
         run: node scripts/check-experimental-skin-rig.mjs
       - name: Run actual WebGL 6v6 match and UI acceptance
         if: ${{ !cancelled() }}
         run: node scripts/browser-webgl-smoke.mjs
       - name: Test independent Depot 17 bomb mode
-        if: ${{ !cancelled() && (github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller' || github.ref_name == 'ai/v56-locomotion' || github.ref_name == 'ai/v57-navigation' || github.ref_name == 'ai/v58-map-awareness' || github.ref_name == 'ai/v59-combat-discipline' || github.ref_name == 'ai/v60-team-coordination' || github.ref_name == 'ai/v61-bomb-objectives' || github.ref_name == 'ai/v62-personalities' || github.ref_name == 'ai/v63-integrated-validation' || github.ref_name == 'ai/v72-integrated-acceptance' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || github.ref_name == 'art/v234-optional-live-rig') }}
+        if: ${{ !cancelled() && (github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller' || github.ref_name == 'ai/v56-locomotion' || github.ref_name == 'ai/v57-navigation' || github.ref_name == 'ai/v58-map-awareness' || github.ref_name == 'ai/v59-combat-discipline' || github.ref_name == 'ai/v60-team-coordination' || github.ref_name == 'ai/v61-bomb-objectives' || github.ref_name == 'ai/v62-personalities' || github.ref_name == 'ai/v63-integrated-validation' || github.ref_name == 'ai/v72-integrated-acceptance' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || (github.ref_name == 'art/v234-optional-live-rig' || github.ref_name == 'art/v240-character-polish')) }}
         run: node scripts/browser-bomb-depot-smoke.mjs
       - name: Render V25 versus current characters from three angles
         run: node scripts/character-turntable.mjs
@@ -84,16 +85,16 @@ jobs:
           git show 5616c88177a7803ab25f39058074d9767fb93e8f:index.html > /tmp/fo-v155.html
           FO_CHARACTER_BASELINE=/tmp/fo-v155.html node scripts/character-turntable.mjs
       - name: Render V155 versus current candidate
-        if: github.ref_name == 'art/v188-equipment-class-rig' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || github.ref_name == 'art/v234-optional-live-rig'
+        if: github.ref_name == 'art/v188-equipment-class-rig' || github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || (github.ref_name == 'art/v234-optional-live-rig' || github.ref_name == 'art/v240-character-polish')
         run: |
           git fetch --depth=1 origin 5616c88177a7803ab25f39058074d9767fb93e8f
           git show 5616c88177a7803ab25f39058074d9767fb93e8f:index.html > /tmp/fo-v155.html
           FO_CHARACTER_BASELINE=/tmp/fo-v155.html node scripts/character-turntable.mjs
       - name: Compare 15 rendered bots with both visual rigs
-        if: ${{ !cancelled() && (github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || github.ref_name == 'art/v234-optional-live-rig') }}
+        if: ${{ !cancelled() && (github.ref_name == 'art/v200-character-acceptance' || github.ref_name == 'art/v205-rig-acceptance-hardening' || github.ref_name == 'art/v210-joint-deformation' || github.ref_name == 'art/v216-ring-rig' || github.ref_name == 'art/v222-compact-rig' || github.ref_name == 'art/v228-adaptive-rig' || (github.ref_name == 'art/v234-optional-live-rig' || github.ref_name == 'art/v240-character-polish')) }}
         run: node scripts/browser-character-rig-ab.mjs
       - name: Validate opt-in live experimental rig and fallback
-        if: ${{ !cancelled() && github.ref_name == 'art/v234-optional-live-rig' }}
+        if: ${{ !cancelled() && (github.ref_name == 'art/v234-optional-live-rig' || github.ref_name == 'art/v240-character-polish') }}
         run: node scripts/browser-live-experimental-rig.mjs
       - name: Save browser screenshots and report even if tests fail
         if: always()
