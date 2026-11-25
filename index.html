@@ -12178,6 +12178,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         bot.visualCarry=0;bot.lastVisualLegYaw=null;bot.visualTransition=null;
         bot.visualAnkleLeft=0;bot.visualAnkleRight=0;bot.visualBob=0;bot.visualGaitPhase=null;
         bot.visualDirection=null;bot.visualGroundSample=null;bot.visualDeathStart=null;
+        bot.visualFootPlants=null;
         if(bot.mesh.setVisualSecondary)bot.mesh.setVisualSecondary(0,0);
         if(bot.mesh.setVisualDetailDistance)bot.mesh.setVisualDetailDistance(0);
         bot.stuckTimer = 0;
@@ -15539,7 +15540,9 @@ return {createExperimentalRig,createAdaptiveRigController};
         return {
           carry:quiet?run*(1-c)*(role==='heavy'?.60:role==='sniper'?.82:1):0,
           breath:(1-moving)*Math.sin(phase)*.012*roleWeight,
-          stanceWidth:(role==='heavy'?.065:role==='sniper'?.025:.042)*(1-c),
+          // V253: a crouched soldier retains a real support footprint rather
+          // than drawing both knees into the same narrow centerline.
+          stanceWidth:(role==='heavy'?.065:role==='sniper'?.025:.042)*(1-c*.28),
           turnLeft:turnStep*(turn<0?1:.35),turnRight:turnStep*(turn>0?1:.35),
           kneeBias:c*.04
         };
@@ -15570,6 +15573,32 @@ return {createExperimentalRig,createAdaptiveRigController};
         const coverBlend=oldCover+(coverTarget-oldCover)*(1-Math.exp(-d*12));
         const c=Math.max(0,Math.min(1,crouch||0)),weight=role==='heavy'?.8:1;
         return {speed:next,cover:coverBlend,accel,hipBias:accel*.045*weight,kneeBias:coverBlend*c*.10,footDamp:1-coverBlend*.32};
+      }
+      // V253: visual-only stance phase, planted-foot weighting and turn inertia.
+      // The foot lock is a contact *weight*: it never moves bot.pos, physics,
+      // hitboxes, pathfinding or tactical look vectors. No per-frame allocations
+      // beyond this fixed-size state object, and no new renderer meshes.
+      function botVisualFootPlants(previous,phase,speed,forward,side,crouch,turnRate,dt,role){
+        const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,Number.isFinite(v)?v:0));
+        const t=clamp(dt,0,.10),move=clamp(speed/1.2),c=clamp(crouch);
+        const a=Math.sin(phase),leftContact=clamp((a+.10)/.60),rightContact=clamp((-a+.10)/.60);
+        const stopped=1-move;
+        const turn=clamp(turnRate/4.5,-1,1),strafe=clamp(side,-1,1);
+        const load=role==='heavy'?.82:role==='sniper'?.90:1;
+        const leftTarget=clamp(.86*stopped+move*(.18+.82*leftContact));
+        const rightTarget=clamp(.86*stopped+move*(.18+.82*rightContact));
+        const oldL=Number.isFinite(previous?.left)?previous.left:leftTarget;
+        const oldR=Number.isFinite(previous?.right)?previous.right:rightTarget;
+        const filter=1-Math.exp(-t*17);
+        const left=clamp(oldL+(leftTarget-oldL)*filter),right=clamp(oldR+(rightTarget-oldR)*filter);
+        const turnMove=turn*(.45+.55*move);
+        const bankTarget=clamp((-strafe*.020*move-turnMove*.017)*load*(1-c*.60),-.040,.040);
+        const forwardTarget=clamp(move*Math.max(0,forward)*.016*load*(1-c*.70),0,.020);
+        const oldBank=Number.isFinite(previous?.bank)?previous.bank:0;
+        const oldLean=Number.isFinite(previous?.lean)?previous.lean:0;
+        const slow=1-Math.exp(-t*10);
+        return {left,right,bank:oldBank+(bankTarget-oldBank)*slow,
+          lean:oldLean+(forwardTarget-oldLean)*slow,turn,move};
       }
       // V189–V195: visual-only contact fitting and direction/stance smoothing.
       function botVisualLegContact(hip,knee,rootOffset,floorDelta,weight){
@@ -15699,7 +15728,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             bot.mesh.upperBody.rotation.z = bot.hitFlinchRoll;
             if(bot.mesh.resetVisualCombatPose)bot.mesh.resetVisualCombatPose();
             bot.visualAnkleLeft=0;bot.visualAnkleRight=0;bot.visualBob=0;bot.visualCarry=0;bot.visualTransition=null;
-            bot.visualDirection=null;bot.visualGroundSample=null;
+            bot.visualDirection=null;bot.visualGroundSample=null;bot.visualFootPlants=null;
             if(bot.mesh.setVisualSecondary)bot.mesh.setVisualSecondary(0,0);
             bot.mesh.leftHip.rotation.x *= Math.exp(-10 * dt);
             bot.mesh.rightHip.rotation.x *= Math.exp(-10 * dt);
@@ -16781,13 +16810,26 @@ return {createExperimentalRig,createAdaptiveRigController};
           const visualStance=botVisualStance(bot.classId,nowSec*2.7+bot.animPhase,actualSpeed,bot.crouchAmt,visualTurnRate,quietCarry);
           const visualMotion=botVisualTransition(bot.visualTransition,actualSpeed,dt,bot.coverPhase,bot.crouchAmt,bot.classId);
           bot.visualTransition=visualMotion;
+          // Advance contact phase from measured travel before applying IK and
+          // torso lean, so slow software WebGL frames do not lag one footstep.
+          if(actualSpeed>.4){
+            const strideRate=(bot.classId==='heavy'?2.13:bot.classId==='sniper'?2.25:2.35)*(1-.16*bot.crouchAmt);
+            bot.visualGaitPhase=((bot.visualGaitPhase??bot.animPhase)+
+              Math.max(0,actualSpeed)*Math.max(0,dt)*strideRate)%(Math.PI*2);
+          }
+          // V253: weight transfers between planted boots even during braking
+          // and direction changes. This drives visuals only, never movement.
+          const plant=botVisualFootPlants(bot.visualFootPlants,bot.visualGaitPhase??bot.animPhase,
+            actualSpeed,bot.visualDirection?.forward??0,bot.visualDirection?.side??0,
+            bot.crouchAmt,visualTurnRate,dt,bot.classId);
+          bot.visualFootPlants=plant;
           // V152: lower carry gradually, raise quickly on contact; gameplay aim remains unchanged.
           const carryTarget=quietCarry?visualStance.carry:0;
           bot.visualCarry=quietCarry?(bot.visualCarry||0)+(carryTarget-(bot.visualCarry||0))*(1-Math.exp(-dt*9)):0;
           const oldBob=Number.isFinite(bot.visualBob)?bot.visualBob:0;
           bot.mesh.upperBody.rotation.y = Math.max(-1.15, Math.min(1.15, relUpperYaw));
-          bot.mesh.upperBody.rotation.x = bot.crouchAmt * 0.22 + bot.hitFlinchPitch;
-          bot.mesh.upperBody.rotation.z = bot.hitFlinchRoll;
+          bot.mesh.upperBody.rotation.x = bot.crouchAmt * 0.22 + bot.hitFlinchPitch + plant.lean;
+          bot.mesh.upperBody.rotation.z = bot.hitFlinchRoll + plant.bank;
           bot.mesh.weaponPivot.rotation.x = -bot.aimPitch * 0.75 + (bot.visualCarry||0)*.16;
           if(bot.mesh.setVisualCombatPose){
             const reload=bot.botReload;
@@ -16814,8 +16856,6 @@ return {createExperimentalRig,createAdaptiveRigController};
             const resolved=botLocomotionPose((bot.pos.x-beforeMoveX)/Math.max(.001,dt),(bot.pos.z-beforeMoveZ)/Math.max(.001,dt),bot.legYaw,actualSpeed);
             const pose=botVisualDirection(bot.visualDirection,resolved.forward,resolved.side,dt);
             bot.visualDirection=pose;
-            const strideRate=(bot.classId==='heavy'?2.13:2.35)*(1-.16*bot.crouchAmt);
-            bot.visualGaitPhase=((bot.visualGaitPhase??bot.animPhase)+dt*visualMotion.speed*strideRate)%(Math.PI*2);
             const gait=botVisualGait(bot.visualGaitPhase,visualMotion.speed,pose.forward,pose.side,bot.crouchAmt,bot.classId);
             const grade=(bot.pos.y-beforeMoveY)/Math.max(.04,actualSpeed*dt);
             const ground=botVisualGroundMotion(bot.visualGaitPhase,actualSpeed,pose.forward,pose.side,bot.crouchAmt,grade,bot.classId);
@@ -16854,7 +16894,8 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
           // Near/medium visual contact only. Never change bot.pos, collision, speed or aim.
           if(bot.mesh.visualDetailLevel<2&&Math.abs(bot.pos.y-targetFloorY)<.12){
-            const phase=bot.visualGaitPhase??0,step=actualSpeed>.4?Math.sin(phase):0;
+            const phase=bot.visualGaitPhase??0;
+            const feet=bot.visualFootPlants||{left:.70,right:.70};
             const rootOffset=bot.crouchAmt*.32;
             const groundSample=bot.visualGroundSample;
             if(!groundSample||nowSec-groundSample.at>.10){
@@ -16867,13 +16908,13 @@ return {createExperimentalRig,createAdaptiveRigController};
               bot.visualGroundSample={at:nowSec,left:sample(bot.mesh.leftHip),right:sample(bot.mesh.rightHip)};
             }
             const g=bot.visualGroundSample;
-            const contact=(hip,knee,delta,plant)=>{
-              const w=(actualSpeed<.4?.75:Math.max(0,plant)*.48);
+            const contact=(hip,knee,delta,weight)=>{
+              const w=Math.max(.08,Math.min(.68,weight*.62));
               const p=botVisualLegContact(hip.rotation.x,knee.rotation.x,rootOffset,delta,w);
               hip.rotation.x=p.hip;knee.rotation.x=p.knee;return p.foot;
             };
-            const lf=contact(bot.mesh.leftHip,bot.mesh.leftKnee,g.left,step);
-            const rf=contact(bot.mesh.rightHip,bot.mesh.rightKnee,g.right,-step);
+            const lf=contact(bot.mesh.leftHip,bot.mesh.leftKnee,g.left,feet.left);
+            const rf=contact(bot.mesh.rightHip,bot.mesh.rightKnee,g.right,feet.right);
             if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(bot.visualAnkleLeft+lf,bot.visualAnkleRight+rf);
           }else bot.visualGroundSample=null;
           if(bot.mesh.updateVisualJointFit)bot.mesh.updateVisualJointFit();
