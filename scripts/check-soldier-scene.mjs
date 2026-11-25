@@ -93,7 +93,7 @@ for (const team of ['blue', 'red']) {
       // Exact deltas protect against removing these approved details.
       ['root', 2],
       ['upperBody', role === 'medic' ? 17 : 16],
-      ['head', 11],
+      ['head', 12], // V246 adds one integrated protection group under the original head pivot
       ['leftHip', 3],
       ['rightHip', 3],
       ['leftKnee', 3],
@@ -124,7 +124,7 @@ for (const team of ['blue', 'red']) {
     if(!sharedFabric)sharedFabric=thigh.material.args[0].map;
     assert.equal(thigh.material.args[0].map,sharedFabric,'same texture shared across teams and classes');
     assert.ok(!flatten(model.weaponPivot).some(n=>n.name==='v100_anatomy'||n.name==='v101_textile'),'weapon excluded from art pass');
-    assert.ok(model.head.children.some(n=>n.name==='v105_role_helmet'),'role helmet geometry');
+    assert.ok(model.head.children.some(n=>n.name==='v105_role_helmet'||n.name==='v246_integrated_helmet'),'role helmet geometry');
     assert.equal(model.upperBody.children.filter(n=>n.name==='v105_role_vest').length,2,'role vest fit');
     assert.ok(model.head.children.some(n=>n.name==='v106_face'),'fitted face');
     assert.equal(model.upperBody.children.filter(n=>/^v107_(support|trigger)_hand$/.test(n.name)).length,2,'two fitted gloves');
