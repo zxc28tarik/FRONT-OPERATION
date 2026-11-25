@@ -7065,7 +7065,7 @@
           refined.computeBoundingSphere();
           return refined;
         };
-        model.root.traverse(n=>{
+        if(typeof model.root.traverse==='function')model.root.traverse(n=>{
           if(!n.isMesh||!n.userData?.v129Sculpted)return;
           const source=n.geometry,profile=G.v247.kinds.get(source);
           if(!profile)return;
