@@ -13158,13 +13158,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       const damageFlashTimeouts = new Map();
       let damageDirTimeout = null;
 
-      function applyDamageToPlayer(rawDamage, attackerName, weaponLabel, shotFromPos = null, isBlast = false) {
-        if (!player.alive || matchState.ended) return;
-
-        const dmgMult = player.rollTimer > 0 ? 0.55 : 1.0;
-        const dmg = Math.round(rawDamage * dmgMult);
-        player.hp = Math.max(0, player.hp - dmg);
-
+      function pulseV278DamageFlash(dmg,isBlast){
         const flashEl = document.getElementById(isBlast ? 'blast-flash' : 'damage-flash');
         clearTimeout(damageFlashTimeouts.get(flashEl));
         flashEl.style.transitionDuration='35ms';
@@ -13175,6 +13169,16 @@ return {createExperimentalRig,createAdaptiveRigController};
           flashEl.style.opacity='0';
           damageFlashTimeouts.delete(flashEl);
         },isBlast?150:90));
+      }
+
+      function applyDamageToPlayer(rawDamage, attackerName, weaponLabel, shotFromPos = null, isBlast = false) {
+        if (!player.alive || matchState.ended) return;
+
+        const dmgMult = player.rollTimer > 0 ? 0.55 : 1.0;
+        const dmg = Math.round(rawDamage * dmgMult);
+        player.hp = Math.max(0, player.hp - dmg);
+
+        pulseV278DamageFlash(dmg,isBlast);
 
         if (shotFromPos && !droneSystem.isPlayerControlling()) {
           const dx = shotFromPos.x - player.pos.x;
@@ -13740,13 +13744,17 @@ return {createExperimentalRig,createAdaptiveRigController};
         return safePos;
       }
 
-      function clearAllMatchEntities() {
+      function resetV278DamageFlash(){
         for(const id of ['damage-flash','blast-flash']){
           const el=document.getElementById(id);
           clearTimeout(damageFlashTimeouts.get(el));
           el.style.transitionDuration='0ms';el.style.opacity='0';
         }
         damageFlashTimeouts.clear();
+      }
+
+      function clearAllMatchEntities() {
+        resetV278DamageFlash();
         [activeGrenades, activeRockets, activeMedkits, activeClaymores, activeTracers, activeParticles, activeImpactMarks, activeShellCasings].forEach((list) => {
           for (let i = list.length - 1; i >= 0; i--) {
             if (list[i] && list[i].mesh) scene.remove(list[i].mesh);
