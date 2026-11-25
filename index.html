@@ -16810,6 +16810,13 @@ return {createExperimentalRig,createAdaptiveRigController};
           const visualStance=botVisualStance(bot.classId,nowSec*2.7+bot.animPhase,actualSpeed,bot.crouchAmt,visualTurnRate,quietCarry);
           const visualMotion=botVisualTransition(bot.visualTransition,actualSpeed,dt,bot.coverPhase,bot.crouchAmt,bot.classId);
           bot.visualTransition=visualMotion;
+          // Advance contact phase from measured travel before applying IK and
+          // torso lean, so slow software WebGL frames do not lag one footstep.
+          if(actualSpeed>.4){
+            const strideRate=(bot.classId==='heavy'?2.13:bot.classId==='sniper'?2.25:2.35)*(1-.16*bot.crouchAmt);
+            bot.visualGaitPhase=((bot.visualGaitPhase??bot.animPhase)+
+              Math.max(0,actualSpeed)*Math.max(0,dt)*strideRate)%(Math.PI*2);
+          }
           // V253: weight transfers between planted boots even during braking
           // and direction changes. This drives visuals only, never movement.
           const plant=botVisualFootPlants(bot.visualFootPlants,bot.visualGaitPhase??bot.animPhase,
@@ -16849,11 +16856,6 @@ return {createExperimentalRig,createAdaptiveRigController};
             const resolved=botLocomotionPose((bot.pos.x-beforeMoveX)/Math.max(.001,dt),(bot.pos.z-beforeMoveZ)/Math.max(.001,dt),bot.legYaw,actualSpeed);
             const pose=botVisualDirection(bot.visualDirection,resolved.forward,resolved.side,dt);
             bot.visualDirection=pose;
-            // V253: use actual resolved world travel (metres) rather than a
-            // smoothed nominal speed, which otherwise drifts against terrain.
-            const strideRate=(bot.classId==='heavy'?2.13:bot.classId==='sniper'?2.25:2.35)*(1-.16*bot.crouchAmt);
-            bot.visualGaitPhase=((bot.visualGaitPhase??bot.animPhase)+
-              Math.max(0,actualSpeed)*Math.max(0,dt)*strideRate)%(Math.PI*2);
             const gait=botVisualGait(bot.visualGaitPhase,visualMotion.speed,pose.forward,pose.side,bot.crouchAmt,bot.classId);
             const grade=(bot.pos.y-beforeMoveY)/Math.max(.04,actualSpeed*dt);
             const ground=botVisualGroundMotion(bot.visualGaitPhase,actualSpeed,pose.forward,pose.side,bot.crouchAmt,grade,bot.classId);
