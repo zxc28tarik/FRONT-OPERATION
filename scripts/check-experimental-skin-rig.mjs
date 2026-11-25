@@ -13,7 +13,7 @@ const line=[new THREE.Vector3(0,0,0),new THREE.Vector3(0,1,0),new THREE.Vector3(
 for(const t of [0,.34,.5,.66,1])assert(rigCenter(line,t).distanceTo(new THREE.Vector3(0,2*t,0))<1e-8);
 for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer','sniper','heavy'])for(let variant=0;variant<3;variant++){
  const m=api.enhanced(team,cls,variant),r=createExperimentalRig(m);
- assert.equal(r.bones.length,45);assert.equal(r.mesh.visible,false);
+ assert.equal(r.bones.length,45);assert.equal(r.mesh.visible,false);assert.equal(r.mesh.parent,null);
  const p=r.geometry.getAttribute('position'),w=r.geometry.getAttribute('skinWeight'),idx=r.geometry.getAttribute('skinIndex');
  const normals=r.geometry.getAttribute('normal');
  assert.equal(r.mesh.material.length,2);assert.equal(r.geometry.groups.length,2);
@@ -36,10 +36,10 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  }
  assert(maxRestError<.0001,'bind pose equivalence');
  const muzzle=m.muzzleFlash.position.clone();
- r.setEnabled(true);assert(r.mesh.visible&&m.head.visible&&m.weaponPivot.visible);
+ r.setEnabled(true);assert(r.mesh.visible&&m.head.visible&&m.weaponPivot.visible&&r.mesh.parent===m.root&&r.enabled);
  const cloth=[];m.root.traverse(n=>{if(n.userData.v129Sculpted)cloth.push(n);});
  assert(cloth.length===10&&cloth.every(n=>!n.visible));
- r.setEnabled(false);assert(!r.mesh.visible&&cloth.every(n=>n.visible));
+ r.setEnabled(false);assert(!r.mesh.visible&&cloth.every(n=>n.visible)&&r.mesh.parent===null&&!r.enabled);
  for(const angle of [0,.45,Math.PI/2,-.65]){
   m.leftHip.rotation.x=angle*.5;m.rightHip.rotation.x=-angle*.5;
   m.leftKnee.rotation.x=angle;m.rightKnee.rotation.x=angle*.6;
@@ -50,6 +50,10 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
    const v=new THREE.Vector3().fromBufferAttribute(p,i);r.mesh.boneTransform(i,v);
    assert(v.toArray().every(Number.isFinite));assert(v.length()<3);
   }
+  // Root-local fast path must match independent world-transform reference.
+  m.root.updateMatrixWorld(true);
+  const inverse=new THREE.Matrix4().copy(m.root.matrixWorld).invert();
+  for(const limb of r.limbs){if(!limb.nodes)continue;const points=limb.points();for(let j=0;j<3;j++)assert(points[j].distanceTo(new THREE.Vector3().setFromMatrixPosition(limb.nodes[j].matrixWorld).applyMatrix4(inverse))<1e-7);}
   // Quantify ring compression during bends. Preserve a finite noncollapsed ring.
   for(let limb=0;limb<5;limb++)for(const ring of [9,12,15]){
    let rest=0,deformed=0;

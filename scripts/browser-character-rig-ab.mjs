@@ -37,7 +37,7 @@ try{
   }
   const median=v=>v.slice().sort((a,b)=>a-b)[Math.floor(v.length/2)];
   const rendererInfo=()=>({calls:renderer.info.render.calls,triangles:renderer.info.render.triangles});
-  const setPose=(i,enabled)=>{
+  const setPose=(i,enabled,adaptive=false,distance=12)=>{
    for(let j=0;j<models.length;j++){
     const {model:m,rig:r}=models[j],phase=i*.19+j*.4;
     m.leftHip.rotation.x=Math.sin(phase)*.35;m.rightHip.rotation.x=-m.leftHip.rotation.x;
@@ -45,15 +45,15 @@ try{
     m.rightKnee.rotation.x=.15+Math.max(0,-Math.cos(phase))*.5;
     m.upperBody.rotation.y=Math.sin(phase*.3)*.24;
     m.weaponPivot.rotation.x=Math.sin(phase*.5)*.25;m.updateVisualGrip(m.weaponPivot.rotation.x);
-    if(enabled)r.update();
+    if(enabled&&r.enabled&&(!adaptive||distance<23||(i+j)%2===0))r.update();
    }
   };
-  const render=(i,on)=>{setPose(i,on);renderer.render(scene,camera);gl.finish();};
-  const run=(enabled,distance)=>{
-   for(const {model,rig} of models){model.setVisualDetailDistance(distance);rig.setEnabled(enabled);}
-   for(let i=0;i<6;i++)render(i,enabled);
+  const render=(i,on,adaptive=false,distance=12)=>{setPose(i,on,adaptive,distance);renderer.render(scene,camera);gl.finish();};
+  const run=(enabled,distance,adaptive=false)=>{
+   for(const {model,rig} of models){model.setVisualDetailDistance(distance);rig.setEnabled(enabled&&(!adaptive||distance<46));}
+   for(let i=0;i<6;i++)render(i,enabled,adaptive,distance);
    const times=[];
-   for(let i=0;i<20;i++){const t=performance.now();render(i,enabled);times.push(performance.now()-t);}
+   for(let i=0;i<20;i++){const t=performance.now();render(i,enabled,adaptive,distance);times.push(performance.now()-t);}
    return {times,...rendererInfo()};
   };
   const bands=[];
@@ -61,7 +61,9 @@ try{
    camera.position.set(0,2.4,z);camera.lookAt(0,1,-1);
    const baseline1=run(false,distance),candidate1=run(true,distance),candidate2=run(true,distance),baseline2=run(false,distance);
    const baselineMs=median([...baseline1.times,...baseline2.times]),candidateMs=median([...candidate1.times,...candidate2.times]);
-   bands.push({name,distance,baselineMs,candidateMs,ratio:candidateMs/Math.max(.001,baselineMs),baselineCalls:baseline1.calls,candidateCalls:candidate1.calls,baselineTriangles:baseline1.triangles,candidateTriangles:candidate1.triangles});
+   const adaptive1=run(true,distance,true),adaptive2=run(true,distance,true);
+   const adaptiveMs=median([...adaptive1.times,...adaptive2.times]);
+   bands.push({name,distance,baselineMs,candidateMs,ratio:candidateMs/Math.max(.001,baselineMs),adaptiveMs,adaptiveRatio:adaptiveMs/Math.max(.001,baselineMs),adaptiveMode:distance<23?'full':distance<46?'alternating':'legacy',baselineCalls:baseline1.calls,candidateCalls:candidate1.calls,adaptiveCalls:adaptive1.calls,baselineTriangles:baseline1.triangles,candidateTriangles:candidate1.triangles});
   }
   camera.position.set(0,2.4,9);camera.lookAt(0,1,-1);
   window.previewRig=(on)=>{for(const {model,rig} of models){model.setVisualDetailDistance(12);rig.setEnabled(on);}render(8,on);return renderer.domElement.toDataURL('image/png');};
@@ -78,20 +80,20 @@ try{
    }
    renderer.render(scene,camera);gl.finish();return renderer.domElement.toDataURL('image/png');
   };
-  return {renderer:gl.getParameter(gl.RENDERER),webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL1',botCount:15,boneCount:models[0].rig.bones.length,clothDrawGroups:models[0].rig.geometry.groups.length,bands,softwareGate:bands.every(x=>x.ratio<=1.10),hardwareGate:'NOT_MEASURED',activeRig:'legacy'};
+  return {renderer:gl.getParameter(gl.RENDERER),webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL1',botCount:15,boneCount:models[0].rig.bones.length,clothDrawGroups:models[0].rig.geometry.groups.length,bands,softwareGate:bands.every(x=>x.ratio<=1.10),adaptiveGate:bands.every(x=>x.adaptiveRatio<=1.10),hardwareGate:'NOT_MEASURED',activeRig:'legacy'};
  },factory);
  // Persist measurements before optional screenshots, even if image capture fails.
- fs.writeFileSync(path.join(out,'v222-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+ fs.writeFileSync(path.join(out,'v228-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
  if(errors.length)throw Error(errors.join(' | '));
  if(report.bands.some(x=>!Number.isFinite(x.ratio)||x.candidateCalls<=0||x.baselineCalls<=0))throw Error('Invalid render measurement');
  for(const enabled of [false,true]){
   const data=await page.evaluate(on=>window.previewRig(on),enabled);
   if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid canvas capture');
-  fs.writeFileSync(path.join(out,'v222-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+  fs.writeFileSync(path.join(out,'v228-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
  }
  for(const pose of ['side','aim','crouch'])for(const on of [false,true]){
   const data=await page.evaluate(({on,pose})=>window.previewPose(on,pose),{on,pose});
   if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid pose capture '+pose);
-  fs.writeFileSync(path.join(out,'v222-'+pose+'-'+(on?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+  fs.writeFileSync(path.join(out,'v228-'+pose+'-'+(on?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
  }
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

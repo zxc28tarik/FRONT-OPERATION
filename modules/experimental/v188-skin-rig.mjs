@@ -1,8 +1,16 @@
-// V217–V222 compact experimental visual-only rig. Not imported by index.html.
+// V223–V228 adaptive experimental visual-only rig. Not imported by index.html.
 import * as THREE from 'three';
 const Y=new THREE.Vector3(0,1,0);
 const ease=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
-const point=(inverse,node)=>new THREE.Vector3().setFromMatrixPosition(node.matrixWorld).applyMatrix4(inverse);
+// Read root-local positions without walking every accessory and weapon mesh.
+function localPoint(root,node,out){
+ out.set(0,0,0);
+ for(let n=node;n&&n!==root;n=n.parent){
+  if(n.matrixAutoUpdate)n.updateMatrix();
+  out.applyMatrix4(n.matrix);
+ }
+ return out;
+}
 function chains(model){
  const root=model.root;
  const arm=side=>{
@@ -15,10 +23,16 @@ function chains(model){
  const leg=side=>[model[side+'Hip'],model[side+'Knee'],model[side+'Knee'].children.find(n=>n.name==='v132_ankle')];
  const extremities=[...['left','right'].map(side=>({kind:'leg',nodes:leg(side),radii:[.073,.059,.048]})),...['left','right'].map(side=>({kind:'arm',nodes:arm(side),radii:[.057,.049,.035]}))].map(c=>{
   if(c.nodes.some(n=>!n))throw Error('V188 rig missing '+c.kind+' pivot');
-  return {...c,points:(inverse=new THREE.Matrix4().copy(root.matrixWorld).invert())=>c.nodes.map(n=>point(inverse,n))};
+  const points=c.nodes.map(()=>new THREE.Vector3());
+  return {...c,points:()=>c.nodes.map((n,i)=>localPoint(root,n,points[i]))};
  });
- const torsoPoint=(y,inverse)=>new THREE.Vector3(0,y,0).applyMatrix4(model.upperBody.matrixWorld).applyMatrix4(inverse);
- return [...extremities,{kind:'torso',radii:[.135,.159,.129],points:(inverse=new THREE.Matrix4().copy(root.matrixWorld).invert())=>[new THREE.Vector3(0,.88,0),torsoPoint(.15,inverse),torsoPoint(.45,inverse)]}];
+ const torsoPoints=[new THREE.Vector3(0,.88,0),new THREE.Vector3(),new THREE.Vector3()];
+ return [...extremities,{kind:'torso',radii:[.135,.159,.129],points:()=>{
+  if(model.upperBody.matrixAutoUpdate)model.upperBody.updateMatrix();
+  torsoPoints[1].set(0,.15,0).applyMatrix4(model.upperBody.matrix);
+  torsoPoints[2].set(0,.45,0).applyMatrix4(model.upperBody.matrix);
+  return torsoPoints;
+ }}];
 }
 function segmentBasis(a,b){
  const d=b.clone().sub(a),length=d.length();
@@ -41,9 +55,8 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
  if(radial<8||steps<12||steps%2)throw Error('Invalid rig resolution');
  const root=model.root;root.updateMatrixWorld(true);
  const limbs=chains(model),bones=[],pos=[],uv=[],skinIndex=[],skinWeight=[],indices=[],groups=[],seams=[],plans=[];
- const inverse=new THREE.Matrix4().copy(root.matrixWorld).invert();
  for(const limb of limbs){
-  const p=limb.points(inverse),base=bones.length;
+  const p=limb.points(),base=bones.length;
   const ba=segmentBasis(p[0],p[1]),bb=segmentBasis(p[1],p[2]),qa=ba.q,qb=bb.q;
   const makeBone=(name,center,q)=>{
    const bone=new THREE.Bone();bone.name=name;bone.position.copy(center);bone.quaternion.copy(q);bones.push(bone);return bones.length-1;
@@ -126,16 +139,21 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
   if(n===mesh||!n.isMesh)return;
   if(n.userData.v154Joint||n.userData.v129Sculpted)hidden.push({n,visible:n.visible});
  });
+ let enabledState=false,disposed=false;
  const setEnabled=enabled=>{
-  mesh.visible=!!enabled;
-  for(const item of hidden)item.n.visible=enabled?false:item.visible;
-  if(enabled)update();
+  if(disposed)throw Error('Disposed experimental rig');
+  enabled=!!enabled;
+  if(enabled===enabledState)return;
+  enabledState=enabled;
+  if(enabled){root.add(mesh);mesh.visible=true;for(const item of hidden)item.n.visible=false;update();}
+  else{mesh.visible=false;root.remove(mesh);for(const item of hidden)item.n.visible=item.visible;}
  };
+ // Disabled comparison must not traverse the experimental skeleton.
+ root.remove(mesh);
  const update=()=>{
-  root.updateMatrixWorld(true);
-  inverse.copy(root.matrixWorld).invert();
+  root.updateWorldMatrix(true,false);
   for(const plan of plans){
-   const p=plan.limb.points(inverse),a=segmentBasis(p[0],p[1]),b=segmentBasis(p[1],p[2]);
+   const p=plan.limb.points(),a=segmentBasis(p[0],p[1]),b=segmentBasis(p[1],p[2]);
    const first=bones[plan.first],last=bones[plan.last];
    first.position.copy(p[0]);first.quaternion.copy(a.q);first.scale.y=a.length/plan.lengths[0];
    last.position.copy(p[1]);last.quaternion.copy(b.q);last.scale.y=b.length/plan.lengths[1];
@@ -144,8 +162,11 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
     bone.quaternion.copy(a.q).slerp(b.q,ring.bend);
    }
   }
-  mesh.updateMatrixWorld(true);skeleton.update();
+  // Explicit diagnostic updates work when detached as well; retain the original bind frame.
+  if(mesh.parent)mesh.updateMatrixWorld(true);
+  else{root.add(mesh);mesh.updateMatrixWorld(true);root.remove(mesh);}
+  skeleton.update();
  };
- const dispose=()=>{setEnabled(false);root.remove(mesh);geometry.dispose();materials.forEach(m=>m.dispose());skeleton.dispose?.();};
- return {mesh,bones,update,dispose,limbs,geometry,setEnabled};
+ const dispose=()=>{if(disposed)return;setEnabled(false);root.remove(mesh);geometry.dispose();materials.forEach(m=>m.dispose());skeleton.dispose?.();disposed=true;};
+ return {mesh,bones,update,dispose,limbs,geometry,setEnabled,get enabled(){return enabledState;}};
 }
