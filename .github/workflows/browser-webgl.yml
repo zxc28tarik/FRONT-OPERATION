@@ -68,6 +68,7 @@ on:
       - art/v264-weapon-visual-cohesion
       - art/v270-weapon-integrated-release
       - art/v271-muzzle-visual-fx
+      - art/v273-distinct-muzzle-designs
   workflow_dispatch:
 
 jobs:
@@ -219,6 +220,9 @@ jobs:
           FO_WEAPON_BASELINE=/tmp/fo-v255.html FO_WEAPON_PREVIOUS=/tmp/fo-v264.html node scripts/check-v270-integrated-weapon.mjs
           FO_WEAPON_BASELINE=/tmp/fo-v255.html node scripts/weapon-turntable-v270.mjs
           FO_CHARACTER_BASELINE=/tmp/fo-v255.html FO_CHARACTER_BASELINE_LABEL=V255 FO_CHARACTER_CANDIDATE_LABEL=V270 FO_CHARACTER_EXPANDED=1 node scripts/character-turntable.mjs
+      - name: V273 distinct muzzle profile checks
+        if: github.ref_name == 'art/v273-distinct-muzzle-designs'
+        run: node scripts/check-v273-muzzle-profiles.mjs
       - name: V271 muzzle flash resource and origin checks
         if: github.ref_name == 'art/v271-muzzle-visual-fx'
         run: node scripts/check-v271-muzzle.mjs
