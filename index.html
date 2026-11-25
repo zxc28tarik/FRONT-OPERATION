@@ -262,7 +262,7 @@
     </div>
   </div>
 
-  <!-- FPV Drone Telemetry & Recon HUD Overlay (4A + V24) -->
+  <!-- FPV Drone Telemetry & Recon HUD Overlay (4A + V24 + V25) -->
   <div id="drone-hud">
     <!-- Subtle Frame Corners -->
     <div class="drone-corner top-16 left-6 border-t-2 border-l-2"></div>
@@ -317,7 +317,7 @@
         </div>
         <div>
           <div class="mono text-[9px] text-slate-400 uppercase">DRONE GÖVDE</div>
-          <div id="drone-hp-text" class="mono text-xs font-extrabold text-amber-300">55 / 55</div>
+          <div id="drone-hp-text" class="mono text-xs font-extrabold text-amber-300">110 / 110</div>
           <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden mt-1">
             <div id="drone-hp-bar" class="h-full bg-amber-400" style="width: 100%;"></div>
           </div>
@@ -663,7 +663,7 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-[11px] text-slate-300 mono">
           <div><span class="text-amber-400 font-bold">WASD:</span> Hareket / Uçuş</div>
           <div><span class="text-amber-400 font-bold">SHIFT:</span> Depar / Hızlan</div>
-          <div><span class="text-amber-400 font-bold">SHIFT+A/D | Q/E:</span> Takla</div>
+          <div><span class="text-amber-400 font-bold">Q/E:</span> Sola / Sağa Takla</div>
           <div><span class="text-amber-400 font-bold">SPACE / C:</span> Zıpla / İrtifa</div>
           <div><span class="text-amber-400 font-bold">SOL TIK:</span> Ateş / Hızlı Mod</div>
           <div><span class="text-amber-400 font-bold">SAĞ TIK:</span> Nişan / Patlat</div>
@@ -683,7 +683,7 @@
       'use strict';
 
       // =========================================================================
-      // 1. WEAPON & CLASS DEFINITIONS (EXACT REFERENCE STATS + DRONE OPERATOR V24)
+      // 1. WEAPON & CLASS DEFINITIONS (EXACT REFERENCE STATS + DRONE OPERATOR V25)
       // =========================================================================
       const DRONE_CONFIG = {
         maxFlightTime: 20.0,
@@ -691,7 +691,7 @@
         normalSpeed: 9.5,
         kamikazeSpeedMult: 1.5,
         boostSpeedMult: 1.28,
-        maxHp: 55,
+        maxHp: 110,
         fov: 82,
         kamikazeDamage: 85,
         kamikazeRadius: 3.0,
@@ -4616,7 +4616,7 @@
       }
 
       // =========================================================================
-      // 9B. DRONE OPERATOR SYSTEM V24 (1 CHARGE PER LIFE, INSTANT RMB DETONATE, 9.5 SPEED)
+      // 9B. DRONE OPERATOR SYSTEM V25 (1 CHARGE PER LIFE, INSTANT RMB DETONATE, 110 HP)
       // =========================================================================
       let DRONE_SHARED = null;
 
@@ -5071,7 +5071,7 @@
             if (ownerBot) ownerBot.activeDroneId = null;
           }
 
-          // V24: Both right-click/impact detonation AND midair destruction at 0 HP trigger the 3m / 85 HP blast.
+          // Both right-click/impact detonation AND midair destruction at 0 HP trigger the 3m / 85 HP blast.
           // Operator death, recall, battery empty, or signal loss do NOT trigger a large explosion.
           if (reason === 'DETONATED' || reason === 'DESTROYED') {
             triggerExplosion(
@@ -5545,7 +5545,6 @@
               const isBoosting = !isArmed && (!!keys['ShiftLeft'] || !!keys['ShiftRight']);
               const maxSpeed = DRONE_CONFIG.normalSpeed * (isArmed ? DRONE_CONFIG.kamikazeSpeedMult : (isBoosting ? DRONE_CONFIG.boostSpeedMult : 1.0));
 
-              // Strictly horizontal forward/right movement (W/S never alters altitude)
               const forwardVec = new THREE.Vector3(-Math.sin(drone.yaw), 0, -Math.cos(drone.yaw));
               const rightVec = new THREE.Vector3(Math.cos(drone.yaw), 0, -Math.sin(drone.yaw));
 
@@ -5561,10 +5560,9 @@
               const vertAlpha = 1 - Math.exp(-(hasVertInput ? 13.0 : 11.0) * dt);
 
               drone.vel.x += (targetVel.x - drone.vel.x) * horizAlpha;
-              drone.vel.z += (targetVel.z - drone.vel.z) * horizAlpha;
+              drone.vel.z += (targetVel.z - drone.vel.z) * vertAlpha;
               drone.vel.y += (targetVel.y - drone.vel.y) * vertAlpha;
 
-              // Zero-drift visual hover oscillation when altitude keys are released
               if (!hasHorizInput && !hasVertInput) {
                 drone.hoverPhase += dt * 3.2;
               }
@@ -5575,7 +5573,6 @@
               if (drone.resolved) continue;
             }
 
-            // Sub-stepped dt physics integration (prevents tunneling at 9.5 - 14.25 speed across 15/30/60/120 FPS)
             const subSteps = Math.max(2, Math.min(6, Math.ceil(dt * 140)));
             const subDt = dt / subSteps;
             let impactedWorld = false;
@@ -5617,7 +5614,6 @@
               continue;
             }
 
-            // Visual orientation, banking, zero-drift hover bob & rotor spin
             drone.meshObj.root.position.copy(drone.pos);
             drone.meshObj.root.rotation.y = drone.yaw;
             drone.meshObj.visualPivot.position.y = Math.sin(drone.hoverPhase) * 0.016;
@@ -8704,7 +8700,7 @@
                       if (arrivedNode && (arrivedNode.tag.startsWith('sniper') || arrivedNode.tag.endsWith('door') || isEngineerHoldNode)) {
                         setBotState(bot, 'DEFEND_HOLD', 1.2);
                         bot.stateTimer += dt;
-                        // 4B + V24: Drone Operator BOT deploys its 1-per-life drone from safe hold
+                        // 4B + V25: Drone Operator BOT deploys its 1-per-life 110 HP drone from safe hold
                         if (bot.classId === 'engineer' && droneSystem.getRemainingCharges(bot.id) > 0 && bot.abilityCooldown <= 0 && bot.hp >= 60) {
                           if (droneSystem.tryDeployBotDrone(bot)) {
                             bot.abilityCooldown = 12;
@@ -9392,7 +9388,6 @@
           player.classId = selectedMenuClass;
           respawnPlayer();
         } else {
-          // Mid-life class change does NOT restore a spent drone charge
           initPlayerLoadout(selectedMenuClass);
         }
         document.getElementById('menu-overlay').classList.add('hidden');
@@ -9410,9 +9405,6 @@
         }
       });
 
-      let lastTapA = 0;
-      let lastTapD = 0;
-
       window.addEventListener('keydown', (e) => {
         const menuHidden = document.getElementById('menu-overlay').classList.contains('hidden');
         if (matchState.started && !matchState.ended && menuHidden) {
@@ -9420,6 +9412,7 @@
             e.preventDefault();
           }
         }
+        const wasKeyDown = !!keys[e.code];
         keys[e.code] = true;
 
         if (e.code === 'Tab') {
@@ -9440,7 +9433,6 @@
             menuEl.classList.remove('hidden');
           } else {
             menuEl.classList.add('hidden');
-            // Closing class menu mid-life does NOT restore spent drone charge
             initPlayerLoadout(selectedMenuClass);
             if (canvas.requestPointerLock) {
               try { canvas.requestPointerLock(); } catch (err) {}
@@ -9475,17 +9467,8 @@
         else if (e.code === 'Digit3') switchSlot(3);
         else if (e.code === 'Digit4') switchSlot(4);
         else if (e.code === 'KeyR') startReload();
-        else if (e.code === 'KeyQ') triggerCombatRoll(-1);
-        else if (e.code === 'KeyE') triggerCombatRoll(1);
-        else if (e.code === 'KeyA') {
-          const now = performance.now();
-          if (keys['ShiftLeft'] || keys['ShiftRight'] || now - lastTapA < 230) triggerCombatRoll(-1);
-          lastTapA = now;
-        } else if (e.code === 'KeyD') {
-          const now = performance.now();
-          if (keys['ShiftLeft'] || keys['ShiftRight'] || now - lastTapD < 230) triggerCombatRoll(1);
-          lastTapD = now;
-        }
+        else if (e.code === 'KeyQ' && !e.repeat && !wasKeyDown) triggerCombatRoll(-1);
+        else if (e.code === 'KeyE' && !e.repeat && !wasKeyDown) triggerCombatRoll(1);
       });
 
       window.addEventListener('keyup', (e) => {
