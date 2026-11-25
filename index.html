@@ -4399,15 +4399,15 @@
       // 6. FIRST-PERSON 3D WEAPON VIEWMODELS & TACTICAL GLOVED HANDS (1A + 2D)
       // =========================================================================
       const WEAPON_MATS = {
-        metalDark: new THREE.MeshStandardMaterial({ color: 0x262c32, roughness: 0.44, metalness: 0.77 }),
-        gunmetal: new THREE.MeshStandardMaterial({ color: 0x343e48, roughness: 0.42, metalness: 0.79 }),
-        metalSteel: new THREE.MeshStandardMaterial({ color: 0x87909a, roughness: 0.36, metalness: 0.82 }),
-        chromeSlide: new THREE.MeshStandardMaterial({ color: 0xd0d7e0, roughness: 0.18, metalness: 0.95 }),
-        polymerBlack: new THREE.MeshStandardMaterial({ color: 0x30363d, roughness: 0.80, metalness: 0.05 }),
-        rubberGrip: new THREE.MeshStandardMaterial({ color: 0x25292e, roughness: 0.94, metalness: 0.02 }),
-        polymerTan: new THREE.MeshStandardMaterial({ color: 0x9c8665, roughness: 0.60, metalness: 0.14 }),
-        polymerFDE: new THREE.MeshStandardMaterial({ color: 0x877254, roughness: 0.56, metalness: 0.18 }),
-        olivePaint: new THREE.MeshStandardMaterial({ color: 0x3b4d38, roughness: 0.54, metalness: 0.30 }),
+        metalDark: new THREE.MeshStandardMaterial({ color: 0x262c32, roughness: 0.56, metalness: 0.66 }),
+        gunmetal: new THREE.MeshStandardMaterial({ color: 0x343e48, roughness: 0.48, metalness: 0.7 }),
+        metalSteel: new THREE.MeshStandardMaterial({ color: 0x87909a, roughness: 0.34, metalness: 0.85 }),
+        chromeSlide: new THREE.MeshStandardMaterial({ color: 0xd0d7e0, roughness: 0.3, metalness: 0.87 }),
+        polymerBlack: new THREE.MeshStandardMaterial({ color: 0x30363d, roughness: 0.85, metalness: 0.03 }),
+        rubberGrip: new THREE.MeshStandardMaterial({ color: 0x25292e, roughness: 0.98, metalness: 0.01 }),
+        polymerTan: new THREE.MeshStandardMaterial({ color: 0x9c8665, roughness: 0.77, metalness: 0.06 }),
+        polymerFDE: new THREE.MeshStandardMaterial({ color: 0x877254, roughness: 0.73, metalness: 0.08 }),
+        olivePaint: new THREE.MeshStandardMaterial({ color: 0x3b4d38, roughness: 0.68, metalness: 0.2 }),
         brass: new THREE.MeshStandardMaterial({ color: 0xd6aa3e, roughness: 0.26, metalness: 0.90 }),
         copperTip: new THREE.MeshStandardMaterial({ color: 0xb86538, roughness: 0.30, metalness: 0.86 }),
         opticGlass: new THREE.MeshStandardMaterial({
@@ -4722,12 +4722,28 @@
 
       // V256: cosmetic bevels on selected first-person body surfaces only.
       // Keep the original local envelope and transforms; no extra scene objects.
-      function createV256ChamferedBox(width,height,depth,edge=.002){
+      function createV256ChamferedBox(width,height,depth,edge=.002,profile='box'){
         const b=Math.min(edge,width*.2,height*.2,depth*.2);
         const x=width*.5-b,y=height*.5-b;
         const shape=new THREE.Shape();
-        shape.moveTo(-x,-y);shape.lineTo(x,-y);shape.lineTo(x,y);
-        shape.lineTo(-x,y);shape.closePath();
+        // V257: different low-poly cross sections, all inside the approved local envelope.
+        const profiles={
+          angular:[.28,.18,.42,.22],compact:[.16,.28,.24,.16],
+          precision:[.13,.12,.34,.38],heavy:[.23,.30,.18,.12],
+          grip:[.28,.20,.36,.22],pad:[.30,.30,.30,.30],
+          pistol:[.15,.10,.25,.32],service:[.12,.22,.18,.20]
+        };
+        const cut=profiles[profile];
+        if(cut){
+          const [topX,topY,bottomX,bottomY]=cut;
+          shape.moveTo(-x+2*x*bottomX,-y);shape.lineTo(x-2*x*bottomX,-y);
+          shape.lineTo(x,-y+2*y*bottomY);shape.lineTo(x,y-2*y*topY);
+          shape.lineTo(x-2*x*topX,y);shape.lineTo(-x+2*x*topX,y);
+          shape.lineTo(-x,y-2*y*topY);shape.lineTo(-x,-y+2*y*bottomY);
+        }else{
+          shape.moveTo(-x,-y);shape.lineTo(x,-y);shape.lineTo(x,y);shape.lineTo(-x,y);
+        }
+        shape.closePath();
         const geo=new THREE.ExtrudeGeometry(shape,{
           depth:depth-2*b,bevelEnabled:true,bevelSegments:1,
           bevelSize:b,bevelThickness:b,steps:1,curveSegments:1
@@ -4744,6 +4760,7 @@
         // All faces use the same existing material: one mesh, one draw call.
         geo.clearGroups();
         geo.userData.v256Chamfer=true;
+        if(cut)geo.userData.v257Profile=profile;
         return geo;
       }
 
@@ -4796,7 +4813,7 @@
           boltCarrier.position.set(0.0135, 0.015, -0.014);
           root.add(boltCarrier);
 
-          const handguard = new THREE.Mesh(createV256ChamferedBox(0.034, 0.042, 0.215, 0.0028), WEAPON_MATS.polymerFDE);
+          const handguard = new THREE.Mesh(createV256ChamferedBox(0.034, 0.042, 0.215, 0.0028, 'angular'), WEAPON_MATS.polymerFDE);
           handguard.position.set(0, 0.011, -0.205);
           root.add(handguard);
 
@@ -4830,7 +4847,7 @@
           flashHider.position.set(0, 0.015, -0.455);
           root.add(flashHider);
 
-          const grip = new THREE.Mesh(createV256ChamferedBox(0.026, 0.088, 0.036, 0.0023), WEAPON_MATS.rubberGrip);
+          const grip = new THREE.Mesh(createV256ChamferedBox(0.026, 0.088, 0.036, 0.0023, 'grip'), WEAPON_MATS.rubberGrip);
           grip.position.set(0, -0.056, 0.042);
           grip.rotation.x = 0.26;
           root.add(grip);
@@ -4845,12 +4862,12 @@
           root.add(trigger);
 
           const magGroup = new THREE.Group();
-          const magUpper = new THREE.Mesh(createV256ChamferedBox(0.023, 0.072, 0.054, 0.0015), WEAPON_MATS.polymerBlack);
+          const magUpper = new THREE.Mesh(createV256ChamferedBox(0.023, 0.072, 0.054, 0.0015, 'service'), WEAPON_MATS.polymerBlack);
           magUpper.position.set(0, -0.068, -0.054);
           magUpper.rotation.x = -0.08;
           magGroup.add(magUpper);
 
-          const magLower = new THREE.Mesh(createV256ChamferedBox(0.023, 0.078, 0.054, 0.0015), WEAPON_MATS.polymerBlack);
+          const magLower = new THREE.Mesh(createV256ChamferedBox(0.023, 0.078, 0.054, 0.0015, 'service'), WEAPON_MATS.polymerBlack);
           magLower.position.set(0, -0.132, -0.068);
           magLower.rotation.x = -0.26;
           magGroup.add(magLower);
@@ -4874,7 +4891,7 @@
           stockBody.rotation.y = Math.PI / 2;
           root.add(stockBody);
 
-          const buttPad = new THREE.Mesh(createV256ChamferedBox(0.036, 0.095, 0.014, 0.0015), WEAPON_MATS.rubberGrip);
+          const buttPad = new THREE.Mesh(createV256ChamferedBox(0.036, 0.095, 0.014, 0.0015, 'pad'), WEAPON_MATS.rubberGrip);
           buttPad.position.set(0, -0.018, 0.224);
           root.add(buttPad);
 
@@ -4926,7 +4943,7 @@
           topRail.position.set(0, 0.0355, -0.015);
           root.add(topRail);
 
-          const peqBox = new THREE.Mesh(createV256ChamferedBox(0.022, 0.018, 0.046, 0.0015), WEAPON_MATS.polymerFDE);
+          const peqBox = new THREE.Mesh(createV256ChamferedBox(0.022, 0.018, 0.046, 0.0015, 'compact'), WEAPON_MATS.polymerFDE);
           peqBox.position.set(0.025, 0.012, -0.105);
           root.add(peqBox);
 
@@ -4940,13 +4957,13 @@
           muzzleDevice.position.set(0, 0.010, -0.235);
           root.add(muzzleDevice);
 
-          const grip = new THREE.Mesh(createV256ChamferedBox(0.026, 0.082, 0.036, 0.0023), WEAPON_MATS.rubberGrip);
+          const grip = new THREE.Mesh(createV256ChamferedBox(0.026, 0.082, 0.036, 0.0023, 'grip'), WEAPON_MATS.rubberGrip);
           grip.position.set(0, -0.054, 0.018);
           grip.rotation.x = 0.20;
           root.add(grip);
 
           const magGroup = new THREE.Group();
-          const magBody = new THREE.Mesh(createV256ChamferedBox(0.021, 0.135, 0.030, 0.0015), WEAPON_MATS.metalDark);
+          const magBody = new THREE.Mesh(createV256ChamferedBox(0.021, 0.135, 0.030, 0.0015, 'compact'), WEAPON_MATS.metalDark);
           magBody.position.set(0, -0.088, 0.025);
           magBody.rotation.x = 0.20;
           magGroup.add(magBody);
@@ -4958,7 +4975,7 @@
           root.add(magGroup);
           vmRefs.magazineMesh = magGroup;
 
-          const foregrip = new THREE.Mesh(createV256ChamferedBox(0.022, 0.068, 0.025, 0.0023), WEAPON_MATS.polymerBlack);
+          const foregrip = new THREE.Mesh(createV256ChamferedBox(0.022, 0.068, 0.025, 0.0023, 'compact'), WEAPON_MATS.polymerBlack);
           foregrip.position.set(0, -0.048, -0.105);
           foregrip.rotation.x = -0.10;
           root.add(foregrip);
@@ -4970,7 +4987,7 @@
             root.add(rod);
           });
 
-          const buttplate = new THREE.Mesh(createV256ChamferedBox(0.046, 0.072, 0.014, 0.0015), WEAPON_MATS.rubberGrip);
+          const buttplate = new THREE.Mesh(createV256ChamferedBox(0.046, 0.072, 0.014, 0.0015, 'pad'), WEAPON_MATS.rubberGrip);
           buttplate.position.set(0, -0.006, 0.228);
           root.add(buttplate);
 
@@ -5036,12 +5053,12 @@
           root.add(boltGroup);
           vmRefs.boltMesh = boltGroup;
 
-          const grip = new THREE.Mesh(createV256ChamferedBox(0.028, 0.088, 0.038, 0.0023), WEAPON_MATS.rubberGrip);
+          const grip = new THREE.Mesh(createV256ChamferedBox(0.028, 0.088, 0.038, 0.0023, 'grip'), WEAPON_MATS.rubberGrip);
           grip.position.set(0, -0.056, 0.068);
           grip.rotation.x = 0.22;
           root.add(grip);
 
-          const mag = new THREE.Mesh(createV256ChamferedBox(0.026, 0.084, 0.068, 0.0015), WEAPON_MATS.metalDark);
+          const mag = new THREE.Mesh(createV256ChamferedBox(0.026, 0.084, 0.068, 0.0015, 'precision'), WEAPON_MATS.metalDark);
           mag.position.set(0, -0.058, -0.032);
           root.add(mag);
           vmRefs.magazineMesh = mag;
@@ -5053,11 +5070,11 @@
           stockFrame.rotation.y = Math.PI / 2;
           root.add(stockFrame);
 
-          const cheekRest = new THREE.Mesh(createV256ChamferedBox(0.036, 0.018, 0.088, 0.0015), WEAPON_MATS.rubberGrip);
+          const cheekRest = new THREE.Mesh(createV256ChamferedBox(0.036, 0.018, 0.088, 0.0015, 'pad'), WEAPON_MATS.rubberGrip);
           cheekRest.position.set(0, 0.038, 0.195);
           root.add(cheekRest);
 
-          const buttPad = new THREE.Mesh(createV256ChamferedBox(0.038, 0.098, 0.018, 0.0015), WEAPON_MATS.rubberGrip);
+          const buttPad = new THREE.Mesh(createV256ChamferedBox(0.038, 0.098, 0.018, 0.0015, 'pad'), WEAPON_MATS.rubberGrip);
           buttPad.position.set(0, -0.020, 0.296);
           root.add(buttPad);
 
@@ -5078,11 +5095,11 @@
           root.position.set(0.175, -0.170, -0.25);
 
         } else if (weaponId === 'minimi') {
-          const receiver = new THREE.Mesh(createV256ChamferedBox(0.056, 0.066, 0.275, 0.0032), WEAPON_MATS.gunmetal);
+          const receiver = new THREE.Mesh(createV256ChamferedBox(0.056, 0.066, 0.275, 0.0032, 'heavy'), WEAPON_MATS.gunmetal);
           receiver.position.set(0, 0.004, 0.015);
           root.add(receiver);
 
-          const feedCover = new THREE.Mesh(createV256ChamferedBox(0.054, 0.016, 0.175, 0.0015), WEAPON_MATS.metalDark);
+          const feedCover = new THREE.Mesh(createV256ChamferedBox(0.054, 0.016, 0.175, 0.0015, 'heavy'), WEAPON_MATS.metalDark);
           feedCover.position.set(0, 0.044, -0.015);
           root.add(feedCover);
 
@@ -5105,7 +5122,7 @@
           frontRing.rotation.z = -Math.PI * 0.2;
           root.add(frontRing);
 
-          const shroud = new THREE.Mesh(createV256ChamferedBox(0.048, 0.050, 0.215, 0.0028), WEAPON_MATS.metalDark);
+          const shroud = new THREE.Mesh(createV256ChamferedBox(0.048, 0.050, 0.215, 0.0028, 'angular'), WEAPON_MATS.metalDark);
           shroud.position.set(0, 0.004, -0.225);
           root.add(shroud);
 
@@ -5144,7 +5161,7 @@
           });
 
           const boxGroup = new THREE.Group();
-          const ammoBox = new THREE.Mesh(createV256ChamferedBox(0.072, 0.112, 0.092, 0.0032), WEAPON_MATS.olivePaint);
+          const ammoBox = new THREE.Mesh(createV256ChamferedBox(0.072, 0.112, 0.092, 0.0032, 'heavy'), WEAPON_MATS.olivePaint);
           ammoBox.position.set(-0.056, -0.056, -0.032);
           boxGroup.add(ammoBox);
 
@@ -5166,7 +5183,7 @@
           root.add(boxGroup);
           vmRefs.magazineMesh = boxGroup;
 
-          const grip = new THREE.Mesh(createV256ChamferedBox(0.028, 0.088, 0.038, 0.0023), WEAPON_MATS.rubberGrip);
+          const grip = new THREE.Mesh(createV256ChamferedBox(0.028, 0.088, 0.038, 0.0023, 'grip'), WEAPON_MATS.rubberGrip);
           grip.position.set(0, -0.062, 0.085);
           grip.rotation.x = 0.24;
           root.add(grip);
@@ -5213,7 +5230,7 @@
           root.add(trigger);
 
           const grip = new THREE.Mesh(
-            createV256ChamferedBox(0.026, 0.088, 0.038, 0.0023),
+            createV256ChamferedBox(0.026, 0.088, 0.038, 0.0023, 'grip'),
             isGlock ? WEAPON_MATS.rubberGrip : WEAPON_MATS.polymerFDE
           );
           grip.position.set(0, -0.044, 0.038);
@@ -5231,7 +5248,7 @@
 
           const slideGroup = new THREE.Group();
           const slideMain = new THREE.Mesh(
-            createV256ChamferedBox(isGlock ? 0.025 : 0.024, 0.024, 0.168, 0.0022),
+            createV256ChamferedBox(isGlock ? 0.025 : 0.024, 0.024, 0.168, 0.0022, isGlock ? 'compact' : 'pistol'),
             isGlock ? WEAPON_MATS.gunmetal : WEAPON_MATS.chromeSlide
           );
           slideMain.position.set(0, 0.026, -0.006);
@@ -5338,21 +5355,21 @@
           venturi.position.set(0, 0.012, 0.355);
           root.add(venturi);
 
-          const shoulderPad = new THREE.Mesh(createV256ChamferedBox(0.072, 0.024, 0.115, 0.0015), WEAPON_MATS.rubberGrip);
+          const shoulderPad = new THREE.Mesh(createV256ChamferedBox(0.072, 0.024, 0.115, 0.0015, 'pad'), WEAPON_MATS.rubberGrip);
           shoulderPad.position.set(0, -0.042, 0.115);
           root.add(shoulderPad);
 
-          const gripRear = new THREE.Mesh(createV256ChamferedBox(0.026, 0.078, 0.036, 0.0023), WEAPON_MATS.polymerBlack);
+          const gripRear = new THREE.Mesh(createV256ChamferedBox(0.026, 0.078, 0.036, 0.0023, 'grip'), WEAPON_MATS.polymerBlack);
           gripRear.position.set(0, -0.062, -0.055);
           gripRear.rotation.x = 0.22;
           root.add(gripRear);
 
-          const gripFront = new THREE.Mesh(createV256ChamferedBox(0.024, 0.074, 0.034, 0.0023), WEAPON_MATS.polymerBlack);
+          const gripFront = new THREE.Mesh(createV256ChamferedBox(0.024, 0.074, 0.034, 0.0023, 'grip'), WEAPON_MATS.polymerBlack);
           gripFront.position.set(-0.016, -0.060, -0.225);
           gripFront.rotation.z = 0.18;
           root.add(gripFront);
 
-          const sightBracket = new THREE.Mesh(createV256ChamferedBox(0.038, 0.032, 0.044, 0.0015), WEAPON_MATS.metalDark);
+          const sightBracket = new THREE.Mesh(createV256ChamferedBox(0.038, 0.032, 0.044, 0.0015, 'service'), WEAPON_MATS.metalDark);
           sightBracket.position.set(-0.044, 0.034, -0.105);
           root.add(sightBracket);
 
