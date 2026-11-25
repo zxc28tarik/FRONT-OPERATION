@@ -7234,7 +7234,7 @@
           const materialClass=n=>{
             const m=n.material,name=hardName(n),ud=n.userData||{};
             if(!m||Array.isArray(m)||protectedMaterials.has(m))return null;
-            if(typeof m.emissiveIntensity==='number'&&m.emissiveIntensity>.01)return null;
+            if(m.emissive&&m.emissive.r+m.emissive.g+m.emissive.b>.005)return null;
             if(/eye_protection|goggle|visor|lens|face|skin/.test(name))return null;
             if(n===helmetMesh||name==='v105_role_vest'||ud.v139Carrier)return 'ballistic';
             if(ud.v176Equipment==='pouch'||ud.v176Equipment==='admin'||ud.v149Pack)return 'canvas';
