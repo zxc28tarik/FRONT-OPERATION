@@ -4473,22 +4473,22 @@
 
       function buildReflexOpticEXPS3() {
         const g = new THREE.Group();
-        const base = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.010, 0.056), WEAPON_MATS.metalDark);
+        const base = new THREE.Mesh(createV256ChamferedBox(0.036, 0.010, 0.056, .0007), WEAPON_MATS.metalDark);
         g.add(base);
 
-        const qdLever = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.008, 0.022), WEAPON_MATS.gunmetal);
+        const qdLever = new THREE.Mesh(createV256ChamferedBox(0.006, 0.008, 0.022, .0007), WEAPON_MATS.gunmetal);
         qdLever.position.set(-0.020, 0.0, 0.004);
         g.add(qdLever);
 
-        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.0032, 0.026, 0.044), WEAPON_MATS.metalDark);
+        const leftWall = new THREE.Mesh(createV256ChamferedBox(0.0032, 0.026, 0.044, .0007), WEAPON_MATS.metalDark);
         leftWall.position.set(-0.0165, 0.018, 0.002);
         g.add(leftWall);
 
-        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.0032, 0.026, 0.044), WEAPON_MATS.metalDark);
+        const rightWall = new THREE.Mesh(createV256ChamferedBox(0.0032, 0.026, 0.044, .0007), WEAPON_MATS.metalDark);
         rightWall.position.set(0.0165, 0.018, 0.002);
         g.add(rightWall);
 
-        const topBridge = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.0032, 0.028), WEAPON_MATS.metalDark);
+        const topBridge = new THREE.Mesh(createV256ChamferedBox(0.036, 0.0032, 0.028, .0007), WEAPON_MATS.metalDark);
         topBridge.position.set(0, 0.0315, -0.004);
         g.add(topBridge);
 
@@ -4514,7 +4514,7 @@
 
       function buildMicroRedDot() {
         const g = new THREE.Group();
-        const riser = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.012, 0.036), WEAPON_MATS.metalDark);
+        const riser = new THREE.Mesh(createV256ChamferedBox(0.024, 0.012, 0.036, .0007), WEAPON_MATS.metalDark);
         g.add(riser);
 
         const tube = new THREE.Mesh(
@@ -4547,7 +4547,7 @@
 
       function buildPrecisionScope() {
         const g = new THREE.Group();
-        const mountBase = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.011, 0.135), WEAPON_MATS.metalDark);
+        const mountBase = new THREE.Mesh(createV256ChamferedBox(0.028, 0.011, 0.135, .0007), WEAPON_MATS.metalDark);
         g.add(mountBase);
 
         [-0.042, 0.042].forEach((rz) => {
@@ -7790,6 +7790,49 @@
               feed.rotation.x-=.028;
               feed.userData.v252FeedIntegration=true;
             }
+          }
+        }
+        // V262: cached cosmetic silhouette refinement of existing third-person
+        // weapon meshes. No attachment, aim, hitbox or muzzle changes.
+        if(!G.v262)G.v262={geometries:new Map(),materials:new Map()};
+        const contour=classId==='heavy'?.16:classId==='sniper'?.23:
+          classId==='assault'?.19:classId==='medic'?.13:.15;
+        for(const n of model.weaponPivot.children){
+          if(!n.isMesh||!n.userData.v131Refined||n===magazine||n===model.muzzleFlash)continue;
+          const source=n.geometry;
+          source.computeBoundingBox();
+          const box=source.boundingBox,size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
+          if(size.z<.12||size.x<.025||size.y<.022)continue;
+          const key=source.uuid+':'+classId;
+          if(!G.v262.geometries.has(key)){
+            const geo=source.clone(),p=geo.getAttribute('position');
+            for(let i=0;i<p.count;i++){
+              const x=p.getX(i)-center.x,y=p.getY(i)-center.y,z=p.getZ(i)-center.z;
+              const t=Math.min(1,Math.abs(z)/(size.z*.5));
+              const shoulder=Math.max(0,(t-.45)/.55);
+              const vertical=Math.min(1,Math.abs(y)/(size.y*.5));
+              p.setXYZ(i,center.x+x*(1-contour*shoulder*shoulder),
+                center.y+y*(1-contour*.45*shoulder*vertical),center.z+z);
+            }
+            p.needsUpdate=true;
+            geo.computeBoundingBox();
+            const fitted=geo.boundingBox.getSize(new THREE.Vector3()),c=geo.boundingBox.getCenter(new THREE.Vector3());
+            geo.translate(-c.x,-c.y,-c.z);
+            geo.scale(size.x/fitted.x,size.y/fitted.y,size.z/fitted.z);
+            geo.translate(center.x,center.y,center.z);
+            geo.computeVertexNormals();geo.computeBoundingBox();geo.computeBoundingSphere();
+            geo.userData.v262Role=classId;G.v262.geometries.set(key,geo);
+          }
+          n.geometry=G.v262.geometries.get(key);n.userData.v262Contour=classId;
+          const original=n.material;
+          if(original===mats.gunMetal||original===mats.gunSteel){
+            if(!G.v262.materials.has(original)){
+              const material=original.clone();
+              material.roughness=original===mats.gunMetal?.58:.43;
+              material.metalness=original===mats.gunMetal?.65:.76;
+              G.v262.materials.set(original,material);
+            }
+            n.material=G.v262.materials.get(original);
           }
         }
         // V170: retain facial shape identity in a cheaper distance mesh.
