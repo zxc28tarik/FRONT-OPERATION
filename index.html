@@ -8559,11 +8559,11 @@
           Math.hypot(actor.pos.x-site.x,actor.pos.z-site.z)<=FO_BOMB_RULES.radius);
       }
       // Pure objective state transition; no wall clock, RNG or weapon logic.
-      function stepFoBomb(state,dt,remaining,blue,red,eligible) {
+      function stepFoBomb(state,dt,remaining,blue,red,eligible,clockDt=dt) {
         if(state.phase==='ended')return null;
         const planted=state.phase==='planted';
         if(planted){
-          state.seconds=Math.max(0,state.seconds-dt);
+          state.seconds=Math.max(0,state.seconds-clockDt);
           if(state.seconds<=0)return {winner:'blue',reason:'Bomba patladı'};
           if(red===0)return {winner:'blue',reason:'Savunan takım elendi'};
         }else{
@@ -8595,7 +8595,7 @@
           Math.hypot(actor.moveVelX||0,actor.moveVelZ||0)<1.0&&
           (foBomb.actor===actor.id||foBotPlan.operators.get(site.id)===actor.id);
       }
-      function updateFoBomb(dt){
+      function updateFoBomb(dt,clockDt=dt){
         if(!isFoBombMode()||matchState.ended)return;
         const actors=foBombActors(),planted=foBomb.phase==='planted';
         const team=planted?'red':'blue';
@@ -8606,7 +8606,7 @@
         const chosen=eligible.find(e=>e.id===foBomb.actor&&e.site.id===foBomb.actionSite)||eligible[0]||null;
         const blue=actors.filter(a=>a.team==='blue'&&a.alive).length,
           red=actors.filter(a=>a.team==='red'&&a.alive).length;
-        const result=stepFoBomb(foBomb,dt,matchState.timeRemaining,blue,red,chosen);
+        const result=stepFoBomb(foBomb,dt,matchState.timeRemaining,blue,red,chosen,clockDt);
         const status=document.getElementById('fo-bomb-status');
         const active=foBomb.phase==='planted';
         for(const site of FO_BOMB_SITES)if(site.beacon){
@@ -13865,11 +13865,25 @@ return {createExperimentalRig,createAdaptiveRigController};
         damageFlashTimeouts.clear();
       }
 
+      function foReleaseEquipment(entity,scene){
+       if(!entity||!entity.mesh||entity.foReleased)return;
+       entity.foReleased=true;
+       const root=entity.mesh,geometries=new Set();
+       const collect=n=>{if(n.geometry)geometries.add(n.geometry);};
+       if(typeof root.traverse==='function')root.traverse(collect);else collect(root);
+       scene.remove(root);
+       for(const geo of geometries)if(typeof geo.dispose==='function')geo.dispose();
+       for(const mat of new Set(entity.ownedMaterials||[]))if(typeof mat?.dispose==='function')mat.dispose();
+      }
+
       function clearAllMatchEntities() {
         resetV278DamageFlash();
         [activeGrenades, activeRockets, activeMedkits, activeClaymores, activeTracers, activeParticles, activeImpactMarks, activeShellCasings].forEach((list) => {
           for (let i = list.length - 1; i >= 0; i--) {
-            if (list[i] && list[i].mesh) scene.remove(list[i].mesh);
+            if(list[i]&&list[i].mesh){
+              if(list===activeGrenades||list===activeRockets||list===activeMedkits||list===activeClaymores)foReleaseEquipment(list[i],scene);
+              else scene.remove(list[i].mesh);
+            }
           }
           list.length = 0;
         });
@@ -13904,7 +13918,8 @@ return {createExperimentalRig,createAdaptiveRigController};
           pos: g.position.clone(),
           team,
           life: 18.0,
-          healTick: 0.4
+          healTick: 0.4,
+          ownedMaterials:[ring.material]
         });
       }
 
@@ -13938,12 +13953,71 @@ return {createExperimentalRig,createAdaptiveRigController};
           ownerName,
           team,
           armTimer: 0.85,
-          life: 45.0
+          life: 45.0,
+          ownedMaterials:[laserMat]
         });
+      }
+
+      function foGrenadeSweep(pos,dx,dy,dz,colliders,radius=.085){
+       let best=null;
+       for(const c of colliders){
+        const loX=c.minX-radius,hiX=c.maxX+radius,loY=c.minY-radius,hiY=c.maxY+radius,loZ=c.minZ-radius,hiZ=c.maxZ+radius;
+        if(Math.max(pos.x,pos.x+dx)<loX||Math.min(pos.x,pos.x+dx)>hiX||
+           Math.max(pos.y,pos.y+dy)<loY||Math.min(pos.y,pos.y+dy)>hiY||
+           Math.max(pos.z,pos.z+dz)<loZ||Math.min(pos.z,pos.z+dz)>hiZ)continue;
+        // Existing overlap: choose nearest escape face rather than tunnelling.
+        if(pos.x>loX&&pos.x<hiX&&pos.y>loY&&pos.y<hiY&&pos.z>loZ&&pos.z<hiZ){
+         const faces=[[pos.x-loX,-1,0,0],[hiX-pos.x,1,0,0],[pos.y-loY,0,-1,0],[hiY-pos.y,0,1,0],[pos.z-loZ,0,0,-1],[hiZ-pos.z,0,0,1]];
+         let face=faces[0];for(const v of faces)if(v[0]<face[0])face=v;
+         const hit={t:0,nx:face[1],ny:face[2],nz:face[3],push:face[0]+.0001};
+         if(!best||best.t>0||hit.push>best.push)best=hit;
+         continue;
+        }
+        let enter=0,exit=1,nx=0,ny=0,nz=0,valid=true;
+        const axes=[[pos.x,dx,loX,hiX],[pos.y,dy,loY,hiY],[pos.z,dz,loZ,hiZ]];
+        for(let i=0;i<3;i++){
+         const [p,d,lo,hi]=axes[i];
+         if(Math.abs(d)<1e-12){if(p<lo||p>hi){valid=false;break;}continue;}
+         let near=(lo-p)/d,far=(hi-p)/d,normal=-1;
+         if(near>far){[near,far]=[far,near];normal=1;}
+         if(near>=enter){enter=near;nx=i===0?normal:0;ny=i===1?normal:0;nz=i===2?normal:0;}
+         exit=Math.min(exit,far);
+         if(enter>exit){valid=false;break;}
+        }
+        if(valid&&enter>=0&&enter<=1&&exit>=0&&(nx||ny||nz)&&dx*nx+dy*ny+dz*nz<0&&(!best||enter<best.t))
+         best={t:enter,nx,ny,nz,push:.0001};
+       }
+       return best;
+      }
+      function foAdvanceGrenade(g,dt,colliders,floorAt){
+       g.vel.y-=18*dt;
+       let remaining=dt;
+       for(let i=0;i<4&&remaining>1e-8;i++){
+        const dx=g.vel.x*remaining,dy=g.vel.y*remaining,dz=g.vel.z*remaining;
+        const hit=foGrenadeSweep(g.pos,dx,dy,dz,colliders);
+        if(!hit){g.pos.addScaledVector(g.vel,remaining);break;}
+        g.pos.x+=dx*hit.t+hit.nx*hit.push;g.pos.y+=dy*hit.t+hit.ny*hit.push;g.pos.z+=dz*hit.t+hit.nz*hit.push;
+        const inward=g.vel.x*hit.nx+g.vel.y*hit.ny+g.vel.z*hit.nz;
+        if(inward<0){
+         if(hit.ny){g.vel.y=-g.vel.y*.38;if(hit.ny>0){g.vel.x*=.68;g.vel.z*=.68;}}
+         else{g.vel.x-=1.5*inward*hit.nx;g.vel.z-=1.5*inward*hit.nz;}
+        }
+        remaining*=1-hit.t;
+       }
+       const floorY=floorAt(g.pos.x,g.pos.z,g.pos.y+.3);
+       if(g.pos.y<=floorY+.08){g.pos.y=floorY+.08;g.vel.y=Math.abs(g.vel.y)*.38;g.vel.x*=.68;g.vel.z*=.68;}
       }
 
       function throwGrenade(origin, dir, ownerName, team) {
         const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), WEAPON_MATS.olivePaint);
+        // The caller supplies a short forward spawn offset; sweep it too.
+        const launchOffset=ownerName===player.name?.55:.5;
+        const launchDir=dir.clone().normalize(),launchBase=origin.clone().addScaledVector(launchDir,-launchOffset);
+        const launchHit=foGrenadeSweep(launchBase,launchDir.x*launchOffset,launchDir.y*launchOffset,launchDir.z*launchOffset,mapColliders);
+        if(launchHit){
+          origin=launchBase.addScaledVector(launchDir,launchOffset*launchHit.t);
+          origin.x+=launchHit.nx*launchHit.push;origin.y+=launchHit.ny*launchHit.push;origin.z+=launchHit.nz*launchHit.push;
+        }
         mesh.position.copy(origin);
         scene.add(mesh);
 
@@ -17598,16 +17672,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         for (let i = activeGrenades.length - 1; i >= 0; i--) {
           const g = activeGrenades[i];
           g.fuse -= dt;
-          g.vel.y -= 18.0 * dt;
-          g.pos.addScaledVector(g.vel, dt);
-
-          const floorY = getFloorHeightAt(g.pos.x, g.pos.z, g.pos.y + 0.3);
-          if (g.pos.y <= floorY + 0.08) {
-            g.pos.y = floorY + 0.08;
-            g.vel.y = Math.abs(g.vel.y) * 0.38;
-            g.vel.x *= 0.68;
-            g.vel.z *= 0.68;
-          }
+          foAdvanceGrenade(g,dt,mapColliders,getFloorHeightAt);
 
           if (Math.abs(g.pos.x) > foWorldX(39)) g.vel.x *= -0.5;
           if (Math.abs(g.pos.z) > foWorldZ(60)) g.vel.z *= -0.5;
@@ -17618,7 +17683,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
           if (g.fuse <= 0) {
             triggerExplosion(g.pos, 6.0, 115, g.ownerName, g.team, 'M67 BOMBA');
-            scene.remove(g.mesh);
+            foReleaseEquipment(g,scene);
             activeGrenades.splice(i, 1);
           }
         }
@@ -17687,7 +17752,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
           if (detonated) {
             triggerExplosion(r.pos, 6.5, 125, r.ownerName, r.team, 'CARL GUSTAF');
-            scene.remove(r.mesh);
+            foReleaseEquipment(r,scene);
             activeRockets.splice(i, 1);
           }
         }
@@ -17718,7 +17783,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
 
           if (mk.life <= 0) {
-            scene.remove(mk.mesh);
+            foReleaseEquipment(mk,scene);
             activeMedkits.splice(i, 1);
           }
         }
@@ -17761,10 +17826,10 @@ return {createExperimentalRig,createAdaptiveRigController};
 
           if (triggered) {
             triggerExplosion(cm.pos, 4.2, 120, cm.ownerName, cm.team, 'CLAYMORE');
-            scene.remove(cm.mesh);
+            foReleaseEquipment(cm,scene);
             activeClaymores.splice(i, 1);
           } else if (cm.life <= 0) {
-            scene.remove(cm.mesh);
+            foReleaseEquipment(cm,scene);
             activeClaymores.splice(i, 1);
           }
         }
@@ -18747,18 +18812,25 @@ return {createExperimentalRig,createAdaptiveRigController};
       // =========================================================================
       let lastFrameTime = performance.now();
       let hudSyncTimer = 0;
+      let foClockVisibilityChanged=false;
+      document.addEventListener('visibilitychange',()=>{foClockVisibilityChanged=true;});
+      function foMatchElapsed(rawDt,hidden,visibilityChanged){
+       return hidden||visibilityChanged?0:Number.isFinite(rawDt)&&rawDt>=0?rawDt:0;
+      }
 
       function animate(now) {
         requestAnimationFrame(animate);
         const rawDt = (now - lastFrameTime) / 1000;
         lastFrameTime = now;
         const dt = Number.isFinite(rawDt) ? Math.min(0.05, Math.max(0.001, rawDt)) : 0.016;
+        const clockDt=foMatchElapsed(rawDt,document.hidden,foClockVisibilityChanged);
+        foClockVisibilityChanged=false;
 
         if(gamePaused||!matchState.started||matchState.ended||!player.alive)clearV271PlayerFlash();
         else updateV273PlayerFlash(dt);
         if (matchState.started && !matchState.ended && !gamePaused) {
           recordBotFrameTiming(rawDt);
-          matchState.timeRemaining = Math.max(0, matchState.timeRemaining - dt);
+          matchState.timeRemaining = Math.max(0, matchState.timeRemaining - clockDt);
           const displayedTime=matchState.mode==='bomb'&&foBomb.phase==='planted'?foBomb.seconds:matchState.timeRemaining;
           const mins = Math.floor(displayedTime / 60);
           const secs = Math.floor(displayedTime % 60);
@@ -18773,7 +18845,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           droneSystem.update(dt);
           updateBots(dt);
           updateEntitiesAndFX(dt);
-          updateFoBomb(dt);
+          updateFoBomb(dt,clockDt);
           updateFoRescue(dt);
 
           hudSyncTimer += dt;
