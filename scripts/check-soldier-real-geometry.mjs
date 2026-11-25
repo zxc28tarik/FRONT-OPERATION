@@ -82,7 +82,11 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert(textiles.length>12);for(const n of textiles){
    const mat=n.material;assert(mat.map&&mat.bumpMap&&mat.roughnessMap);
    assert(mat.map!==mat.bumpMap&&mat.bumpMap!==mat.roughnessMap);
-   assert.equal(mat.bumpMap.image.width,256);assert.equal(mat.bumpMap.repeat.x,2);
+   // V249 upgrades carrier/pack textile finishes with a shared 64px material
+   // micro-map. Original uniform V164 textures must remain 256px and repeat twice.
+   const v249=n.userData.v249Finish;
+   assert.equal(mat.bumpMap.image.width,v249&&v249!=='uniform'?64:256);
+   assert.equal(mat.bumpMap.repeat.x,v249&&v249!=='uniform'?3:2);
  }
  assert.equal(contacts.length,2);
  assert(contacts.every(n=>n.material.vertexColors&&n.geometry.getAttribute('color').array.some(v=>v<.99)));

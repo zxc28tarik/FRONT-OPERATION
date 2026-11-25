@@ -7180,6 +7180,115 @@
             belt.userData.v248WaistFit=true;
           }
         }
+        // V249: physically separated, shared surface finishes. No scene light,
+        // faction palette, hitbox, firearm, rig, geometry or additional draw call.
+        // A few 64px procedural maps are shared by all 30 soldiers.
+        if(!G.v249&&typeof THREE.DataTexture==='function'){
+          const size=64,sets=new Map(),clamp=n=>Math.max(0,Math.min(255,Math.round(n)));
+          const texture=data=>{
+            const map=new THREE.DataTexture(data,size,size,THREE.RGBAFormat);
+            map.wrapS=map.wrapT=THREE.RepeatWrapping;
+            map.magFilter=THREE.LinearFilter;
+            map.minFilter=THREE.LinearMipmapLinearFilter;
+            map.generateMipmaps=true;map.needsUpdate=true;
+            return map;
+          };
+          const types=['ballistic','canvas','rubber','hardware'];
+          for(const kind of types){
+            const albedo=new Uint8Array(size*size*4);
+            const relief=new Uint8Array(albedo.length),roughness=new Uint8Array(albedo.length);
+            for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+              const n=(Math.imul(x+37,73856093)^Math.imul(y+11,19349663)^0x295417)>>>0;
+              const grain=((n&255)/255-.5);
+              const ux=x*Math.PI*2/size,uy=y*Math.PI*2/size;
+              const warp=Math.sin(ux*12)*Math.cos(uy*16);
+              const cross=Math.sin((ux+uy)*9)*Math.cos((ux-uy)*7);
+              const brush=Math.sin(uy*22)+.42*Math.sin(uy*29+ux*3);
+              const ribs=Math.sin(ux*20)+.20*Math.cos(uy*12);
+              const scuff=Math.pow(Math.max(0,Math.sin(ux*5+uy*3)*Math.sin(uy*7-ux*2)),3);
+              const wear=Math.max(0,scuff-.30)*(kind==='hardware'?9:kind==='ballistic'?5:2);
+              const pattern=kind==='canvas'?warp*7+cross*2:
+                kind==='ballistic'?cross*4+warp*2:
+                kind==='rubber'?ribs*5:brush*4;
+              const base=kind==='hardware'?245:kind==='canvas'?243:kind==='ballistic'?247:244;
+              const bump=kind==='canvas'?11:kind==='rubber'?10:kind==='hardware'?7:6;
+              const rough=kind==='hardware'?169:kind==='ballistic'?228:kind==='rubber'?240:247;
+              const i=(y*size+x)*4;
+              const rgb=clamp(base+pattern*.42+grain*3-wear);
+              const h=clamp(128+pattern+grain*4+scuff*bump);
+              const r=clamp(rough+pattern*.38+grain*5+wear*.55);
+              for(let k=0;k<3;k++){albedo[i+k]=rgb;relief[i+k]=h;roughness[i+k]=r;}
+              albedo[i+3]=relief[i+3]=roughness[i+3]=255;
+            }
+            const maps={albedo:texture(albedo),relief:texture(relief),roughness:texture(roughness)};
+            // Lightweight scene mocks omit Texture.repeat; real WebGL textures have it.
+            if(typeof maps.albedo.repeat?.set==='function')maps.albedo.repeat.set(2,2);
+            if(typeof maps.relief.repeat?.set==='function')maps.relief.repeat.set(3,3);
+            if(typeof maps.roughness.repeat?.set==='function')maps.roughness.repeat.set(2,2);
+            sets.set(kind,maps);
+          }
+          G.v249={sets,materials:new Map(),size};
+        }
+        if(G.v249&&typeof model.root.traverse==='function'){
+          const protectedMaterials=new Set([mats.blueIFF,mats.redIFF,mats.medCross]);
+          const hardName=n=>n.name||'';
+          const materialClass=n=>{
+            const m=n.material,name=hardName(n),ud=n.userData||{};
+            if(!m||Array.isArray(m)||protectedMaterials.has(m))return null;
+            if(m.emissive&&m.emissive.r+m.emissive.g+m.emissive.b>.005)return null;
+            if(/eye_protection|goggle|visor|lens|face|skin/.test(name))return null;
+            if(n===helmetMesh||name==='v105_role_vest'||ud.v139Carrier)return 'ballistic';
+            if(ud.v176Equipment==='pouch'||ud.v176Equipment==='admin'||ud.v149Pack)return 'canvas';
+            if(ud.v247Tailored)return 'uniform';
+            if(ud.v176Equipment==='kneepad'||ud.v176Equipment==='belt'||
+              ud.v164Textile==='leather'||/hearing_protection|chin_retention|glove/.test(name))return 'rubber';
+            if(/accessory_rail|nvg_mount|shell_rim/.test(name)||
+              (m.metalness>.24&&m.roughness>.32))return 'hardware';
+            return null;
+          };
+          const coat=(n,kind)=>{
+            const source=n.material;
+            const key=source.uuid+':'+kind;
+            let m=G.v249.materials.get(key);
+            if(!m){
+              m=source.clone();
+              // Preserve exactly the previous albedo / team colors and decals
+              // for uniforms, IFF patches and approved camouflage.
+              if(kind!=='uniform'){
+                const maps=G.v249.sets.get(kind);
+                if(!source.map)m.map=maps.albedo;
+                else if(kind==='ballistic'||kind==='canvas')m.map=maps.albedo;
+                m.bumpMap=maps.relief;
+                m.roughnessMap=maps.roughness;
+                m.bumpScale=kind==='ballistic'?.0015:kind==='canvas'?.0023:
+                  kind==='rubber'?.0017:.00085;
+                m.roughness=kind==='ballistic'?.88:kind==='canvas'?.965:
+                  kind==='rubber'?.96:Math.max(.43,Math.min(.67,source.roughness||.51));
+                m.metalness=kind==='ballistic'?.045:kind==='canvas'?0:
+                  kind==='rubber'?.006:Math.max(.30,source.metalness||0);
+              }else{
+                m.roughness=.99;m.metalness=0;
+                m.bumpScale=Math.min(.00235,Math.max(.0016,source.bumpScale||.0018));
+              }
+              m.name=(source.name||'surface')+' V249 '+kind;
+              m.needsUpdate=true;
+              G.v249.materials.set(key,m);
+            }
+            n.material=m;
+            n.userData=n.userData||{};
+            n.userData.v249Finish=kind;
+          };
+          const visit=(n,weaponBranch)=>{
+            const isWeapon=weaponBranch||n===model.weaponPivot;
+            if(isWeapon)return;
+            if(n.isMesh){
+              const kind=materialClass(n);
+              if(kind)coat(n,kind);
+            }
+            for(const child of n.children||[])visit(child,isWeapon);
+          };
+          visit(model.root,false);
+        }
         // V170: retain facial shape identity in a cheaper distance mesh.
         if(oldSkull&&G.v130&&typeof F.lowSkull.getAttribute==='function'){
           if(!G.v170)G.v170=new Map();
