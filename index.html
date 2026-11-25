@@ -6527,6 +6527,69 @@
           }
           helmetMesh.material=material;helmetMesh.userData.v150Shell=true;
         }
+        // V159–V164: shared textile maps with independent color, relief and roughness.
+        // No extra surface meshes, lighting changes or runtime texture downloads.
+        if(!G.v164&&typeof THREE.DataTexture==='function'&&G.v112.map.image?.data){
+          const size=256,sets=new Map();
+          const makeTexture=bytes=>{
+            const t=new THREE.DataTexture(bytes,size,size,THREE.RGBAFormat);
+            t.wrapS=t.wrapT=THREE.RepeatWrapping;t.generateMipmaps=true;
+            t.magFilter=THREE.LinearFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.needsUpdate=true;return t;
+          };
+          const clampByte=n=>Math.round(Math.max(0,Math.min(255,n)));
+          const periodic=(x,y)=>Math.sin(x*Math.PI*2/size)*Math.cos(y*Math.PI*2/size);
+          for(const kind of ['uniform-blue','uniform-red','webbing','mask','leather']){
+            const albedo=new Uint8Array(size*size*4),height=new Uint8Array(albedo.length),rough=new Uint8Array(albedo.length);
+            const uniform=kind.startsWith('uniform'),webbing=kind==='webbing',leather=kind==='leather';
+            const camo=G.v140?.maps.get(kind.endsWith('red')?'red':'blue')?.image||G.v112.map.image;
+            let seed=0x3a7952bc;
+            for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+              seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+              const grain=((seed>>>24)/255-.5);
+              const warp=Math.sin(x*Math.PI/2),weft=Math.cos(y*Math.PI/2);
+              const weave=leather?grain*5:(warp*weft)*(webbing?8:4);
+              const seamDistance=Math.min(x,size-x,Math.abs(x-size/2));
+              const seam=uniform?Math.exp(-seamDistance*seamDistance/3):0;
+              const stitch=seam*(y%8<4?1:0);
+              const wear=(periodic(x,y)+periodic(y*2,x*3)*.4)*3+grain*3;
+              const index=(y*size+x)*4;
+              const ci=(Math.floor(y*camo.height/size)*camo.width+Math.floor(x*camo.width/size))*4;
+              for(let k=0;k<3;k++){
+                const color=uniform?camo.data[ci+k]:leather?228:webbing?239:244;
+                albedo[index+k]=clampByte(color+weave*.5+wear-9*seam+12*stitch);
+                height[index+k]=clampByte(128+weave+grain*5+seam*8+stitch*16);
+                rough[index+k]=clampByte((leather?210:webbing?239:245)+wear*.7+grain*4);
+              }
+              albedo[index+3]=height[index+3]=rough[index+3]=255;
+            }
+            sets.set(kind,{map:makeTexture(albedo),bump:makeTexture(height),rough:makeTexture(rough)});
+          }
+          G.v164={sets,materials:new Map()};
+        }
+        if(G.v164){
+          const finish=n=>{
+            if(n===model.weaponPivot||n===helmetMesh)return;
+            const source=n.material;
+            const isCamo=source?.name==='V112 camouflage',isTextile=source?.name==='V101 textile';
+            const isLeather=source===G.v117.get(mats.bootLeather)||source===H.glove||source===H.palm;
+            if((isCamo||isTextile||isLeather)&&typeof source.clone==='function'){
+              const kind=isCamo?'uniform-'+team:isLeather?'leather':source.color.r<.06?'mask':'webbing';
+              const key=source.uuid+':'+kind;
+              let material=G.v164.materials.get(key);
+              if(!material){
+                const set=G.v164.sets.get(kind);material=source.clone();
+                material.map=set.map;material.bumpMap=set.bump;material.roughnessMap=set.rough;
+                material.bumpScale=isLeather?.0014:isCamo?.0021:.0016;
+                material.roughness=isLeather?.94:.98;material.metalness=0;
+                material.needsUpdate=true;G.v164.materials.set(key,material);
+              }
+              n.material=material;
+              if(n.userData)n.userData.v164Textile=kind;
+            }
+            for(const child of n.children||[])finish(child);
+          };
+          finish(model.root);
+        }
         // V131: polish only the existing third-person firearm surfaces. No new functional components.
         if(!G.v131)G.v131=new Map();
         for(const n of model.weaponPivot.children){
