@@ -5788,7 +5788,9 @@
         }
         // Rounded fitted balaclava with integrated cheek and nose volume.
         const mask=classId==='sniper'?D.olive:D.mask;
-        part(face,F.mask,mask,0,-.045,.079,1,1,1);
+        // V148: the visible mask follows the same individual facial proportions as the skull.
+        const maskProfile=[[1,1,1],[.975,1.018,1.01],[1.032,.987,.99]][variantId];
+        part(face,F.mask,mask,0,-.045,.079,...maskProfile);
         ell(face,D.maskEdge,0,-.076,.102,.037,.014,.015);
         for(const s of [-1,1]){
           const eyewear=classId==='heavy'?[.048,.027]:classId==='sniper'?[.037,.017]:[.043,.022];
@@ -6236,7 +6238,7 @@
         };
         for(let i=0;i<groups.length;i++){
           const group=groups[i];if(!group)continue;
-          const key=team+':'+classId+':'+i;
+          const key=team+':'+classId+':'+i+(i===0?':face'+variantId:'');
           let batches=G.v104.get(key);
           if(!batches){
             batches=buildBatches(group);
@@ -6446,6 +6448,50 @@
             for(const child of n.children||[])textile(child);
           };
           textile(model.root);
+        }
+        // V149: sculpt existing class packs into distinct textile volumes; keep attachment planes fixed.
+        if(!G.v149)G.v149=new Map();
+        const packSource={medic:approved.medBag,engineer:approved.engPack,heavy:approved.heavyPack}[classId];
+        const packProfile={medic:[.10,.007,.004],engineer:[.045,.004,.002],heavy:[.07,.010,.005]}[classId];
+        if(packSource&&packProfile){
+          const original=H.shapes.get(packSource);
+          const pack=model.upperBody.children.find(n=>n.geometry===original);
+          if(pack&&typeof original?.clone==='function'&&typeof original.getAttribute==='function'){
+            let shaped=G.v149.get(classId);
+            if(!shaped){
+              shaped=original.clone();shaped.computeBoundingBox();
+              const bounds=shaped.boundingBox,p=shaped.getAttribute('position');
+              const hx=Math.max(.001,(bounds.max.x-bounds.min.x)/2);
+              const hy=Math.max(.001,(bounds.max.y-bounds.min.y)/2);
+              const depth=Math.max(.001,bounds.max.z-bounds.min.z);
+              for(let i=0;i<p.count;i++){
+                const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+                const outside=Math.max(0,Math.min(1,(bounds.max.z-z)/depth));
+                const nx=Math.min(1,Math.abs(x)/hx),ny=Math.min(1,Math.abs(y)/hy);
+                const top=Math.max(0,y/hy);
+                const fullness=(1-nx*nx)*(1-ny*ny);
+                const crease=Math.cos(y/hy*Math.PI*2)*fullness;
+                p.setXYZ(i,x*(1-packProfile[0]*top*outside),y,z-outside*(packProfile[1]*fullness+packProfile[2]*crease));
+              }
+              p.needsUpdate=true;shaped.computeVertexNormals();shaped.computeBoundingBox();shaped.computeBoundingSphere();
+              G.v149.set(classId,shaped);
+            }
+            pack.geometry=shaped;pack.userData.v149Pack=true;
+          }
+        }
+        // V150: finer helmet-shell highlights through role-specific matte finishes.
+        if(!G.v150)G.v150=new Map();
+        if(helmetMesh&&typeof helmetMesh.material?.clone==='function'){
+          const key=helmetMesh.material.uuid+':'+classId;
+          let material=G.v150.get(key);
+          if(!material){
+            material=helmetMesh.material.clone();
+            material.roughness={assault:.79,medic:.86,engineer:.80,sniper:.93,heavy:.73}[classId]||.82;
+            material.metalness=classId==='heavy'?.10:.025;
+            material.bumpMap=V101.rigMap;material.bumpScale=classId==='sniper'?.0018:.0008;
+            material.needsUpdate=true;G.v150.set(key,material);
+          }
+          helmetMesh.material=material;helmetMesh.userData.v150Shell=true;
         }
         // V131: polish only the existing third-person firearm surfaces. No new functional components.
         if(!G.v131)G.v131=new Map();
@@ -10697,6 +10743,8 @@
         bot.ammoState={};bot.botReload=null;bot.lastAmmoWeapon=null;bot.foObjectiveDelay=null;bot.retreatRouteRetry=null;
         if(bot.mesh.resetVisualCombatPose)bot.mesh.resetVisualCombatPose();
         bot.visualCarry=0;bot.lastVisualLegYaw=null;bot.visualTransition=null;
+        bot.visualAnkleLeft=0;bot.visualAnkleRight=0;bot.visualBob=0;bot.visualGaitPhase=null;
+        if(bot.mesh.setVisualDetailDistance)bot.mesh.setVisualDetailDistance(0);
         bot.stuckTimer = 0;
         bot.stuckFailures = 0;
         bot.blockedNode = -1;
@@ -14161,7 +14209,9 @@
           bot.hitFlinchRoll *= Math.exp(-16 * dt);
 
           if(bot.mesh.setVisualDetailDistance){
-            bot.mesh.setVisualDetailDistance(Math.hypot(bot.pos.x-camera.position.x,bot.pos.y-camera.position.y,bot.pos.z-camera.position.z));
+            // V147: optical magnification affects visual detail only, not detection or range.
+            const opticalScale=Math.tan(74*Math.PI/360)/Math.tan(Math.max(10,Math.min(120,camera.fov||74))*Math.PI/360);
+            bot.mesh.setVisualDetailDistance(Math.hypot(bot.pos.x-camera.position.x,bot.pos.y-camera.position.y,bot.pos.z-camera.position.z)/Math.max(.5,Math.min(8,opticalScale*(camera.zoom||1))));
           }
           const activeBotDrone = bot.classId === 'engineer' ? droneSystem.getOperatorDrone(bot.id) : null;
           if (activeBotDrone) {
@@ -14179,6 +14229,7 @@
             bot.mesh.upperBody.rotation.x = bot.crouchAmt * 0.28 + bot.hitFlinchPitch;
             bot.mesh.upperBody.rotation.z = bot.hitFlinchRoll;
             if(bot.mesh.resetVisualCombatPose)bot.mesh.resetVisualCombatPose();
+            bot.visualAnkleLeft=0;bot.visualAnkleRight=0;bot.visualBob=0;bot.visualCarry=0;bot.visualTransition=null;
             bot.mesh.leftHip.rotation.x *= Math.exp(-10 * dt);
             bot.mesh.rightHip.rotation.x *= Math.exp(-10 * dt);
             bot.mesh.leftKnee.rotation.x = bot.crouchAmt * 0.45;
@@ -15258,7 +15309,10 @@
           const visualStance=botVisualStance(bot.classId,nowSec*2.7+bot.animPhase,actualSpeed,bot.crouchAmt,visualTurnRate,quietCarry);
           const visualMotion=botVisualTransition(bot.visualTransition,actualSpeed,dt,bot.coverPhase,bot.crouchAmt,bot.classId);
           bot.visualTransition=visualMotion;
-          bot.visualCarry=quietCarry?((bot.visualCarry||0)+(visualStance.carry-(bot.visualCarry||0))*(1-Math.exp(-dt*9))):0;
+          // V152: lower carry gradually, raise quickly on contact; gameplay aim remains unchanged.
+          const carryTarget=quietCarry?visualStance.carry:0;
+          bot.visualCarry=quietCarry?(bot.visualCarry||0)+(carryTarget-(bot.visualCarry||0))*(1-Math.exp(-dt*9)):0;
+          const oldBob=Number.isFinite(bot.visualBob)?bot.visualBob:0;
           bot.mesh.upperBody.rotation.y = Math.max(-1.15, Math.min(1.15, relUpperYaw));
           bot.mesh.upperBody.rotation.x = bot.crouchAmt * 0.22 + bot.hitFlinchPitch;
           bot.mesh.upperBody.rotation.z = bot.hitFlinchRoll;
@@ -15294,15 +15348,22 @@
             gait.leftHip+=ground.leftHip+visualMotion.hipBias;gait.rightHip+=ground.rightHip+visualMotion.hipBias;
             gait.leftKnee+=ground.leftKnee+visualMotion.kneeBias;gait.rightKnee+=ground.rightKnee+visualMotion.kneeBias;
             gait.leftSide+=ground.weightShift;gait.rightSide+=ground.weightShift;
-            if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(ground.leftFoot*visualMotion.footDamp,ground.rightFoot*visualMotion.footDamp);
-            if(quietCarry)bot.mesh.upperBody.position.y=.93+ground.bob;
+            // V151: damp ankle orientation across movement/stop boundaries.
+            const ankleBlend=1-Math.exp(-Math.max(0,dt)*18);
+            bot.visualAnkleLeft=(bot.visualAnkleLeft||0)+(ground.leftFoot*visualMotion.footDamp-(bot.visualAnkleLeft||0))*ankleBlend;
+            bot.visualAnkleRight=(bot.visualAnkleRight||0)+(ground.rightFoot*visualMotion.footDamp-(bot.visualAnkleRight||0))*ankleBlend;
+            if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(bot.visualAnkleLeft,bot.visualAnkleRight);
+            bot.visualBob=quietCarry?oldBob+(ground.bob-oldBob)*(1-Math.exp(-dt*14)):0;
+            bot.mesh.upperBody.position.y=.93+bot.visualBob;
             const smooth=1-Math.exp(-dt*19);
             const blend=(obj,key,target)=>obj[key]+=(target-obj[key])*smooth;
             blend(bot.mesh.leftHip.rotation,'x',gait.leftHip);blend(bot.mesh.rightHip.rotation,'x',gait.rightHip);
             blend(bot.mesh.leftHip.rotation,'z',gait.leftSide-visualStance.stanceWidth*.35);blend(bot.mesh.rightHip.rotation,'z',gait.rightSide+visualStance.stanceWidth*.35);
             blend(bot.mesh.leftKnee.rotation,'x',gait.leftKnee);blend(bot.mesh.rightKnee.rotation,'x',gait.rightKnee);
           } else {
-            if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(0,0);
+            bot.visualAnkleLeft=(bot.visualAnkleLeft||0)*Math.exp(-Math.max(0,dt)*16);
+            bot.visualAnkleRight=(bot.visualAnkleRight||0)*Math.exp(-Math.max(0,dt)*16);
+            if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(bot.visualAnkleLeft,bot.visualAnkleRight);
             const stanceBlend=1-Math.exp(-dt*12);
             bot.mesh.leftHip.rotation.z+=(-visualStance.stanceWidth-bot.mesh.leftHip.rotation.z)*stanceBlend;
             bot.mesh.rightHip.rotation.z+=(visualStance.stanceWidth-bot.mesh.rightHip.rotation.z)*stanceBlend;
@@ -15312,7 +15373,8 @@
             const kneeBlend=1-Math.exp(-dt*13);
             bot.mesh.leftKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnLeft+visualStance.kneeBias+visualMotion.kneeBias-bot.mesh.leftKnee.rotation.x)*kneeBlend;
             bot.mesh.rightKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnRight+visualStance.kneeBias+visualMotion.kneeBias-bot.mesh.rightKnee.rotation.x)*kneeBlend;
-            bot.mesh.upperBody.position.y = 0.93 + breath;
+            bot.visualBob=quietCarry?oldBob+(breath-oldBob)*(1-Math.exp(-dt*12)):0;
+            bot.mesh.upperBody.position.y = .93+bot.visualBob;
           }
         }
         sampleBotMetrics(dt,bots);
