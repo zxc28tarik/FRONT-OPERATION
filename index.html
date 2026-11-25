@@ -4858,8 +4858,8 @@
       }
 
       function buildViewmodel(weaponId) {
-        if(typeof clearV271PlayerFlash==='function'&&typeof v271FlashLeft!=='undefined')clearV271PlayerFlash();
         if (currentViewmodelMesh) {
+          if(typeof clearV271PlayerFlash==='function')clearV271PlayerFlash();
           viewmodelGroup.remove(currentViewmodelMesh);
           disposeViewmodel(currentViewmodelMesh);
           currentViewmodelMesh = null;
@@ -13340,9 +13340,9 @@ return {createExperimentalRig,createAdaptiveRigController};
       function triggerV271BotFlash(bot,category){
         const mesh=bot.mesh.muzzleFlash;
         if(!mesh.geometry.userData.v271Muzzle){
-          const old=mesh.geometry,assets=getV271MuzzleAssets();
+          const old=mesh.geometry,oldMat=mesh.material,assets=getV271MuzzleAssets();
           mesh.geometry=assets.geometry;mesh.material=assets.material;
-          old.dispose();
+          old.dispose();oldMat.dispose();
         }
         const size=v271FlashScale(category);
         mesh.userData.v271Scale=size;
@@ -16545,7 +16545,7 @@ return {createExperimentalRig,createAdaptiveRigController};
                   bot.suppressFireTimer = (60 / sw.rpm) * 2.5 + Math.random() * 0.08;
                   bot.muzzleTimer = 0.055;
                   bot.mesh.muzzleFlash.visible = true;
-                  triggerV271BotFlash(bot,bw.category);
+                  triggerV271BotFlash(bot,sw.category);
 
                   sound.playGunshot(sw.category, botEyeNoTarget.distanceTo(camera.position), sw.id);
                   emitBotNoise(bot.team, bot.pos, 'gun', bot.id);
