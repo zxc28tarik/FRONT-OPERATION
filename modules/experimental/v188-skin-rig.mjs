@@ -1,8 +1,8 @@
-// V183–V188 experimental visual-only rig. Not imported by index.html.
+// V217–V222 compact experimental visual-only rig. Not imported by index.html.
 import * as THREE from 'three';
 const Y=new THREE.Vector3(0,1,0);
 const ease=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
-const point=(root,node)=>root.worldToLocal(node.getWorldPosition(new THREE.Vector3()));
+const point=(inverse,node)=>new THREE.Vector3().setFromMatrixPosition(node.matrixWorld).applyMatrix4(inverse);
 function chains(model){
  const root=model.root;
  const arm=side=>{
@@ -13,25 +13,44 @@ function chains(model){
   return [shoulder,elbow,hand];
  };
  const leg=side=>[model[side+'Hip'],model[side+'Knee'],model[side+'Knee'].children.find(n=>n.name==='v132_ankle')];
- const extremities=['left','right'].flatMap(side=>[{kind:'leg',nodes:leg(side),radii:[.073,.059,.048]},{kind:'arm',nodes:arm(side),radii:[.057,.049,.035]}]).map(c=>{
+ const extremities=[...['left','right'].map(side=>({kind:'leg',nodes:leg(side),radii:[.073,.059,.048]})),...['left','right'].map(side=>({kind:'arm',nodes:arm(side),radii:[.057,.049,.035]}))].map(c=>{
   if(c.nodes.some(n=>!n))throw Error('V188 rig missing '+c.kind+' pivot');
-  return {...c,points:()=>c.nodes.map(n=>point(root,n))};
+  return {...c,points:(inverse=new THREE.Matrix4().copy(root.matrixWorld).invert())=>c.nodes.map(n=>point(inverse,n))};
  });
- const torsoPoint=y=>root.worldToLocal(model.upperBody.localToWorld(new THREE.Vector3(0,y,0)));
- return [...extremities,{kind:'torso',radii:[.135,.159,.129],points:()=>[new THREE.Vector3(0,.88,0),torsoPoint(.15),torsoPoint(.45)]}];
+ const torsoPoint=(y,inverse)=>new THREE.Vector3(0,y,0).applyMatrix4(model.upperBody.matrixWorld).applyMatrix4(inverse);
+ return [...extremities,{kind:'torso',radii:[.135,.159,.129],points:(inverse=new THREE.Matrix4().copy(root.matrixWorld).invert())=>[new THREE.Vector3(0,.88,0),torsoPoint(.15,inverse),torsoPoint(.45,inverse)]}];
 }
 function segmentBasis(a,b){
  const d=b.clone().sub(a),length=d.length();
  if(length<.0001)throw Error('V188 degenerate segment');
  return {length,q:new THREE.Quaternion().setFromUnitVectors(Y,d.normalize())};
 }
+// Round the joint centerline rather than forcing each ring through a sharp kink.
+const startBend=.34,endBend=.66;
+export function rigCenter(points,t,out=new THREE.Vector3()){
+ const [a,b,c]=points;
+ if(t<=startBend)return out.copy(a).lerp(b,t*2);
+ if(t>=endBend)return out.copy(b).lerp(c,(t-.5)*2);
+ const u=(t-startBend)/(endBend-startBend),v=1-u;
+ // Quadratic Bezier endpoints lie on the two segments. A bent elbow remains continuous.
+ return out.copy(a).multiplyScalar((1-startBend*2)*v*v)
+  .addScaledVector(b,startBend*2*v*v+2*u*v+(2-endBend*2)*u*u)
+  .addScaledVector(c,(endBend*2-1)*u*u);
+}
 export function createExperimentalRig(model,{radial=16,steps=24}={}){
  if(radial<8||steps<12||steps%2)throw Error('Invalid rig resolution');
  const root=model.root;root.updateMatrixWorld(true);
- const limbs=chains(model),bones=[],pos=[],uv=[],skinIndex=[],skinWeight=[],indices=[],groups=[],seams=[];
+ const limbs=chains(model),bones=[],pos=[],uv=[],skinIndex=[],skinWeight=[],indices=[],groups=[],seams=[],plans=[];
+ const inverse=new THREE.Matrix4().copy(root.matrixWorld).invert();
  for(const limb of limbs){
-  const p=limb.points(),base=bones.length;
-  const qa=segmentBasis(p[0],p[1]).q,qb=segmentBasis(p[1],p[2]).q;
+  const p=limb.points(inverse),base=bones.length;
+  const ba=segmentBasis(p[0],p[1]),bb=segmentBasis(p[1],p[2]),qa=ba.q,qb=bb.q;
+  const makeBone=(name,center,q)=>{
+   const bone=new THREE.Bone();bone.name=name;bone.position.copy(center);bone.quaternion.copy(q);bones.push(bone);return bones.length-1;
+  };
+  const first=makeBone('v222_'+limb.kind+'_proximal',p[0],qa),last=makeBone('v222_'+limb.kind+'_distal',p[1],qb);
+  const jointBones=[],ringIds=[];
+  plans.push({limb,first,last,jointBones,lengths:[ba.length,bb.length]});
   const offset=pos.length/3,indexStart=indices.length;
   const source=limb.kind==='leg'?model.leftHip.children.find(n=>n.userData.v129Sculpted):model.upperBody.children.find(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)>.1);
   const torsoSources=model.upperBody.children.filter(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)<.02&&n.position.y>.05);
@@ -41,12 +60,12 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
   const depth=limb.kind==='torso'?torsoDepth:(source?.scale.z||1);
   for(let j=0;j<=steps;j++){
    const t=j/steps,seg=t<=.5?0:1,u=seg===0?t*2:(t-.5)*2;
-   const center=p[seg].clone().lerp(p[seg+1],u);
-   const bend=ease((t-.36)/.28),q=qa.clone().slerp(qb,bend);
-   // V211–V214: interpolate rigid cross-section frames, not vertex matrices.
-   // Each ring keeps its radius even when neighboring segments rotate oppositely.
-   const bone=new THREE.Bone();bone.name='v216_'+limb.kind+'_'+base+'_'+j;
-   bone.position.copy(center);bone.quaternion.copy(q);bones.push(bone);
+   const center=rigCenter(p,t);
+   const bend=ease((t-startBend)/(endBend-startBend)),q=qa.clone().slerp(qb,bend);
+   // Straight portions share one length-scaled bone. Only the curved transition needs ring bones.
+   let id=t<=startBend?first:t>=endBend?last:makeBone('v222_'+limb.kind+'_bend_'+j,center,q);
+   if(id!==first&&id!==last)jointBones.push({id,t,bend});
+   ringIds.push(id);
    const joint=Math.exp(-(((t-.5)/.15)**2));
    const fullness=limb.kind==='arm'?.075:limb.kind==='leg'?.085:.025;
    const proximal=limb.kind==='arm'?.055:limb.kind==='leg'?.045:0;
@@ -55,7 +74,7 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
     const angle=k/radial*Math.PI*2;
     const v=new THREE.Vector3(Math.cos(angle)*r*width,0,Math.sin(angle)*r*depth*(limb.kind==='torso'?.70:.94)).applyQuaternion(q).add(center);
     pos.push(v.x,v.y,v.z);uv.push(k/radial,t);
-    skinIndex.push(base+j,0,0,0);skinWeight.push(1,0,0,0);
+    skinIndex.push(id,0,0,0);skinWeight.push(1,0,0,0);
     if(j<steps&&k<radial){
      const a=offset+j*(radial+1)+k,b=a+radial+1;
      indices.push(a,b,a+1,b,b+1,a+1);
@@ -67,13 +86,16 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
   for(const end of [0,steps]){
    const ring=offset+end*(radial+1),center=pos.length/3;
    const v=p[end===0?0:2];pos.push(v.x,v.y,v.z);uv.push(.5,end===0?0:1);
-   skinIndex.push(base+end,0,0,0);skinWeight.push(1,0,0,0);
+   skinIndex.push(ringIds[end],0,0,0);skinWeight.push(1,0,0,0);
    for(let k=0;k<radial;k++){
     if(end===0)indices.push(center,ring+k,ring+k+1);
     else indices.push(center,ring+k+1,ring+k);
    }
   }
-  groups.push({start:indexStart,count:indices.length-indexStart,materialIndex:limb.kind==='leg'?0:1});
+  const materialIndex=limb.kind==='leg'?0:1;
+  const prev=groups.at(-1);
+  if(prev&&prev.materialIndex===materialIndex)prev.count+=indices.length-indexStart;
+  else groups.push({start:indexStart,count:indices.length-indexStart,materialIndex});
  }
  const geometry=new THREE.BufferGeometry();
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
@@ -111,16 +133,17 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
  };
  const update=()=>{
   root.updateMatrixWorld(true);
-  limbs.forEach((limb,i)=>{
-   const p=limb.points();
-   const qa=segmentBasis(p[0],p[1]).q,qb=segmentBasis(p[1],p[2]).q;
-   for(let j=0;j<=steps;j++){
-    const t=j/steps,seg=t<=.5?0:1,u=seg===0?t*2:(t-.5)*2;
-    const b=bones[i*(steps+1)+j];
-    b.position.copy(p[seg]).lerp(p[seg+1],u);
-    b.quaternion.copy(qa).slerp(qb,ease((t-.36)/.28));
+  inverse.copy(root.matrixWorld).invert();
+  for(const plan of plans){
+   const p=plan.limb.points(inverse),a=segmentBasis(p[0],p[1]),b=segmentBasis(p[1],p[2]);
+   const first=bones[plan.first],last=bones[plan.last];
+   first.position.copy(p[0]);first.quaternion.copy(a.q);first.scale.y=a.length/plan.lengths[0];
+   last.position.copy(p[1]);last.quaternion.copy(b.q);last.scale.y=b.length/plan.lengths[1];
+   for(const ring of plan.jointBones){
+    const bone=bones[ring.id];rigCenter(p,ring.t,bone.position);
+    bone.quaternion.copy(a.q).slerp(b.q,ring.bend);
    }
-  });
+  }
   mesh.updateMatrixWorld(true);skeleton.update();
  };
  const dispose=()=>{setEnabled(false);root.remove(mesh);geometry.dispose();materials.forEach(m=>m.dispose());skeleton.dispose?.();};

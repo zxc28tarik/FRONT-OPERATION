@@ -2,18 +2,21 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
 import * as THREE from 'three';
-import {createExperimentalRig} from '../modules/experimental/v188-skin-rig.mjs';
+import {createExperimentalRig,rigCenter} from '../modules/experimental/v188-skin-rig.mjs';
 const html=fs.readFileSync('index.html','utf8');
 const a=html.indexOf('      let SOLDIER_SHARED = null;'),b=html.indexOf('      // =========================================================================\n      // 8. COLLISION',a);
 const api=new Function('THREE',html.slice(a,b)+'\nreturn {enhanced:createEnhancedBotSoldierMesh};')(THREE);
 let cases=0,maxRestError=0,minRingRatio=Infinity,maxRingRatio=0,maxCenterError=0,maxLongitudinalRatio=0;
 const reps=[];
+// Curve endpoints and straight-segment midpoint are independent reference checks.
+const line=[new THREE.Vector3(0,0,0),new THREE.Vector3(0,1,0),new THREE.Vector3(0,2,0)];
+for(const t of [0,.34,.5,.66,1])assert(rigCenter(line,t).distanceTo(new THREE.Vector3(0,2*t,0))<1e-8);
 for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer','sniper','heavy'])for(let variant=0;variant<3;variant++){
  const m=api.enhanced(team,cls,variant),r=createExperimentalRig(m);
- assert.equal(r.bones.length,125);assert.equal(r.mesh.visible,false);
+ assert.equal(r.bones.length,45);assert.equal(r.mesh.visible,false);
  const p=r.geometry.getAttribute('position'),w=r.geometry.getAttribute('skinWeight'),idx=r.geometry.getAttribute('skinIndex');
  const normals=r.geometry.getAttribute('normal');
- assert.equal(r.mesh.material.length,2);assert.equal(r.geometry.groups.length,5);
+ assert.equal(r.mesh.material.length,2);assert.equal(r.geometry.groups.length,2);
  assert.equal(r.geometry.groups.reduce((sum,g)=>sum+g.count,0),r.geometry.index.count);
  assert(normals.array.every(Number.isFinite));
  // Verify duplicated UV-seam positions and their repaired normals.
@@ -64,7 +67,7 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
    const points=r.limbs[limb].points();
    for(let ring=0;ring<25;ring++){
     const i=limb*stride+ring*17,t=ring/24,seg=t<=.5?0:1,u=seg===0?t*2:(t-.5)*2;
-    const expected=points[seg].clone().lerp(points[seg+1],u),center=new THREE.Vector3();
+    const expected=rigCenter(points,t),center=new THREE.Vector3();
     for(let k=0;k<16;k++){const v=new THREE.Vector3().fromBufferAttribute(p,i+k);r.mesh.boneTransform(i+k,v);center.add(v);}
     center.multiplyScalar(1/16);
     const error=center.distanceTo(expected);maxCenterError=Math.max(maxCenterError,error);
@@ -88,5 +91,5 @@ const frames=120,run=()=>{for(let i=0;i<frames;i++)for(const {m,r} of reps){
  m.rightKnee.rotation.x=Math.cos(phase)*.55;r.update();
 }};
 run();const start=performance.now();run();const elapsed=performance.now()-start;
-console.log(JSON.stringify({cases,bones:125,maxRestError,minRingRatio,maxRingRatio,maxCenterError,maxLongitudinalRatio,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
+console.log(JSON.stringify({cases,bones:45,maxRestError,minRingRatio,maxRingRatio,maxCenterError,maxLongitudinalRatio,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
 for(const {r} of reps)r.dispose();
