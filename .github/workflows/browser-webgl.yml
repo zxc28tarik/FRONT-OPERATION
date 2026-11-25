@@ -72,6 +72,7 @@ on:
       - art/v277-combat-feedback
       - art/v281-combat-acceptance
       - art/v287-weapon-animation
+      - art/v291-directional-gait-draft
   workflow_dispatch:
 
 jobs:
@@ -223,6 +224,14 @@ jobs:
           FO_WEAPON_BASELINE=/tmp/fo-v255.html FO_WEAPON_PREVIOUS=/tmp/fo-v264.html node scripts/check-v270-integrated-weapon.mjs
           FO_WEAPON_BASELINE=/tmp/fo-v255.html node scripts/weapon-turntable-v270.mjs
           FO_CHARACTER_BASELINE=/tmp/fo-v255.html FO_CHARACTER_BASELINE_LABEL=V255 FO_CHARACTER_CANDIDATE_LABEL=V270 FO_CHARACTER_EXPANDED=1 node scripts/character-turntable.mjs
+      - name: V291 directional gait source and WebGL comparison
+        if: github.ref_name == 'art/v291-directional-gait-draft'
+        run: |
+          git fetch --depth=1 origin a34c2ca958379b0023b0ee0418b40d01daeced61
+          git show a34c2ca958379b0023b0ee0418b40d01daeced61:index.html > /tmp/fo-v287.html
+          FO_V287_BASELINE=/tmp/fo-v287.html node scripts/check-v291-directional-gait-draft.mjs
+          FO_V287_BASELINE=/tmp/fo-v287.html node scripts/browser-v291-directional-gait.mjs
+          node scripts/check-v273-muzzle-profiles.mjs
       - name: V287 isolated weapon animation and resource acceptance
         if: github.ref_name == 'art/v287-weapon-animation'
         run: |

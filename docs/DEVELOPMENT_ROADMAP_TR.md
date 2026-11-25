@@ -110,3 +110,7 @@ Başlangıç: V273, PR #63, dal art/v273-distinct-muzzle-designs, commit 2d60406
 ## 4. Başlangıç durum kaydı
 
 A: 8/8 teknik kabul başarılı (V281, WebGL 45703821239). B: V282–V286 kodlandı, V287 kabul altyapısı kayıtlı; 6/6 kod/test kapsamı, son teknik kabul bekliyor. C–I: planlandı. Toplam 14/62 kod/test altyapısı, 8/62 doğrulanmış teknik kabul. Sonraki V288, V287 kabulünden sonra. Bot zekâsı: KİLİTLİ — açık kullanıcı izni olmadan başlanmayacak.
+
+### C4 aday dalı durum güncellemesi
+
+V291: kullanıcının açık C4 talimatı ile ayrı aday dalda kodlandı. 28.800 sayısal kontrol ve 40.320 prototip karşılaştırması başarılı; gerçek WebGL/FPS ve V287/C1–C3 kabulü açık. Önceki aşamalar tamamlanmış sayılmaz. Ana dal değişmedi. Ayrıntı: docs/V291_DIRECTIONAL_GAIT_DRAFT_TR.md.
