@@ -40,6 +40,7 @@ on:
       - art/v145-character-cohesion
       - art/v152-character-surface-motion
       - art/v155-character-continuity
+      - art/v170-anatomy-textile-head
   workflow_dispatch:
 
 jobs:
@@ -64,6 +65,12 @@ jobs:
         run: node scripts/browser-bomb-depot-smoke.mjs
       - name: Render V25 versus current characters from three angles
         run: node scripts/character-turntable.mjs
+      - name: Render V155 versus V170 at equal camera and lighting
+        if: github.ref_name == 'art/v170-anatomy-textile-head'
+        run: |
+          git fetch --depth=1 origin 5616c88177a7803ab25f39058074d9767fb93e8f
+          git show 5616c88177a7803ab25f39058074d9767fb93e8f:index.html > /tmp/fo-v155.html
+          FO_CHARACTER_BASELINE=/tmp/fo-v155.html node scripts/character-turntable.mjs
       - name: Save browser screenshots and report even if tests fail
         if: always()
         uses: actions/upload-artifact@v4

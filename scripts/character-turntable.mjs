@@ -7,7 +7,8 @@ const output = path.resolve('test-artifacts/front-operation-browser');
 fs.mkdirSync(output, { recursive: true });
 const source = fs.readFileSync('index.html', 'utf8');
 
-function extract(name) {
+function extract(name, sourceText=source) {
+  const source=sourceText;
   const start = source.indexOf('function ' + name + '(');
   if (start < 0) throw Error('Missing ' + name);
   const open = source.indexOf('{', start);
@@ -31,16 +32,19 @@ function extract(name) {
   throw Error('Unterminated function ' + name);
 }
 
-const soldierFunctions = [
+const makeSoldierFunctions = input => [
   'let SOLDIER_SHARED = null;',
   'let SOLDIER_V11_DETAIL_GEOMETRIES = null;',
-  extract('getSoldierSharedAssets'),
-  extract('createLimbMesh'),
-  extract('createBotSoldierMesh'),
-  extract('enhanceV25SoldierWithV11Details'),
-  extract('createEnhancedBotSoldierMesh'),
+  extract('getSoldierSharedAssets', input),
+  extract('createLimbMesh', input),
+  extract('createBotSoldierMesh', input),
+  extract('enhanceV25SoldierWithV11Details', input),
+  extract('createEnhancedBotSoldierMesh', input),
   'return { base: createBotSoldierMesh, enhanced: createEnhancedBotSoldierMesh, assets: getSoldierSharedAssets };'
 ].join('\n');
+const soldierFunctions=makeSoldierFunctions(source);
+const baselineCode=process.env.FO_CHARACTER_BASELINE?makeSoldierFunctions(fs.readFileSync(process.env.FO_CHARACTER_BASELINE,'utf8')):null;
+const prefix=baselineCode?'v155-compare-':'';
 const pageHtml = '<!doctype html><html><head><meta charset="UTF-8">' +
   '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>' +
   '<style>html,body{margin:0;background:#192232;color:#fff;font-family:Arial,sans-serif;overflow:hidden}' +
@@ -49,8 +53,8 @@ const pageHtml = '<!doctype html><html><head><meta charset="UTF-8">' +
   '#hint{position:absolute;top:65px;left:30px;font-size:14px;color:#dce5f4}' +
   '.caption{position:absolute;bottom:35px;font-size:24px;font-weight:900;background:#111827e6;padding:12px 20px;border-radius:12px;border:2px solid #9aa9bf}' +
   '#left{left:12%}#right{right:12%;border-color:#38bdf8}</style></head><body>' +
-  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V155 DETAILS</div>' +
-  '<div id="left" class="caption">ORIGINAL V25</div><div id="right" class="caption">V25 + V155 DETAILS</div>' +
+  '<canvas id="preview"></canvas><div id="title"></div><div id="hint">SAME V25 FOUNDATION • SAME LIGHT • SAME CAMERA • V11 + V26 + V170 DETAILS</div>' +
+  '<div id="left" class="caption">'+(baselineCode?'V155':'ORIGINAL V25')+'</div><div id="right" class="caption">V170</div>' +
   '</body></html>';
 const server = createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -67,10 +71,11 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   page.on('pageerror', e => report.errors.push(String(e)));
   await page.goto('http://127.0.0.1:' + server.address().port + '/', { waitUntil: 'load', timeout: 65000 });
-  await page.evaluate(soldierCode => {
+  await page.evaluate(({soldierCode,baselineCode}) => {
     const THREE = window.THREE;
     if (!THREE) throw Error('Three.js r128 did not load');
     const { base, enhanced, assets } = new Function('THREE', soldierCode)(THREE);
+    const previous=baselineCode?new Function('THREE',baselineCode)(THREE).enhanced:base;
     const helmetGeo = assets().geos.helmetShell;
     const positions = helmetGeo.getAttribute('position'), normals = helmetGeo.getAttribute('normal');
     let outwardSum = 0, sampleCount = 0;
@@ -117,7 +122,7 @@ try {
     window.__foCharacterPreview = {
       change(role, angle, team) {
         while (models.children.length) models.remove(models.children[0]);
-        const original = base(team, role), improved = enhanced(team, role);
+        const original = previous(team, role), improved = enhanced(team, role);
         const rotation = angle === 'back' ? Math.PI : angle === 'right' ? Math.PI / 2 : 0;
         original.root.position.x = -0.82;
         improved.root.position.x = 0.82;
@@ -148,7 +153,7 @@ try {
       }
     };
     renderer.render(scene, camera);
-  }, soldierFunctions);
+  }, {soldierCode:soldierFunctions,baselineCode});
   for (const team of ['blue', 'red']) {
     for (const role of ['assault', 'medic', 'engineer', 'sniper', 'heavy']) {
       const views = ['front', 'right', 'back'];
@@ -159,9 +164,9 @@ try {
         );
         if(stats.detailInput<70||stats.detailOutput>=stats.detailInput*.45||stats.invalidBatches!==0)throw Error('Invalid V104 batches '+JSON.stringify(stats));
         if(!stats.roleHelmet||stats.roleVests!==2)throw Error('Missing V105 role geometry');
-        if(stats.enhanced<=stats.original||stats.enhanced>stats.original+105)throw Error('Unexpected '+role+' model size');
+        if((!baselineCode&&stats.enhanced<=stats.original)||stats.enhanced>stats.original+105)throw Error('Unexpected '+role+' model size');
         if (Math.abs(stats.headY - 1.54) > 0.001) throw Error('Head geometry regression');
-        const image = 'character-' + team + '-' + role + '-' + angle + '.png';
+        const image = prefix+'character-' + team + '-' + role + '-' + angle + '.png';
         await page.screenshot({ path: path.join(output, image), animations: 'disabled' });
         report.images.push(image);
         report.models.push({ team, role, angle, ...stats });
@@ -175,7 +180,7 @@ try {
   report.errors.push(String(e));
   console.error('FAIL character visual WebGL compare: ' + String(e));
 } finally {
-  fs.writeFileSync(path.join(output, 'character-report.json'), JSON.stringify(report, null, 2));
+  fs.writeFileSync(path.join(output, prefix+'character-report.json'), JSON.stringify(report, null, 2));
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
 }

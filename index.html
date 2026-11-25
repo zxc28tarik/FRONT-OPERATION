@@ -6497,7 +6497,7 @@
           textile(model.root);
         }
         // V168: separate lens optics from the matte rubber surround.
-        if(typeof D.lens.getAttribute==='undefined'&&typeof D.lens.color?.clone==='function'){
+        if(typeof D.lens.color?.clone==='function'){
           if(!G.v168)G.v168=new Map();
           const source=G.v117.get(D.lens)||D.lens;
           let glass=G.v168.get(classId);
@@ -6590,7 +6590,10 @@
               }
               albedo[index+3]=height[index+3]=rough[index+3]=255;
             }
-            sets.set(kind,{map:makeTexture(albedo),bump:makeTexture(height),rough:makeTexture(rough)});
+            const set={map:makeTexture(albedo),bump:makeTexture(height),rough:makeTexture(rough)};
+            // V160: microstructure repeats independently of the larger camouflage field.
+            set.bump.repeat.set(2,2);set.rough.repeat.set(2,2);
+            sets.set(kind,set);
           }
           G.v164={sets,materials:new Map()};
         }
@@ -6723,6 +6726,31 @@
               }
             };
             model.updateVisualGrip(0);
+          }
+        }
+        // V163: approximate contact shading baked into existing torso vertices.
+        // Not a screen-space AO pass. The shading follows the cloth and adds no draw call.
+        if(typeof THREE.Float32BufferAttribute==='function'&&G.v164){
+          if(!G.v163)G.v163=new Map();
+          for(const n of model.upperBody.children){
+            if(!n.userData?.v129Sculpted||Math.abs(n.position.x)>.02||n.position.y>.40)continue;
+            const high=n.geometry,low=G.v146.get(high);
+            if(!low||!high.getAttribute||!low.getAttribute)continue;
+            for(const g of [high,low]){
+              if(g.getAttribute('color'))continue;
+              const p=g.getAttribute('position'),rgb=new Float32Array(p.count*3);
+              for(let i=0;i<p.count;i++){
+                const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+                const edge=Math.exp(-((Math.abs(x)-.135)**2)/.00055)*Math.min(1,Math.abs(z)/.09);
+                const hem=Math.exp(-((y+.075)**2)/.0008);
+                const shade=1-Math.min(.17,edge*.115+hem*.045);
+                rgb[i*3]=rgb[i*3+1]=rgb[i*3+2]=shade;
+              }
+              g.setAttribute('color',new THREE.Float32BufferAttribute(rgb,3));
+            }
+            let material=G.v163.get(n.material);
+            if(!material){material=n.material.clone();material.vertexColors=true;material.needsUpdate=true;G.v163.set(n.material,material);}
+            n.material=material;n.userData.v163Contact=true;
           }
         }
         // V170: retain facial shape identity in a cheaper distance mesh.
