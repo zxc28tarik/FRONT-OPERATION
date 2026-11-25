@@ -6502,18 +6502,43 @@
           magazine.position.set(0,-.055,.115);model.weaponPivot.add(magazine);
         }
         if(magazine)magazine.name='v119_visual_magazine';
-        const magRest=magazine?{x:magazine.position.x,y:magazine.position.y,z:magazine.position.z,rx:magazine.rotation.x}:null;
+        const magRest=magazine?{x:magazine.position.x,y:magazine.position.y,z:magazine.position.z,
+          rx:magazine.rotation.x,ry:magazine.rotation.y,rz:magazine.rotation.z}:null;
+        // V254: small class-specific weapon posture differences, while preserving
+        // the approved weapon model, aim rotation, all muzzle anchors and hit logic.
+        const combatHeft={
+          assault:{kick:1,reload:1,shift:.002,magYaw:.028},
+          medic:{kick:.88,reload:.91,shift:.002,magYaw:.020},
+          engineer:{kick:.92,reload:1.02,shift:.003,magYaw:.034},
+          sniper:{kick:.78,reload:1.11,shift:.001,magYaw:.022},
+          heavy:{kick:.68,reload:.79,shift:-.004,magYaw:.018}
+        }[classId]||{kick:1,reload:1,shift:0,magYaw:.02};
         model.setVisualCombatPose=(pose)=>{
-          const p=pose||{},kick=Math.max(0,Math.min(1,p.kick||0)),reload=Math.max(0,Math.min(1,p.reload||0)),swap=Math.max(0,Math.min(1,p.swap||0));
-          const carry=Math.max(0,Math.min(1,p.carry||0));
-          model.weaponPivot.position.set(weaponRest.x,weaponRest.y-.025*reload-.030*carry,weaponRest.z-kick*.033-.012*reload-.025*carry);
+          const p=pose||{};
+          const clamp=x=>Math.max(0,Math.min(1,Number.isFinite(x)?x:0));
+          const kick=clamp(p.kick),reload=clamp(p.reload),swap=clamp(p.swap),carry=clamp(p.carry);
+          // Model-space offsets only; class weapon stats and aim pitch remain
+          // immutable. Muzzle kick is still driven by actual muzzleTimer.
+          const rear=kick*.034*combatHeft.kick;
+          const down=reload*.028*combatHeft.reload;
+          model.weaponPivot.position.set(
+            weaponRest.x+combatHeft.shift*reload+combatHeft.shift*.65*swap,
+            weaponRest.y-down-.027*carry+.0028*kick,
+            weaponRest.z-rear-.014*reload-.024*carry);
           if(magazine&&magRest){
             const heavy=classId==='heavy',sniper=classId==='sniper';
-            magazine.position.set(magRest.x-(heavy?.065:.026)*swap,magRest.y-(heavy?.071:sniper?.075:.105)*swap,magRest.z-(heavy?.012:.025)*swap);
-            magazine.rotation.x=magRest.rx+swap*(heavy?.21:.38);
+            const out=swap*(heavy?.064:sniper?.024:.028);
+            const drop=swap*(heavy?.078:sniper?.080:.106);
+            const back=swap*(heavy?.014:sniper?.018:.026);
+            magazine.position.set(magRest.x-out,magRest.y-drop,magRest.z-back);
+            magazine.rotation.x=magRest.rx+swap*(heavy?.245:sniper?.30:.39);
+            magazine.rotation.y=magRest.ry+swap*combatHeft.magYaw;
+            magazine.rotation.z=magRest.rz-swap*(heavy?.055:.038);
           }
-          const reloadTarget=magazine?{x:magazine.position.x-(classId==='heavy'?.027:.024),y:magazine.position.y,z:magazine.position.z}:null;
-          if(model.updateVisualGrip)model.updateVisualGrip(model.weaponPivot.rotation.x,reload,reloadTarget);
+          // Existing two-arm IK re-solves after the visually shifted magazine.
+          const target=magazine?{x:magazine.position.x-(classId==='heavy'?.027:.024),
+            y:magazine.position.y,z:magazine.position.z}:null;
+          if(model.updateVisualGrip)model.updateVisualGrip(model.weaponPivot.rotation.x,reload,target);
         };
         model.resetVisualCombatPose=()=>{
           model.setVisualCombatPose({kick:0,reload:0,swap:0});
