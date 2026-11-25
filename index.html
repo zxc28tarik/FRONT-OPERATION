@@ -101,7 +101,12 @@
 
     #hitmarker.active {
       opacity: 1;
-      transform: translate(-50%, -50%) scale(1.08);
+      transform: translate(-50%, -50%) scale(var(--fo-hit-scale, 1.08));
+    }
+
+    /* V275: readable existing hit indicator, no new HUD elements. */
+    #hitmarker svg {
+      filter: drop-shadow(0 1px 1px rgba(0,0,0,.8));
     }
 
     #hitmarker-ring {
@@ -12966,6 +12971,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         const ring = document.getElementById('hitmarker-ring');
 
         hm.classList.remove('active');
+        hm.style.setProperty('--fo-hit-scale',isKill?'1.13':isHeadshot?'1.08':'1.0');
         void hm.offsetWidth;
 
         if (isKill) {
@@ -12973,12 +12979,12 @@ return {createExperimentalRig,createAdaptiveRigController};
           hm.style.color = '#ef4444';
           ring.style.borderColor = 'rgba(239, 68, 68, 0.85)';
           ring.style.opacity = '1';
-          ring.style.transform = 'scale(1.22)';
+          ring.style.transform = 'scale(1.16)';
         } else if (isHeadshot) {
           hm.style.color = '#facc15';
           ring.style.borderColor = 'rgba(250, 204, 21, 0.82)';
           ring.style.opacity = '1';
-          ring.style.transform = 'scale(1.12)';
+          ring.style.transform = 'scale(1.05)';
         } else {
           hm.style.color = '#f8fafc';
           ring.style.borderColor = 'transparent';
@@ -13433,15 +13439,77 @@ return {createExperimentalRig,createAdaptiveRigController};
         });
       }
 
+      // V276–V277: deterministic cosmetic textures and shared fade materials.
+      // Existing counts, lifetimes, RNG draws and removal timing stay identical.
+      let V277_IMPACT_ASSETS=null;
+      function getV277ImpactAssets(){
+        if(V277_IMPACT_ASSETS)return V277_IMPACT_ASSETS;
+        const size=64,clamp=x=>Math.max(0,Math.min(1,x));
+        const mapFor=kind=>{
+          const data=new Uint8Array(size*size*4);
+          for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+            const px=(x+.5)/size*2-1,py=(y+.5)/size*2-1,r=Math.hypot(px,py);
+            const a=Math.atan2(py,px);
+            const grain=((Math.imul(x+7,73856093)^Math.imul(y+13,19349663))>>>0)%31/30;
+            const irregular=.87+.07*Math.sin(a*5)+.06*Math.cos(a*9);
+            let alpha=0,shade=1;
+            if(kind==='dust'){
+              alpha=clamp((1-r/irregular)*2)*Math.exp(-2.4*r*r)*(.76+.24*grain);
+              shade=.86+.14*grain;
+            }else if(kind==='flash'){
+              alpha=clamp((1-r)*3)*Math.exp(-5*r*r);shade=1;
+            }else if(kind==='metalMark'){
+              alpha=clamp((1-r/irregular)*4)*(.62+.38*grain);
+              shade=.31+.65*Math.exp(-((r-.55)*(r-.55))/.028);
+            }else{
+              alpha=clamp((1-r/irregular)*3)*(.65+.35*grain);
+              shade=.40+.45*Math.min(1,r);
+            }
+            const i=(y*size+x)*4;
+            data[i]=data[i+1]=data[i+2]=Math.round(255*shade);
+            data[i+3]=Math.round(255*alpha);
+          }
+          const tex=new THREE.DataTexture(data,size,size,THREE.RGBAFormat);
+          tex.magFilter=THREE.LinearFilter;tex.minFilter=THREE.LinearFilter;
+          tex.generateMipmaps=false;tex.needsUpdate=true;return tex;
+        };
+        const maps={dust:mapFor('dust'),flash:mapFor('flash'),
+          concreteMark:mapFor('concreteMark'),metalMark:mapFor('metalMark')};
+        const quad=new THREE.PlaneGeometry(.16,.16);
+        const markGeo=new THREE.PlaneGeometry(.13,.13);
+        const base={
+          dust:new THREE.MeshBasicMaterial({map:maps.dust,color:0xaaa49a,transparent:true,opacity:.52,depthWrite:false}),
+          flash:new THREE.MeshBasicMaterial({map:maps.flash,color:0xffe0a0,transparent:true,opacity:.85,depthWrite:false,toneMapped:false}),
+          concreteMark:new THREE.MeshBasicMaterial({map:maps.concreteMark,color:0x373531,transparent:true,opacity:.72,depthWrite:false}),
+          metalMark:new THREE.MeshBasicMaterial({map:maps.metalMark,color:0x77797c,transparent:true,opacity:.78,depthWrite:false}),
+          sparkHot:VFX_SHARED.sparkHotMat,
+          sparkWarm:VFX_SHARED.sparkWarmMat
+        };
+        const fades={};
+        for(const [key,m] of Object.entries(base)){
+          fades[key]=[1,.72,.42,.16].map((factor,i)=>{
+            if(i===0)return m;
+            const copy=m.clone();copy.opacity=m.opacity*factor;copy.depthWrite=false;return copy;
+          });
+        }
+        V277_IMPACT_ASSETS={maps,quad,markGeo,base,fades};return V277_IMPACT_ASSETS;
+      }
+      function applyV277ParticleVisual(p){
+        const kind=p.mesh.userData.v277Impact;
+        if(!kind)return;
+        const a=getV277ImpactAssets(),t=Math.max(0,Math.min(1,p.life/p.maxLife));
+        const bucket=t>.67?0:t>.40?1:t>.16?2:3;
+        p.mesh.material=a.fades[kind][bucket];
+        if(kind==='dust'||kind==='flash')p.mesh.quaternion.copy(camera.quaternion);
+      }
       function spawnImpactMark(pos, normal, isMetal) {
         while (activeImpactMarks.length >= VFX_CAPS.maxMarks) {
           const old = activeImpactMarks.shift();
           scene.remove(old.mesh);
         }
-        const mesh = new THREE.Mesh(
-          VFX_SHARED.markGeo,
-          isMetal ? VFX_SHARED.markMetalMat : VFX_SHARED.markConcreteMat
-        );
+        const assets=getV277ImpactAssets(),kind=isMetal?'metalMark':'concreteMark';
+        const mesh = new THREE.Mesh(assets.markGeo,assets.base[kind]);
+        mesh.userData.v277Mark=kind;
         mesh.position.copy(pos).addScaledVector(normal, 0.012);
         mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
         mesh.scale.setScalar(0.75 + Math.random() * 0.55);
@@ -13460,7 +13528,9 @@ return {createExperimentalRig,createAdaptiveRigController};
         for (let i = 0; i < count && activeParticles.length < VFX_CAPS.maxParticles; i++) {
           const mesh = new THREE.Mesh(VFX_SHARED.bloodDropGeo, mat);
           mesh.position.copy(pos);
-          mesh.scale.setScalar((isHead ? 1.15 : 0.90) * Math.min(1.35, distScale));
+          // V275: compact existing hit feedback, deterministic size variation.
+          const size=(isHead?1.0:.82)*Math.min(1.30,distScale);
+          mesh.scale.setScalar(size*(.90+(i%3)*.08));
           scene.add(mesh);
           const life = 0.24 + Math.random() * 0.10;
           activeParticles.push({
@@ -13488,7 +13558,10 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         if (isMetal) {
           if (activeParticles.length < VFX_CAPS.maxParticles) {
-            const flash = new THREE.Mesh(VFX_SHARED.metalFlashGeo, VFX_SHARED.metalFlashMat);
+            const assets=getV277ImpactAssets();
+            const flash = new THREE.Mesh(assets.quad,assets.base.flash);
+            flash.userData.v277Impact='flash';
+            flash.quaternion.copy(camera.quaternion);
             flash.position.copy(pos).addScaledVector(n, 0.04);
             flash.scale.setScalar(distScale);
             scene.add(flash);
@@ -13509,8 +13582,9 @@ return {createExperimentalRig,createAdaptiveRigController};
               VFX_SHARED.sparkGeo,
               i < 3 ? VFX_SHARED.sparkHotMat : VFX_SHARED.sparkWarmMat
             );
+            m.userData.v277Impact=i<3?'sparkHot':'sparkWarm';
             m.position.copy(pos).addScaledVector(n, 0.03);
-            m.scale.setScalar(distScale);
+            m.scale.set(.68*distScale,.68*distScale,distScale);
             const vel = new THREE.Vector3(
               n.x * (2.6 + Math.random() * 3.8) + (Math.random() - 0.5) * 4.2,
               n.y * (2.2 + Math.random() * 3.6) + Math.random() * 2.4,
@@ -13530,7 +13604,10 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
         } else {
           for (let d = 0; d < 2 && activeParticles.length < VFX_CAPS.maxParticles; d++) {
-            const dust = new THREE.Mesh(VFX_SHARED.dustGeo, VFX_SHARED.dustMat);
+            const assets=getV277ImpactAssets();
+            const dust = new THREE.Mesh(assets.quad,assets.base.dust);
+            dust.userData.v277Impact='dust';
+            dust.quaternion.copy(camera.quaternion);
             dust.position.copy(pos).addScaledVector(n, 0.06 + d * 0.05);
             dust.scale.setScalar((0.9 + d * 0.4) * distScale);
             scene.add(dust);
@@ -17530,6 +17607,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           if (p.alignVel && p.vel.lengthSq() > 0.01) {
             p.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), p.vel.clone().normalize());
           }
+          if(p.mesh.userData.v277Impact&&p.life>0)applyV277ParticleVisual(p);
           if (p.life <= 0) {
             scene.remove(p.mesh);
             activeParticles.splice(i, 1);
@@ -17538,6 +17616,11 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         for (let i = activeImpactMarks.length - 1; i >= 0; i--) {
           activeImpactMarks[i].life -= dt;
+          const mark=activeImpactMarks[i],kind=mark.mesh.userData.v277Mark;
+          if(kind&&mark.life>0){
+            const t=mark.life/2.2;
+            mark.mesh.material=getV277ImpactAssets().fades[kind][t>.30?0:t>.18?1:t>.07?2:3];
+          }
           if (activeImpactMarks[i].life <= 0) {
             scene.remove(activeImpactMarks[i].mesh);
             activeImpactMarks.splice(i, 1);
