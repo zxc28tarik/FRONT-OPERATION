@@ -26,7 +26,7 @@ try{
   const scene=new THREE.Scene();scene.background=new THREE.Color(0x727b84);
   scene.add(new THREE.HemisphereLight(0xe1edff,0x3e454b,1.4));
   const light=new THREE.DirectionalLight(0xfff4df,1.5);light.position.set(-3,5,4);scene.add(light);
-  const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(1280,720);document.body.append(renderer.domElement);
+  const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(1280,720);document.body.append(renderer.domElement);
   const camera=new THREE.PerspectiveCamera(42,1280/720,.1,150),gl=renderer.getContext();
   const roles=['assault','medic','engineer','sniper','heavy'],models=[];
   for(let i=0;i<15;i++){
@@ -64,13 +64,16 @@ try{
    bands.push({name,distance,baselineMs,candidateMs,ratio:candidateMs/Math.max(.001,baselineMs),baselineCalls:baseline1.calls,candidateCalls:candidate1.calls,baselineTriangles:baseline1.triangles,candidateTriangles:candidate1.triangles});
   }
   camera.position.set(0,2.4,9);camera.lookAt(0,1,-1);
-  window.previewRig=(on)=>{for(const {model,rig} of models){model.setVisualDetailDistance(12);rig.setEnabled(on);}render(8,on);};
-  window.previewRig(false);
+  window.previewRig=(on)=>{for(const {model,rig} of models){model.setVisualDetailDistance(12);rig.setEnabled(on);}render(8,on);return renderer.domElement.toDataURL('image/png');};
   return {renderer:gl.getParameter(gl.RENDERER),webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL1',botCount:15,bands,softwareGate:bands.every(x=>x.ratio<=1.10),hardwareGate:'NOT_MEASURED',activeRig:'legacy'};
  },factory);
- await page.screenshot({path:path.join(out,'v200-15bots-current.png')});
- await page.evaluate(()=>window.previewRig(true));await page.screenshot({path:path.join(out,'v200-15bots-experimental.png')});
+ // Persist measurements before optional screenshots, even if image capture fails.
+ fs.writeFileSync(path.join(out,'v205-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
  if(errors.length)throw Error(errors.join(' | '));
  if(report.bands.some(x=>!Number.isFinite(x.ratio)||x.candidateCalls<=0||x.baselineCalls<=0))throw Error('Invalid render measurement');
- fs.writeFileSync(path.join(out,'v200-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+ for(const enabled of [false,true]){
+  const data=await page.evaluate(on=>window.previewRig(on),enabled);
+  if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid canvas capture');
+  fs.writeFileSync(path.join(out,'v205-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+ }
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

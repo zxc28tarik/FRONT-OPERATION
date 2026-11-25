@@ -12,6 +12,18 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  const m=api.enhanced(team,cls,variant),r=createExperimentalRig(m);
  assert.equal(r.bones.length,10);assert.equal(r.mesh.visible,false);
  const p=r.geometry.getAttribute('position'),w=r.geometry.getAttribute('skinWeight'),idx=r.geometry.getAttribute('skinIndex');
+ const normals=r.geometry.getAttribute('normal');
+ assert.equal(r.mesh.material.length,2);assert.equal(r.geometry.groups.length,5);
+ assert.equal(r.geometry.groups.reduce((sum,g)=>sum+g.count,0),r.geometry.index.count);
+ assert(normals.array.every(Number.isFinite));
+ // Verify duplicated UV-seam positions and their repaired normals.
+ const stride=25*17+2;
+ for(let limb=0;limb<5;limb++)for(let ring=0;ring<25;ring++){
+  const i=limb*stride+ring*17,j=i+16;
+  const a=new THREE.Vector3().fromBufferAttribute(p,i),b=new THREE.Vector3().fromBufferAttribute(p,j);
+  assert(a.distanceTo(b)<1e-6);
+  a.fromBufferAttribute(normals,i);b.fromBufferAttribute(normals,j);assert(a.distanceTo(b)<1e-6);
+ }
  for(let i=0;i<p.count;i++){
   assert(Math.abs(w.getX(i)+w.getY(i)+w.getZ(i)+w.getW(i)-1)<1e-6);
   assert(idx.getX(i)<10&&idx.getY(i)<10);

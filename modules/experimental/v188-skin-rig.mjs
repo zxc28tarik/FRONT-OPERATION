@@ -28,7 +28,7 @@ function segmentBasis(a,b){
 export function createExperimentalRig(model,{radial=16,steps=24}={}){
  if(radial<8||steps<12||steps%2)throw Error('Invalid rig resolution');
  const root=model.root;root.updateMatrixWorld(true);
- const limbs=chains(model),bones=[],bindLengths=[],pos=[],uv=[],skinIndex=[],skinWeight=[],indices=[];
+ const limbs=chains(model),bones=[],bindLengths=[],pos=[],uv=[],skinIndex=[],skinWeight=[],indices=[],groups=[],seams=[];
  for(const limb of limbs){
   const p=limb.points(),base=bones.length;
   for(let j=0;j<2;j++){
@@ -36,7 +36,9 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
    b.name='v188_'+limb.kind+'_'+base+'_'+j;b.position.copy(p[j]);b.quaternion.copy(basis.q);
    bones.push(b);bindLengths.push(basis.length);
   }
-  const offset=pos.length/3;
+  const offset=pos.length/3,indexStart=indices.length;
+  const source=limb.kind==='leg'?model.leftHip.children.find(n=>n.userData.v129Sculpted):model.upperBody.children.find(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)>.1);
+  const width=source?.scale.x||1,depth=source?.scale.z||1;
   for(let j=0;j<=steps;j++){
    const t=j/steps,seg=t<=.5?0:1,u=seg===0?t*2:(t-.5)*2;
    const center=p[seg].clone().lerp(p[seg+1],u);
@@ -46,7 +48,7 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
    const w=ease((t-.34)/.32);
    for(let k=0;k<=radial;k++){
     const angle=k/radial*Math.PI*2;
-    const v=new THREE.Vector3(Math.cos(angle)*r,0,Math.sin(angle)*r*(limb.kind==='torso'?.70:.94)).applyQuaternion(q).add(center);
+    const v=new THREE.Vector3(Math.cos(angle)*r*width,0,Math.sin(angle)*r*depth*(limb.kind==='torso'?.70:.94)).applyQuaternion(q).add(center);
     pos.push(v.x,v.y,v.z);uv.push(k/radial,t);
     skinIndex.push(base,base+1,0,0);skinWeight.push(1-w,w,0,0);
     if(j<steps&&k<radial){
@@ -54,17 +56,37 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
      indices.push(a,b,a+1,b,b+1,a+1);
     }
    }
+   seams.push([offset+j*(radial+1),offset+j*(radial+1)+radial]);
   }
+  // Close both tube ends; existing armor and boots still overlap these surfaces.
+  for(const end of [0,steps]){
+   const ring=offset+end*(radial+1),center=pos.length/3;
+   const v=p[end===0?0:2];pos.push(v.x,v.y,v.z);uv.push(.5,end===0?0:1);
+   skinIndex.push(base,base+1,0,0);skinWeight.push(end===0?1:0,end===0?0:1,0,0);
+   for(let k=0;k<radial;k++){
+    if(end===0)indices.push(center,ring+k,ring+k+1);
+    else indices.push(center,ring+k+1,ring+k);
+   }
+  }
+  groups.push({start:indexStart,count:indices.length-indexStart,materialIndex:limb.kind==='leg'?0:1});
  }
  const geometry=new THREE.BufferGeometry();
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
  geometry.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(skinIndex,4));
  geometry.setAttribute('skinWeight',new THREE.Float32BufferAttribute(skinWeight,4));
- geometry.setIndex(indices);geometry.computeVertexNormals();geometry.computeBoundingSphere();
- const source=model.leftHip.children.find(n=>n.userData.v129Sculpted).material;
- const material=source.clone();material.skinning=true;material.vertexColors=false;
- const mesh=new THREE.SkinnedMesh(geometry,material);
+ geometry.setIndex(indices);geometry.computeVertexNormals();
+ const normal=geometry.getAttribute('normal'),n1=new THREE.Vector3(),n2=new THREE.Vector3();
+ for(const [a,b] of seams){
+  n1.fromBufferAttribute(normal,a);n2.fromBufferAttribute(normal,b);
+  n1.add(n2).normalize();normal.setXYZ(a,n1.x,n1.y,n1.z);normal.setXYZ(b,n1.x,n1.y,n1.z);
+ }
+ normal.needsUpdate=true;geometry.computeBoundingSphere();
+ for(const g of groups)geometry.addGroup(g.start,g.count,g.materialIndex);
+ const pants=model.leftHip.children.find(n=>n.userData.v129Sculpted).material;
+ const jacket=model.upperBody.children.find(n=>n.userData.v129Sculpted&&Math.abs(n.position.x)>.1).material;
+ const materials=[pants,jacket].map(source=>{const m=source.clone();m.skinning=true;m.vertexColors=false;return m;});
+ const mesh=new THREE.SkinnedMesh(geometry,materials);
  mesh.name='v188_experimental_skin';mesh.frustumCulled=false;
  for(const bone of bones)mesh.add(bone);
  root.add(mesh);root.updateMatrixWorld(true);
@@ -93,6 +115,6 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
   });
   mesh.updateMatrixWorld(true);skeleton.update();
  };
- const dispose=()=>{setEnabled(false);root.remove(mesh);geometry.dispose();material.dispose();skeleton.dispose?.();};
+ const dispose=()=>{setEnabled(false);root.remove(mesh);geometry.dispose();materials.forEach(m=>m.dispose());skeleton.dispose?.();};
  return {mesh,bones,update,dispose,limbs,geometry,setEnabled};
 }
