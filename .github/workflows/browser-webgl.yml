@@ -42,6 +42,7 @@ on:
       - art/v155-character-continuity
       - art/v170-anatomy-textile-head
       - art/v188-equipment-class-rig
+      - art/v200-character-acceptance
   workflow_dispatch:
 
 jobs:
@@ -60,12 +61,15 @@ jobs:
       - name: Validate real geometry and visual arm/LOD
         run: node scripts/check-soldier-real-geometry.mjs
       - name: Test experimental skinned rig bind pose and CPU cost
-        if: github.ref_name == 'art/v188-equipment-class-rig'
+        if: github.ref_name == 'art/v188-equipment-class-rig' || github.ref_name == 'art/v200-character-acceptance'
         run: node scripts/check-experimental-skin-rig.mjs
+      - name: Compare 15 rendered bots with both visual rigs
+        if: github.ref_name == 'art/v200-character-acceptance'
+        run: node scripts/browser-character-rig-ab.mjs
       - name: Run actual WebGL 6v6 match and UI acceptance
         run: node scripts/browser-webgl-smoke.mjs
       - name: Test independent Depot 17 bomb mode
-        if: github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller' || github.ref_name == 'ai/v56-locomotion' || github.ref_name == 'ai/v57-navigation' || github.ref_name == 'ai/v58-map-awareness' || github.ref_name == 'ai/v59-combat-discipline' || github.ref_name == 'ai/v60-team-coordination' || github.ref_name == 'ai/v61-bomb-objectives' || github.ref_name == 'ai/v62-personalities' || github.ref_name == 'ai/v63-integrated-validation' || github.ref_name == 'ai/v72-integrated-acceptance'
+        if: github.ref_name == 'mode/v51-bomb-depot' || github.ref_name == 'ai/v54-behavior-controller' || github.ref_name == 'ai/v55-look-controller' || github.ref_name == 'ai/v56-locomotion' || github.ref_name == 'ai/v57-navigation' || github.ref_name == 'ai/v58-map-awareness' || github.ref_name == 'ai/v59-combat-discipline' || github.ref_name == 'ai/v60-team-coordination' || github.ref_name == 'ai/v61-bomb-objectives' || github.ref_name == 'ai/v62-personalities' || github.ref_name == 'ai/v63-integrated-validation' || github.ref_name == 'ai/v72-integrated-acceptance' || github.ref_name == 'art/v200-character-acceptance'
         run: node scripts/browser-bomb-depot-smoke.mjs
       - name: Render V25 versus current characters from three angles
         run: node scripts/character-turntable.mjs
@@ -76,7 +80,7 @@ jobs:
           git show 5616c88177a7803ab25f39058074d9767fb93e8f:index.html > /tmp/fo-v155.html
           FO_CHARACTER_BASELINE=/tmp/fo-v155.html node scripts/character-turntable.mjs
       - name: Render V155 versus current candidate
-        if: github.ref_name == 'art/v188-equipment-class-rig'
+        if: github.ref_name == 'art/v188-equipment-class-rig' || github.ref_name == 'art/v200-character-acceptance'
         run: |
           git fetch --depth=1 origin 5616c88177a7803ab25f39058074d9767fb93e8f
           git show 5616c88177a7803ab25f39058074d9767fb93e8f:index.html > /tmp/fo-v155.html

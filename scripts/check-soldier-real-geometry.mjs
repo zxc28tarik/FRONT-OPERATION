@@ -97,6 +97,7 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert(equipment.every(n=>n.geometry.boundingBox&&n.geometry.getAttribute('position').array.every(Number.isFinite)));
  assert.equal(m.root.userData.v182Role,cls);
  assert.equal(m.root.children.find(n=>n.userData.v176Equipment==='belt').geometry,twin.root.children.find(n=>n.userData.v176Equipment==='belt').geometry);
+ const helmetHigh=shell.geometry;assert(shell.userData.v197HelmetLod);
  const near=countVisible(m.root);
  const armBands=m.upperBody.children.filter(n=>n.geometry===api.base(team,cls).upperBody.children.find(c=>c.geometry?.parameters?.height===.065)?.geometry);
  const closeGroups=[m.head.children.find(n=>n.name==='v99_close_face'),m.upperBody.children.find(n=>n.name==='v99_close_rig')];
@@ -109,12 +110,13 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  m.setVisualDetailDistance(50);assert.equal(m.visualDetailLevel,2);const far=countVisible(m.root);assert(cloth.every(c=>c.n.geometry!==c.high&&c.n.geometry.getAttribute('position').count<c.high.getAttribute('position').count));
  assert(joints.every(j=>j.n.geometry!==j.high&&j.n.geometry.getAttribute('position').count<j.high.getAttribute('position').count));
  assert(head.geometry!==headHigh&&head.geometry.getAttribute('position').count<headHigh.getAttribute('position').count);
+ assert(shell.geometry!==helmetHigh&&shell.geometry.getAttribute('position').count<helmetHigh.getAttribute('position').count);
  assert(contacts.every(n=>n.geometry.getAttribute('color')));
  assert(near>mid&&mid>far&&m.head.visible&&m.weaponPivot.visible);
  m.setVisualDetailDistance(43);assert.equal(m.visualDetailLevel,2);
  m.setVisualDetailDistance(18);assert.equal(m.visualDetailLevel,0);assert.equal(countVisible(m.root),near);assert(cloth.every(c=>c.n.geometry===c.high));
  assert(joints.every(j=>j.n.geometry===j.high),'joint geometry returns to close detail');
- assert.equal(head.geometry,headHigh);assert.equal(m.head.parent,m.upperBody);assert.equal(m.muzzleFlash.parent,m.weaponPivot);
+ assert.equal(shell.geometry,helmetHigh);assert.equal(head.geometry,headHigh);assert.equal(m.head.parent,m.upperBody);assert.equal(m.muzzleFlash.parent,m.weaponPivot);
  nearTotal+=near;farTotal+=far;models+=3;
 }
-console.log('V188 candidate real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
+console.log('V200 candidate real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');

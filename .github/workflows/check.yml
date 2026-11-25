@@ -217,3 +217,5 @@ jobs:
         run: node tests/soldier_v135_terrain_gait_regression.cjs
       - name: Validate V145 visual transitions
         run: node tests/soldier_v145_transition_regression.cjs
+      - name: Validate V196 contact and directional smoothing
+        run: node tests/soldier_v196_contact_regression.cjs

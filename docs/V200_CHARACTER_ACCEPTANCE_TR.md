@@ -1,0 +1,6 @@
+# V200 — F/G/H kabul adayı
+- V188 temel sürümü: 9657dea4d724e8c2dc05caf88bdc78c4b06a23b9; CI/WebGL/30 model testleri başarılı.
+- F: alternatif 10 kemikli uzuv ve gövde kaplaması; mevcut pozlara bağlı, aç/kapat ve geri dönüş; baş, silah, ekipman ve işaretler mevcut rig'de. Varsayılan HTML'de etkin değil. Birleşik tam anatomik mesh, fiziksel ragdoll ve donanım GPU kabulü tamamlanmış sayılmamalı.
+- G: mevcut el hedefleri korunur; analitik görsel bacak teması, 10 Hz yakın/orta zemin örneği, yürüyüş yönü geçişi, çömelmeye göre adım frekansı, ikincil ekipman hareketi ve son pozdan ölüm animasyonu. Gerçek ayak kilitleme veya fizik çözümü değil; gameplay pos, damage, AI, hitbox, ölüm süreleri değişmez.
+- H: uzak kask geometrisi, 30 model geometri ve deformasyon testleri, 15 karakterli yazılım WebGL A/B (yakın/orta/uzak; 2 sıra; medyan frame time, draw calls, triangles), V155 karşılaştırmalı görseller, Marien 6v6 ve Tersane smoke testi. Donanım FPS ölçümü ayrı; yazılım WebGL sonucu kalite onayı değildir.
+- Kabul: mevcut model ile alternatif arasında eşit kamera ve ışık; software median ratio <=1.10 her bantta; donanım ve görünüm onaylanmadan deneysel rig aktive edilmez. Main değişmeden kalır. Testler bu commit sonrasında çalıştırılacak.
