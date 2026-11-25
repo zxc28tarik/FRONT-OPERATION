@@ -7863,7 +7863,7 @@
         for(const n of model.weaponPivot.children){
           const part=n.userData?.v263Part,finish=worldFinishes[part];
           if(!n.isMesh||!finish||n===model.muzzleFlash)continue;
-          const key=n.material.uuid+':'+finish.join(':');
+          const key=n.material.uuid+':'+part+':'+finish.join(':');
           if(!G.v263.has(key)){
             const m=n.material.clone();m.color.setHex(finish[0]);
             m.roughness=finish[1];m.metalness=finish[2];
