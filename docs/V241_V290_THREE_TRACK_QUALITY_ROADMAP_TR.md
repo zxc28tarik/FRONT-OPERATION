@@ -3,7 +3,7 @@
 Kullanıcının V240 oyun incelemesinde üç ana sorun: karakter kalitesi hedefin altında; bot davranışları ve yetenekleri yetersiz/tutarsız; silah görselleri geliştirilmeli.
 Temel: V240 commit 19a0ab256d7e6f4200cb1121f61e7627efeebac0. Inline 45601063627 ve WebGL 45601063548 başarılı. Opt-in canlı test: 11 bot, 150 simülasyon adımı/7.5 s, 5 aktif rig, sıfır hata; normal açılışta rig yok. p95 boyuna oran 1.02845, maksimum 1.28631; yazılım A/B sınırları geçti. Bu sonuçlar gerçek oyuncu deneyimi/görsel kabul/donanım FPS anlamına gelmez.
 Kullanıcının onayladığı sıra: karakter üretimi, silah üretimi, bot davranışları en son, ardından ortak kabul. Bot AI kodu ilk iki aşamada değiştirilmez. Üç bağımsız iş hattı; tek seferde büyük anlamlı paketler, her pakette kod ve test, kullanıcı onayı olmadan main birleştirilmez. HTML tek dosya yapısı, mevcut haritalar, modlar, onaylanmış HUD/menü, silah istatistikleri ve oyun kuralları korunur; gerekçeli oynanış değişiklikleri ayrı raporlanır.
-## A — V241–270 Karakter görselleri
+## A — V241–255 Karakter görselleri
 | Sürüm | İş |
 |---|---|
 | V241 | 5 sınıf × 2 takım, ön/yan/arka/çapraz, ayakta/koşu/çömelme ekran görüntüsü denetimi; V240 görsel taban |
@@ -22,7 +22,7 @@ Kullanıcının onayladığı sıra: karakter üretimi, silah üretimi, bot davr
 | V254 | Silah tutuşu, şarjör değişimi, ölüm pozları |
 | V255 | 5 sınıf bütünlüklü görsel karşılaştırma, LOD, kabul |
 Mevcut geometriyi yalnızca yoğunlaştırmak kabul edilmez. Hedef, tutarlı stil, okunabilir sınıf silüeti, birleşik anatomi, gerçekçi ağırlık hissi. V240 opt-in rig ayrı bir adaydır; tüm görsel pozları karşılaştır, daha kötü yüzey veya performans varsa eski model korunur. En az 30 model, 0/45/90 derece pozlar, eş kamera/ışık, 3 mesafe, yürüyüş ve çömelme animasyonu. Yeni hitbox veya silah mantığı değişikliği yok. Yakın detayda eklem çevresi oranı 0.98–1.02, p95 boyuna <1.10, maksimum <1.45; gerçek görüntü incelemesi şart.
-## B — V256–285 Silah görselleri
+## B — V256–270 Silah görselleri
 Mevcut kod: buildViewmodel(weaponId) ilk kişi; bot üçüncü kişi modelleri ayrı ve V131 yüzey revizyonu var. Görsel fark ve animasyon tutarlılığı esas; gerçek silah üretimi değil oyun içi görsel varlıklar.
 | Sürüm | İş |
 |---|---|
@@ -42,7 +42,7 @@ Mevcut kod: buildViewmodel(weaponId) ilk kişi; bot üçüncü kişi modelleri a
 | V269 | Üçüncü kişi silah modelleri ve bot el tutuşu; silah tanınabilirliği |
 | V270 | Tüm silah görsel kabulü, LOD ve kaynak kullanımı |
 Tüm silahlar aynı ışık ve kamera; normal, ADS, atış ve reload pozları. Silah görüş alanını gereksiz kapatmayacak, nişangâh hizası değişmeyecek, el/şarjör çakışmaları kontrol edilecek. Model ölçeği oyun içi görsel amaçlıdır. Mevcut hasar, atış hızı, cephane ve kontrol hissi ayrı kullanıcı onayı olmadan değiştirilmez. Claymore ve diğer mevcut yardımcı ekipman yalnız mevcut kullanım kapsamına göre.
-## C — V271–255 Bot zekâsı
+## C — V271–285 Bot zekâsı
 | Sürüm | İş | Somut çıktı ve kabul |
 |---|---|---|
 | V271 | Sorun analizi | Sabit seed senaryolar, gerçek maç karar izleri, geçiş nedeni, hedef, görünürlük, rota, ateş engeli, siper, sıkışma; mevcut kalite tabanı |
