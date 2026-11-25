@@ -98,6 +98,11 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert.equal(m.root.userData.v182Role,cls);
  assert.equal(m.root.children.find(n=>n.userData.v176Equipment==='belt').geometry,twin.root.children.find(n=>n.userData.v176Equipment==='belt').geometry);
  const helmetHigh=shell.geometry;assert(shell.userData.v197HelmetLod);
+ const knee=m.leftKnee.children.find(n=>n.userData.v154Joint==='knee');
+ assert(knee&&typeof m.updateVisualJointFit==='function');
+ m.leftKnee.rotation.x=0;m.updateVisualJointFit();const neutral=knee.scale.z;
+ m.leftKnee.rotation.x=1.5;m.updateVisualJointFit();assert(knee.scale.z>neutral&&knee.scale.z<neutral*1.09);
+ m.leftKnee.rotation.x=0;m.updateVisualJointFit();assert(Math.abs(knee.scale.z-neutral)<1e-6);
  const near=countVisible(m.root);
  const armBands=m.upperBody.children.filter(n=>n.geometry===api.base(team,cls).upperBody.children.find(c=>c.geometry?.parameters?.height===.065)?.geometry);
  const closeGroups=[m.head.children.find(n=>n.name==='v99_close_face'),m.upperBody.children.find(n=>n.name==='v99_close_rig')];

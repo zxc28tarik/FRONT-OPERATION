@@ -6786,6 +6786,16 @@
             dressJoint(hip.children.find(n=>geomOf(n)===approved.hipJoint),'hip',thigh);
             dressJoint(knee.children.find(n=>geomOf(n)===approved.kneeJoint),'knee',shin);
           }
+          // V215: bend-dependent textile volume in the approved visual model.
+          const kneeFits=[model.leftKnee,model.rightKnee].map(p=>({pivot:p,joint:p.children.find(n=>n.userData?.v154Joint==='knee')}));
+          model.updateVisualJointFit=()=>{
+            for(const {pivot,joint} of kneeFits){
+              if(!joint)continue;
+              const bend=Math.min(1,Math.abs(pivot.rotation.x)/1.5);
+              joint.scale.x=bodyProfile[0]*(1+.045*bend);
+              joint.scale.z=bodyProfile[1]*(1+.075*bend);
+            }
+          };
           // Arm bridge orientation follows the actual elbow bend rather than a fixed globe.
           for(const arm of arms){
             dressJoint(arm.shoulder,'shoulder',arm.upperArm);
@@ -6804,6 +6814,9 @@
                 if(bisector.lengthSq()<.0001)bisector.copy(a);
                 if(bisector.lengthSq()>.0001)arm.elbow.quaternion.setFromUnitVectors(up,bisector.normalize());
                 if(a.lengthSq()>.0001)arm.shoulder.quaternion.setFromUnitVectors(up,a);
+                const bend=Math.max(0,Math.min(1,(1-a.dot(b))*.5));
+                arm.elbow.scale.x=bodyProfile[0]*(1+.065*bend);
+                arm.elbow.scale.z=bodyProfile[1]*(1+.085*bend);
               }
             };
             model.updateVisualGrip(0);
@@ -15787,6 +15800,7 @@
             const rf=contact(bot.mesh.rightHip,bot.mesh.rightKnee,g.right,-step);
             if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(bot.visualAnkleLeft+lf,bot.visualAnkleRight+rf);
           }else bot.visualGroundSample=null;
+          if(bot.mesh.updateVisualJointFit)bot.mesh.updateVisualJointFit();
           if(bot.mesh.setVisualSecondary)bot.mesh.setVisualSecondary(bot.visualGaitPhase??0,bot.mesh.visualDetailLevel<2?Math.min(1,visualMotion.speed/4):0);
         }
         sampleBotMetrics(dt,bots);

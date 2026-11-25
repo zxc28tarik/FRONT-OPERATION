@@ -10,7 +10,7 @@ let cases=0,maxRestError=0,minRingRatio=Infinity,maxRingRatio=0;
 const reps=[];
 for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer','sniper','heavy'])for(let variant=0;variant<3;variant++){
  const m=api.enhanced(team,cls,variant),r=createExperimentalRig(m);
- assert.equal(r.bones.length,10);assert.equal(r.mesh.visible,false);
+ assert.equal(r.bones.length,125);assert.equal(r.mesh.visible,false);
  const p=r.geometry.getAttribute('position'),w=r.geometry.getAttribute('skinWeight'),idx=r.geometry.getAttribute('skinIndex');
  const normals=r.geometry.getAttribute('normal');
  assert.equal(r.mesh.material.length,2);assert.equal(r.geometry.groups.length,5);
@@ -26,7 +26,7 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  }
  for(let i=0;i<p.count;i++){
   assert(Math.abs(w.getX(i)+w.getY(i)+w.getZ(i)+w.getW(i)-1)<1e-6);
-  assert(idx.getX(i)<10&&idx.getY(i)<10&&idx.getZ(i)<10&&idx.getW(i)<10);
+  assert([idx.getX(i),idx.getY(i),idx.getZ(i),idx.getW(i)].every(x=>x>=0&&x<r.bones.length));
   const v=new THREE.Vector3().fromBufferAttribute(p,i),deformed=v.clone();
   r.mesh.boneTransform(i,deformed);
   maxRestError=Math.max(maxRestError,v.distanceTo(deformed));
@@ -56,7 +56,7 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
     rest+=a.distanceTo(b);r.mesh.boneTransform(i,a);r.mesh.boneTransform(j,b);deformed+=a.distanceTo(b);
    }
    const ratio=deformed/rest;
-   assert(Number.isFinite(ratio)&&ratio>.25&&ratio<3,'collapsed or stretched joint ring '+ratio);
+   assert(Number.isFinite(ratio)&&ratio>.98&&ratio<1.02,'V216 ring radius changed '+ratio);
    minRingRatio=Math.min(minRingRatio,ratio);maxRingRatio=Math.max(maxRingRatio,ratio);
   }
   assert(m.muzzleFlash.position.equals(muzzle));
@@ -70,5 +70,5 @@ const frames=120,run=()=>{for(let i=0;i<frames;i++)for(const {m,r} of reps){
  m.rightKnee.rotation.x=Math.cos(phase)*.55;r.update();
 }};
 run();const start=performance.now();run();const elapsed=performance.now()-start;
-console.log(JSON.stringify({cases,bones:10,maxRestError,minRingRatio,maxRingRatio,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
+console.log(JSON.stringify({cases,bones:125,maxRestError,minRingRatio,maxRingRatio,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
 for(const {r} of reps)r.dispose();

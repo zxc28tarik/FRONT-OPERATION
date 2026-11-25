@@ -65,15 +65,15 @@ try{
   }
   camera.position.set(0,2.4,9);camera.lookAt(0,1,-1);
   window.previewRig=(on)=>{for(const {model,rig} of models){model.setVisualDetailDistance(12);rig.setEnabled(on);}render(8,on);return renderer.domElement.toDataURL('image/png');};
-  return {renderer:gl.getParameter(gl.RENDERER),webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL1',botCount:15,bands,softwareGate:bands.every(x=>x.ratio<=1.10),hardwareGate:'NOT_MEASURED',activeRig:'legacy'};
+  return {renderer:gl.getParameter(gl.RENDERER),webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL1',botCount:15,boneCount:models[0].rig.bones.length,bands,softwareGate:bands.every(x=>x.ratio<=1.10),hardwareGate:'NOT_MEASURED',activeRig:'legacy'};
  },factory);
  // Persist measurements before optional screenshots, even if image capture fails.
- fs.writeFileSync(path.join(out,'v210-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+ fs.writeFileSync(path.join(out,'v216-rig-ab.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
  if(errors.length)throw Error(errors.join(' | '));
  if(report.bands.some(x=>!Number.isFinite(x.ratio)||x.candidateCalls<=0||x.baselineCalls<=0))throw Error('Invalid render measurement');
  for(const enabled of [false,true]){
   const data=await page.evaluate(on=>window.previewRig(on),enabled);
   if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid canvas capture');
-  fs.writeFileSync(path.join(out,'v210-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+  fs.writeFileSync(path.join(out,'v216-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
  }
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
