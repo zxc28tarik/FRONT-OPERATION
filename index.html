@@ -4702,9 +4702,68 @@
         magazineMesh: null
       };
 
+      // V259: shared, deterministic 64x64 cosmetic surface maps.
+      const V259_DETAIL_TEXTURES=new Map(),V259_DETAIL_MATERIALS=new Map();
+      function v259SurfaceTexture(kind){
+        if(V259_DETAIL_TEXTURES.has(kind))return V259_DETAIL_TEXTURES.get(kind);
+        const n=64,data=new Uint8Array(n*n*4);
+        for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+          const noise=((Math.imul(x+1,73856093)^Math.imul(y+1,19349663))>>>0)%17;
+          let value=247-noise*.35;
+          if(kind==='rubber')value-=((x%8<2) !== (y%8<2))?17:3;
+          else if(kind==='polymer')value-=((x+2*y)%11===0)?8:2;
+          else value-=(y%7===0?7:1);
+          const i=(y*n+x)*4;data[i]=data[i+1]=data[i+2]=Math.round(value);data[i+3]=255;
+        }
+        const tex=new THREE.DataTexture(data,n,n,THREE.RGBAFormat);
+        tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+        tex.magFilter=THREE.LinearFilter;tex.minFilter=THREE.LinearMipmapLinearFilter;
+        tex.generateMipmaps=true;tex.needsUpdate=true;V259_DETAIL_TEXTURES.set(kind,tex);
+        return tex;
+      }
+      function applyV259ViewmodelDetail(root){
+        root.traverse(node=>{
+          if(!node.isMesh||!node.geometry.userData.v256Chamfer)return;
+          const base=node.material;
+          const kind=base===WEAPON_MATS.rubberGrip?'rubber':
+            [WEAPON_MATS.polymerBlack,WEAPON_MATS.polymerTan,WEAPON_MATS.polymerFDE].includes(base)?'polymer':
+            [WEAPON_MATS.gunmetal,WEAPON_MATS.metalDark,WEAPON_MATS.metalSteel,WEAPON_MATS.chromeSlide,WEAPON_MATS.olivePaint].includes(base)?'metal':null;
+          if(!kind)return;
+          const geo=node.geometry,p=geo.getAttribute('position'),normal=geo.getAttribute('normal');
+          geo.computeBoundingBox();
+          const lo=geo.boundingBox.min,span=geo.boundingBox.getSize(new THREE.Vector3());
+          const uv=new Float32Array(p.count*2);
+          for(let i=0;i<p.count;i++){
+            const x=(p.getX(i)-lo.x)/span.x,y=(p.getY(i)-lo.y)/span.y,z=(p.getZ(i)-lo.z)/span.z;
+            const nx=Math.abs(normal.getX(i)),ny=Math.abs(normal.getY(i)),nz=Math.abs(normal.getZ(i));
+            if(nx>=ny&&nx>=nz){uv[2*i]=z;uv[2*i+1]=y;}
+            else if(ny>=nz){uv[2*i]=z;uv[2*i+1]=x;}
+            else{uv[2*i]=x;uv[2*i+1]=y;}
+          }
+          geo.setAttribute('uv',new THREE.BufferAttribute(uv,2));
+          if(!V259_DETAIL_MATERIALS.has(base)){
+            const mat=base.clone();mat.map=v259SurfaceTexture(kind);
+            mat.userData.v259Surface=kind;V259_DETAIL_MATERIALS.set(base,mat);
+          }
+          node.material=V259_DETAIL_MATERIALS.get(base);
+        });
+      }
+      // V260: cosmetic magazine displacement follows the existing reload timer.
+      // Never changes ammo, input, recoil, firing or the muzzle/ejection anchors.
+      function applyV260MagazinePose(refs,progress){
+        const mesh=refs.magazineMesh,rest=refs.magazineRest;
+        if(!mesh||!rest)return;
+        const t=Number.isFinite(progress)?Math.max(0,Math.min(1,progress)):0;
+        const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+        const amount=smooth((t-.12)/.23)*(1-smooth((t-.58)/.28));
+        mesh.position.copy(rest.position);mesh.rotation.copy(rest.rotation);
+        mesh.position.y-=amount*rest.travel;
+        mesh.rotation.z+=amount*rest.tilt;
+      }
+
       function disposeViewmodel(group) {
         if (!group) return;
-        const sharedSet = new Set(Object.values(WEAPON_MATS));
+        const sharedSet = new Set([...Object.values(WEAPON_MATS),...V259_DETAIL_MATERIALS.values()]);
         group.traverse((obj) => {
           if (obj.geometry && typeof obj.geometry.dispose === 'function') {
             obj.geometry.dispose();
@@ -5477,6 +5536,15 @@
           root.position.set(0.16, -0.17, -0.28);
         }
 
+        applyV259ViewmodelDetail(root);
+        if(vmRefs.magazineMesh){
+          vmRefs.magazineRest={
+            position:vmRefs.magazineMesh.position.clone(),
+            rotation:vmRefs.magazineMesh.rotation.clone(),
+            travel:weaponId==='minimi'?.030:weaponId==='mp7'?.024:.020,
+            tilt:weaponId==='minimi'?.035:.045
+          };
+        }
         root.add(vmRefs.muzzlePoint);
         root.add(vmRefs.ejectPoint);
         viewmodelGroup.add(root);
@@ -14258,6 +14326,9 @@ return {createExperimentalRig,createAdaptiveRigController};
           vmRefs.boltMesh.position.z = 0.048;
           vmRefs.boltMesh.rotation.z = 0;
         }
+
+        applyV260MagazinePose(vmRefs,player.reloading?
+          1-player.reloadTimer/Math.max(.01,player.reloadDuration):0);
 
         const targetSpread = w
           ? (player.ads
