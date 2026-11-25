@@ -13502,6 +13502,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         p.mesh.material=a.fades[kind][bucket];
         if(kind==='dust'||kind==='flash')p.mesh.quaternion.copy(camera.quaternion);
       }
+      // Allocate shared cosmetic resources during boot, never on the first live hit.
+      getV277ImpactAssets();
       function spawnImpactMark(pos, normal, isMetal) {
         while (activeImpactMarks.length >= VFX_CAPS.maxMarks) {
           const old = activeImpactMarks.shift();
