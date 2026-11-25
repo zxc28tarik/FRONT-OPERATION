@@ -1,10 +1,15 @@
-// C4 / V291 candidate; intentionally not wired into the live game.
+// V291 checks the integrated game, not only the prototype.
 import fs from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import assert from 'node:assert/strict';
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
-const start=html.indexOf('function botVisualGait(');
-const end=html.indexOf('// V58: derive map awareness',start);
-if(start<0||end<0)throw Error('baseline gait anchors missing');
-const baseline=new Function(html.slice(start,end)+';return botVisualGait;')();
+const old=process.env.FO_V287_BASELINE?fs.readFileSync(process.env.FO_V287_BASELINE,'utf8'):execFileSync('git',['show','a34c2ca958379b0023b0ee0418b40d01daeced61:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
+const cut=s=>{const a=s.indexOf("      function botVisualGait("),b=s.indexOf("      // V58: derive map awareness",a);if(a<0||b<a)throw Error("anchor");return {pre:s.slice(0,a),body:s.slice(a,b),post:s.slice(b)}};
+const a=cut(old),b=cut(html);
+assert.equal(a.pre,b.pre,'protected prefix changed');
+assert.equal(a.post,b.post,'protected suffix changed');
+const baseline=new Function(a.body+';return botVisualGait;')();
+const live=new Function(b.body+';return botVisualGait;')();
 function directionalGait(base,phase,speed,forward,side,crouch,role){
   const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number.isFinite(v)?v:0));
   const f=clamp(forward,-1,1),s=clamp(side,-1,1),c=clamp(crouch);
@@ -52,4 +57,16 @@ function verify(baseline,candidate){
         }
   return n;
 }
-console.log('C4 isolated directional gait assertions:',verify(baseline,directionalGait));
+const count=verify(baseline,(_base,p,s,f,side,c,r)=>live(p,s,f,side,c,r));
+assert.equal(count,28800);
+let parity=0;
+for(const role of ['assault','medic','engineer','sniper','heavy'])
+ for(const speed of [0,.4,1.4,3,5.1,7])
+  for(const c of [0,.5,1])
+   for(let i=0;i<64;i++)
+    for(const [f,s] of [[1,0],[-1,0],[0,1],[0,-1],[.707,.707],[-.707,.707],[0,0]]){
+      const p=i*Math.PI/32,v=live(p,speed,f,s,c,role),w=directionalGait(baseline(p,speed,f,s,c,role),p,speed,f,s,c,role);
+      assert(Object.keys(v).every(k=>Math.abs(v[k]-w[k])<=1e-10),'candidate mismatch');parity++;
+    }
+assert.equal(parity,40320);
+console.log('V291 PASS:',count,'assertions;',parity,'integrated pose comparisons; all source outside gait identical.');
