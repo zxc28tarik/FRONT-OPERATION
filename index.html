@@ -13250,58 +13250,89 @@ return {createExperimentalRig,createAdaptiveRigController};
         casingMat: new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.25, metalness: 0.9 })
       };
 
-      // V271: one soft-edged, layered procedural flash texture and six
-      // triangles per visible flash. Shared resources, no new scene lights.
-      let V271_MUZZLE_ASSETS=null;
+      // V272–V273: seven fictional game VFX silhouettes, packed into one shared atlas.
+      // Values are visual design choices, not physical firearm specifications.
+      const V273_FLASH_PROFILES=Object.freeze({
+        hk416:     {tile:0,form:'taper',  length:.145,width:.077,planes:2,cap:.048,hot:.94,green:118,blue:27,opacity:.91,life:.048,light:1.25,roll:.19,fade:1.00},
+        mp7:       {tile:1,form:'compact',length:.090,width:.061,planes:2,cap:.041,hot:.86,green:139,blue:47,opacity:.88,life:.039,light:.88,roll:.14,fade:1.15},
+        mrad:      {tile:2,form:'needle', length:.183,width:.050,planes:2,cap:.035,hot:1.0,green:151,blue:62,opacity:.94,life:.055,light:1.60,roll:.10,fade:1.20},
+        minimi:    {tile:3,form:'petals', length:.137,width:.124,planes:3,cap:.078,hot:.87,green:96,blue:18,opacity:.91,life:.052,light:1.40,roll:.25,fade:.86},
+        p320:      {tile:4,form:'round',  length:.066,width:.048,planes:2,cap:.033,hot:.83,green:134,blue:36,opacity:.86,life:.034,light:.70,roll:.11,fade:1.35},
+        glock18c:  {tile:5,form:'split',  length:.078,width:.056,planes:2,cap:.034,hot:.90,green:113,blue:28,opacity:.87,life:.037,light:.78,roll:.20,fade:1.22},
+        carlgustaf:{tile:6,form:'bloom',  length:.195,width:.148,planes:3,cap:.095,hot:.96,green:104,blue:22,opacity:.90,life:.060,light:1.75,roll:.08,fade:.95}
+      });
+      let V273_MUZZLE_ASSETS=null;
       let v271PlayerFlash=null,v271FlashLeft=0,v271FlashSequence=0;
       const v271LightPosition=new THREE.Vector3();
-      function getV271MuzzleAssets(){
-        if(V271_MUZZLE_ASSETS)return V271_MUZZLE_ASSETS;
-        const width=128,height=64,data=new Uint8Array(width*height*4);
-        const clamp=x=>Math.max(0,Math.min(1,x));
-        const smooth=x=>{x=clamp(x);return x*x*(3-2*x);};
-        for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-          const u=(x+.5)/width,v=((y+.5)/height-.5)*2;
-          const jitter=.92+.08*Math.sin(u*39+Math.sin(u*17)*1.2);
-          const shape=(.12+.78*Math.sin(Math.PI*Math.pow(u,.67)))*jitter;
-          const radial=Math.abs(v)/Math.max(.035,shape);
-          const envelope=smooth(u/.055)*smooth((1-u)/.16);
-          const outer=envelope*Math.exp(-3.3*radial*radial)*smooth((1.1-radial)/.30);
-          const inner=envelope*Math.exp(-12*radial*radial)*smooth((.90-u)/.42);
-          const hot=clamp(inner*1.25);
-          const i=(y*width+x)*4;
-          data[i]=255;data[i+1]=Math.round(102+153*hot);
-          data[i+2]=Math.round(18+237*hot);
-          data[i+3]=Math.round(255*clamp(outer*.78+inner*.50));
+      const v273Clamp=x=>Math.max(0,Math.min(1,x));
+      function v273Profile(id,category){
+        return V273_FLASH_PROFILES[id]||V273_FLASH_PROFILES[
+          ({smg:'mp7',sniper:'mrad',lmg:'minimi',pistol:'p320',rocket:'carlgustaf'})[category]||'hk416'];
+      }
+      function getV273MuzzleAssets(){
+        if(V273_MUZZLE_ASSETS)return V273_MUZZLE_ASSETS;
+        const width=128,tileH=64,height=512,data=new Uint8Array(width*height*4);
+        const smooth=x=>{x=v273Clamp(x);return x*x*(3-2*x);};
+        const hump=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
+        for(const p of Object.values(V273_FLASH_PROFILES)){
+          for(let y=1;y<tileH-1;y++)for(let x=1;x<width-1;x++){
+            const u=(x+.5)/width,v=(y+.5)/tileH*2-1;
+            let shape=.1,center=0,outerBias=1;
+            switch(p.form){
+              case 'taper':shape=.10+.83*hump(u,.27,.29);break;
+              case 'compact':shape=.14+.76*hump(u,.39,.23);break;
+              case 'needle':shape=.09+.63*hump(u,.19,.22)+.12*hump(u,.55,.28);break;
+              case 'petals':shape=.16+.66*hump(u,.28,.25)+.15*hump(u,.68,.15);center=.055*Math.sin(u*23);outerBias=.80+.20*Math.sin(u*34)**2;break;
+              case 'round':shape=.09+.81*hump(u,.43,.25);break;
+              case 'split':shape=.12+.72*hump(u,.25,.22)+.18*hump(u,.69,.14);center=.04*Math.sin(u*25);break;
+              case 'bloom':shape=.20+.77*hump(u,.35,.31);outerBias=.82+.18*Math.sin(u*26)**2;break;
+            }
+            const d=Math.abs(v-center)/Math.max(.035,shape);
+            const envelope=smooth(u/.055)*smooth((1-u)/.19);
+            const outer=envelope*Math.exp(-2.6*d*d)*smooth((1.13-d)/.35)*outerBias;
+            const inner=envelope*Math.exp(-15*d*d)*smooth((.88-u)/.40);
+            const hot=v273Clamp(inner*p.hot*1.5),i=((p.tile*tileH+y)*width+x)*4;
+            data[i]=255;data[i+1]=Math.round(p.green+(255-p.green)*hot);
+            data[i+2]=Math.round(p.blue+(255-p.blue)*hot);
+            data[i+3]=Math.round(255*v273Clamp(.77*outer+.55*inner));
+          }
+        }
+        // Eighth tile: circular front-facing core, not a stretched side texture.
+        for(let y=1;y<tileH-1;y++)for(let x=1;x<width-1;x++){
+          const r=Math.hypot((x+.5)/width*2-1,(y+.5)/tileH*2-1);
+          const a=smooth((1-r)/.55)*Math.exp(-2.1*r*r),h=Math.exp(-8*r*r);
+          const i=((7*tileH+y)*width+x)*4;
+          data[i]=255;data[i+1]=Math.round(132+123*h);
+          data[i+2]=Math.round(28+227*h);data[i+3]=Math.round(220*a);
         }
         const map=new THREE.DataTexture(data,width,height,THREE.RGBAFormat);
         map.magFilter=THREE.LinearFilter;map.minFilter=THREE.LinearFilter;
         map.generateMipmaps=false;map.needsUpdate=true;
-        const position=[],uv=[],indices=[];
-        const quad=(points,coords)=>{
-          const base=position.length/3;
-          for(const p of points)position.push(...p);
-          for(const t of coords)uv.push(...t);
-          indices.push(base,base+1,base+2,base,base+2,base+3);
-        };
-        const full=[[0,0],[1,0],[1,1],[0,1]];
-        for(const angle of [0,Math.PI*.5]){
-          const x=Math.cos(angle)*.047,y=Math.sin(angle)*.047;
-          quad([[-x,-y,0],[-x,-y,.19],[x,y,.19],[x,y,0]],full);
+        const geometries=new Map();
+        const uvTile=(tile,u,v)=>[(1+u*(width-2))/width,(tile*tileH+1+v*(tileH-2))/height];
+        for(const [id,p] of Object.entries(V273_FLASH_PROFILES)){
+          const pos=[],uv=[],idx=[];
+          const quad=(points,tile)=>{
+            const base=pos.length/3;
+            for(const q of points)pos.push(...q);
+            for(const [u,v] of [[0,0],[1,0],[1,1],[0,1]])uv.push(...uvTile(tile,u,v));
+            idx.push(base,base+1,base+2,base,base+2,base+3);
+          };
+          for(let i=0;i<p.planes;i++){
+            const angle=i*Math.PI/p.planes,px=Math.cos(angle)*p.width*.5,py=Math.sin(angle)*p.width*.5;
+            quad([[-px,-py,0],[-px,-py,p.length],[px,py,p.length],[px,py,0]],p.tile);
+          }
+          const r=p.cap*.5,z=p.length*.18;
+          quad([[-r,-r,z],[r,-r,z],[r,r,z],[-r,r,z]],7);
+          const g=new THREE.BufferGeometry();
+          g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+          g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);
+          g.computeBoundingSphere();g.userData.v271Muzzle=true;g.userData.v273Profile=id;
+          geometries.set(p,g);
         }
-        quad([[-.040,-.040,.037],[.040,-.040,.037],[.040,.040,.037],[-.040,.040,.037]],
-          [[.08,0],[.68,0],[.68,1],[.08,1]]);
-        const geometry=new THREE.BufferGeometry();
-        geometry.setAttribute('position',new THREE.Float32BufferAttribute(position,3));
-        geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
-        geometry.setIndex(indices);geometry.computeBoundingSphere();
-        geometry.userData.v271Muzzle=true;
         const material=new THREE.MeshBasicMaterial({map,color:0xffffff,transparent:true,
-          opacity:.90,side:THREE.DoubleSide,depthWrite:false,depthTest:true,toneMapped:false});
-        V271_MUZZLE_ASSETS={geometry,material};return V271_MUZZLE_ASSETS;
-      }
-      function v271FlashScale(category){
-        return category==='pistol'?.72:category==='smg'?.80:category==='lmg'?1.12:category==='sniper'?1.18:1;
+          opacity:.88,side:THREE.DoubleSide,depthWrite:false,depthTest:true,toneMapped:false});
+        V273_MUZZLE_ASSETS={map,geometries,material};return V273_MUZZLE_ASSETS;
       }
       function clearV271PlayerFlash(){
         v271FlashLeft=0;
@@ -13311,49 +13342,49 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
         muzzleLight.intensity=0;
       }
-      function triggerV271PlayerFlash(category){
-        const assets=getV271MuzzleAssets();
+      function triggerV273PlayerFlash(id,category){
+        const p=v273Profile(id,category),assets=getV273MuzzleAssets(),geo=assets.geometries.get(p);
         if(!v271PlayerFlash){
-          v271PlayerFlash=new THREE.Mesh(assets.geometry,assets.material.clone());
-          v271PlayerFlash.rotation.y=Math.PI;v271PlayerFlash.frustumCulled=false;
+          v271PlayerFlash=new THREE.Mesh(geo,assets.material.clone());
+          v271PlayerFlash.frustumCulled=false;
         }
+        v271PlayerFlash.geometry=geo;
         if(v271PlayerFlash.parent!==vmRefs.muzzlePoint)vmRefs.muzzlePoint.add(v271PlayerFlash);
-        const size=v271FlashScale(category);
-        v271PlayerFlash.userData.base=size;
-        v271PlayerFlash.rotation.set(0,Math.PI,(++v271FlashSequence%7)*.19);
-        v271FlashLeft=.050;v271PlayerFlash.visible=true;
-        updateV271PlayerFlash(0);
+        v271PlayerFlash.userData.profile=p;
+        v271PlayerFlash.rotation.set(0,Math.PI,((++v271FlashSequence%7)-3)*p.roll);
+        v271FlashLeft=p.life;v271PlayerFlash.visible=true;
+        updateV273PlayerFlash(0);
       }
-      function updateV271PlayerFlash(dt){
+      function updateV273PlayerFlash(dt){
         if(!v271PlayerFlash||v271FlashLeft<=0)return;
         if(!matchState.started||matchState.ended||!player.alive){clearV271PlayerFlash();return;}
         v271FlashLeft=Math.max(0,v271FlashLeft-dt);
         if(v271FlashLeft<=0){clearV271PlayerFlash();return;}
-        const t=v271FlashLeft/.050,b=v271PlayerFlash.userData.base;
-        v271PlayerFlash.scale.set(b*(.70+.30*t),b*(.70+.30*t),b*(.58+.42*t));
-        v271PlayerFlash.material.opacity=.90*Math.min(1,t*2.8);
+        const p=v271PlayerFlash.userData.profile,t=v271FlashLeft/p.life;
+        const spread=.63+.37*t,reach=.52+.48*t;
+        v271PlayerFlash.scale.set(spread,spread,reach);
+        v271PlayerFlash.material.opacity=p.opacity*Math.min(1,Math.pow(t,p.fade)*2.5);
         vmRefs.muzzlePoint.getWorldPosition(v271LightPosition);
         viewmodelGroup.worldToLocal(v271LightPosition);
         muzzleLight.position.copy(v271LightPosition);
-        muzzleLight.intensity=1.35*b*t*t;
+        muzzleLight.intensity=p.light*t*t;
       }
-      function triggerV271BotFlash(bot,category){
-        const mesh=bot.mesh.muzzleFlash;
+      function triggerV273BotFlash(bot,id,category){
+        const mesh=bot.mesh.muzzleFlash,p=v273Profile(id,category),assets=getV273MuzzleAssets();
         if(!mesh.geometry.userData.v271Muzzle){
-          const old=mesh.geometry,oldMat=mesh.material,assets=getV271MuzzleAssets();
-          mesh.geometry=assets.geometry;mesh.material=assets.material;
-          old.dispose();oldMat.dispose();
+          mesh.geometry.dispose();mesh.material.dispose();
         }
-        const size=v271FlashScale(category);
-        mesh.userData.v271Scale=size;
-        mesh.rotation.z=((mesh.userData.v271Shot=(mesh.userData.v271Shot||0)+1)%7)*.19;
-        mesh.scale.setScalar(size);
+        mesh.geometry=assets.geometries.get(p);mesh.material=assets.material;
+        mesh.userData.v273Profile=p;
+        mesh.rotation.z=((mesh.userData.v271Shot=(mesh.userData.v271Shot||0)+1)%7-3)*p.roll;
+        mesh.scale.setScalar(1);
       }
-      function updateV271BotFlash(bot){
-        const mesh=bot.mesh.muzzleFlash,b=mesh.userData?.v271Scale;
-        if(!b||bot.muzzleTimer<=0)return;
-        const t=Math.min(1,bot.muzzleTimer/.055);
-        mesh.scale.set(b*(.45+.55*t),b*(.45+.55*t),b*(.65+.35*t));
+      function updateV273BotFlash(bot){
+        const mesh=bot.mesh.muzzleFlash,p=mesh.userData?.v273Profile;
+        if(!p||bot.muzzleTimer<=0)return;
+        const t=v273Clamp(1-(.055-bot.muzzleTimer)/p.life);
+        mesh.visible=t>0;
+        if(t>0)mesh.scale.set(.45+.55*t,.45+.55*t,.55+.45*t);
       }
 
       const activeTracers = [];
@@ -13947,8 +13978,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         emitBotNoise(player.team, player.pos, w.category === 'sniper' ? 'sniper' :
           (w.category === 'pistol' ? 'pistol' : 'gun'), 'player');
 
+        triggerV273PlayerFlash(w.id,w.category);
         if (w.category !== 'rocket') {
-          triggerV271PlayerFlash(w.category);
 
           const ejectWorld = new THREE.Vector3();
           vmRefs.ejectPoint.getWorldPosition(ejectWorld);
@@ -16054,7 +16085,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           if (bot.muzzleTimer > 0) {
             bot.muzzleTimer -= dt;
             if (bot.muzzleTimer <= 0) bot.mesh.muzzleFlash.visible = false;
-            else updateV271BotFlash(bot);
+            else updateV273BotFlash(bot);
           }
           bot.hitFlinchPitch *= Math.exp(-16 * dt);
           bot.hitFlinchRoll *= Math.exp(-16 * dt);
@@ -16405,7 +16436,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
               bot.muzzleTimer = 0.055;
               bot.mesh.muzzleFlash.visible = true;
-              triggerV271BotFlash(bot,bw.category);
+              triggerV273BotFlash(bot,bw.id,bw.category);
 
               const botEye = new THREE.Vector3(bot.pos.x, bot.pos.y + 1.45, bot.pos.z);
               const distToPlayer = botEye.distanceTo(camera.position);
@@ -16495,7 +16526,7 @@ return {createExperimentalRig,createAdaptiveRigController};
                 bot.fireTimer = (60 / bw.rpm) * 2.2;
                 bot.muzzleTimer = 0.055;
                 bot.mesh.muzzleFlash.visible = true;
-                triggerV271BotFlash(bot,bw.category);
+                triggerV273BotFlash(bot,bw.id,bw.category);
                 sound.playGunshot(bw.category, botEyeNoTarget.distanceTo(camera.position), bw.id);
                 emitBotNoise(bot.team, bot.pos, bw.category === 'pistol' ? 'pistol' : 'gun', bot.id);
 
@@ -16545,7 +16576,7 @@ return {createExperimentalRig,createAdaptiveRigController};
                   bot.suppressFireTimer = (60 / sw.rpm) * 2.5 + Math.random() * 0.08;
                   bot.muzzleTimer = 0.055;
                   bot.mesh.muzzleFlash.visible = true;
-                  triggerV271BotFlash(bot,sw.category);
+                  triggerV273BotFlash(bot,sw.id,sw.category);
 
                   sound.playGunshot(sw.category, botEyeNoTarget.distanceTo(camera.position), sw.id);
                   emitBotNoise(bot.team, bot.pos, 'gun', bot.id);
@@ -17301,7 +17332,6 @@ return {createExperimentalRig,createAdaptiveRigController};
       }
 
       function updateEntitiesAndFX(dt) {
-        updateV271PlayerFlash(dt);
         for (let i = activeGrenades.length - 1; i >= 0; i--) {
           const g = activeGrenades[i];
           g.fuse -= dt;
@@ -18450,6 +18480,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         lastFrameTime = now;
         const dt = Number.isFinite(rawDt) ? Math.min(0.05, Math.max(0.001, rawDt)) : 0.016;
 
+        if(gamePaused||!matchState.started||matchState.ended||!player.alive)clearV271PlayerFlash();
+        else updateV273PlayerFlash(dt);
         if (matchState.started && !matchState.ended && !gamePaused) {
           recordBotFrameTiming(rawDt);
           matchState.timeRemaining = Math.max(0, matchState.timeRemaining - dt);
