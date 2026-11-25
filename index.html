@@ -15827,6 +15827,14 @@ return {createExperimentalRig,createAdaptiveRigController};
           leftKnee:Math.max(0,-a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,-b)*Math.abs(side)*.20+stance*.43+Math.max(0,-a)*reverseLift+Math.max(0,-b)*sideLift,
           rightKnee:Math.max(0,a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,b)*Math.abs(side)*.20+stance*.43+Math.max(0,a)*reverseLift+Math.max(0,b)*sideLift};
       }
+      // V292: bounded local pose correction, zero at established stance endpoints.
+      function botVisualCrouchV292(crouch,speed,role){
+       const c=Math.max(0,Math.min(1,Number.isFinite(crouch)?crouch:0));
+       const moving=Math.max(0,Math.min(1,(Number.isFinite(speed)?speed:0)/2.8));
+       const envelope=16*c*c*(1-c)*(1-c);
+       const weight=role==='heavy'?.85:role==='sniper'?.94:1;
+       return {flex:envelope*(.14-.055*moving)*weight,spread:envelope*.022*(1-.55*moving)*weight};
+      }
       // V58: derive map awareness from static, validated geometry, never enemy coordinates.
       let botMapAwarenessCache=null;
       function buildBotMapAwareness(nodes,adj,walk){
@@ -17491,6 +17499,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           } else {
             bot.stepDistance = 0;
           }
+          const crouchPose=botVisualCrouchV292(bot.crouchAmt,actualSpeed,bot.classId);
           if (actualSpeed > 0.4) {
             bot.mesh.upperBody.position.y = 0.93;
             bot.animPhase += dt * actualSpeed * 2.35;
@@ -17501,9 +17510,9 @@ return {createExperimentalRig,createAdaptiveRigController};
             const grade=(bot.pos.y-beforeMoveY)/Math.max(.04,actualSpeed*dt);
             const ground=botVisualGroundMotion(bot.visualGaitPhase,actualSpeed,pose.forward,pose.side,bot.crouchAmt,grade,bot.classId);
             // Lower-body and ankle details move; the combat torso/aim direction remains unchanged.
-            gait.leftHip+=ground.leftHip+visualMotion.hipBias;gait.rightHip+=ground.rightHip+visualMotion.hipBias;
-            gait.leftKnee+=ground.leftKnee+visualMotion.kneeBias;gait.rightKnee+=ground.rightKnee+visualMotion.kneeBias;
-            gait.leftSide+=ground.weightShift;gait.rightSide+=ground.weightShift;
+            gait.leftHip+=ground.leftHip+visualMotion.hipBias-crouchPose.flex*.5;gait.rightHip+=ground.rightHip+visualMotion.hipBias-crouchPose.flex*.5;
+            gait.leftKnee+=ground.leftKnee+visualMotion.kneeBias+crouchPose.flex;gait.rightKnee+=ground.rightKnee+visualMotion.kneeBias+crouchPose.flex;
+            gait.leftSide+=ground.weightShift-crouchPose.spread;gait.rightSide+=ground.weightShift+crouchPose.spread;
             // V151: damp ankle orientation across movement/stop boundaries.
             const ankleBlend=1-Math.exp(-Math.max(0,dt)*18);
             bot.visualAnkleLeft=(bot.visualAnkleLeft||0)+(ground.leftFoot*visualMotion.footDamp-(bot.visualAnkleLeft||0))*ankleBlend;
@@ -17522,14 +17531,14 @@ return {createExperimentalRig,createAdaptiveRigController};
             if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(bot.visualAnkleLeft,bot.visualAnkleRight);
             bot.visualDirection=botVisualDirection(bot.visualDirection,0,0,dt);
             const stanceBlend=1-Math.exp(-dt*12);
-            bot.mesh.leftHip.rotation.z+=(-visualStance.stanceWidth-bot.mesh.leftHip.rotation.z)*stanceBlend;
-            bot.mesh.rightHip.rotation.z+=(visualStance.stanceWidth-bot.mesh.rightHip.rotation.z)*stanceBlend;
+            bot.mesh.leftHip.rotation.z+=(-visualStance.stanceWidth-crouchPose.spread-bot.mesh.leftHip.rotation.z)*stanceBlend;
+            bot.mesh.rightHip.rotation.z+=(visualStance.stanceWidth+crouchPose.spread-bot.mesh.rightHip.rotation.z)*stanceBlend;
             const breath=visualStance.breath;
-            bot.mesh.leftHip.rotation.x+=(visualMotion.hipBias-bot.mesh.leftHip.rotation.x)*(1-Math.exp(-10*dt));
-            bot.mesh.rightHip.rotation.x+=(visualMotion.hipBias-bot.mesh.rightHip.rotation.x)*(1-Math.exp(-10*dt));
+            bot.mesh.leftHip.rotation.x+=(visualMotion.hipBias-crouchPose.flex*.5-bot.mesh.leftHip.rotation.x)*(1-Math.exp(-10*dt));
+            bot.mesh.rightHip.rotation.x+=(visualMotion.hipBias-crouchPose.flex*.5-bot.mesh.rightHip.rotation.x)*(1-Math.exp(-10*dt));
             const kneeBlend=1-Math.exp(-dt*13);
-            bot.mesh.leftKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnLeft+visualStance.kneeBias+visualMotion.kneeBias-bot.mesh.leftKnee.rotation.x)*kneeBlend;
-            bot.mesh.rightKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnRight+visualStance.kneeBias+visualMotion.kneeBias-bot.mesh.rightKnee.rotation.x)*kneeBlend;
+            bot.mesh.leftKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnLeft+visualStance.kneeBias+visualMotion.kneeBias+crouchPose.flex-bot.mesh.leftKnee.rotation.x)*kneeBlend;
+            bot.mesh.rightKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnRight+visualStance.kneeBias+visualMotion.kneeBias+crouchPose.flex-bot.mesh.rightKnee.rotation.x)*kneeBlend;
             bot.visualBob=quietCarry?oldBob+(breath-oldBob)*(1-Math.exp(-dt*12)):0;
             bot.mesh.upperBody.position.y = .93+bot.visualBob;
           }
