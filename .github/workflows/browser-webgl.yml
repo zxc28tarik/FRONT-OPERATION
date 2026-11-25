@@ -70,6 +70,7 @@ on:
       - art/v271-muzzle-visual-fx
       - art/v273-distinct-muzzle-designs
       - art/v277-combat-feedback
+      - art/v281-combat-acceptance
   workflow_dispatch:
 
 jobs:
@@ -221,6 +222,17 @@ jobs:
           FO_WEAPON_BASELINE=/tmp/fo-v255.html FO_WEAPON_PREVIOUS=/tmp/fo-v264.html node scripts/check-v270-integrated-weapon.mjs
           FO_WEAPON_BASELINE=/tmp/fo-v255.html node scripts/weapon-turntable-v270.mjs
           FO_CHARACTER_BASELINE=/tmp/fo-v255.html FO_CHARACTER_BASELINE_LABEL=V255 FO_CHARACTER_CANDIDATE_LABEL=V270 FO_CHARACTER_EXPANDED=1 node scripts/character-turntable.mjs
+      - name: V281 combat continuity and three-mode scene acceptance
+        if: github.ref_name == 'art/v281-combat-acceptance'
+        run: |
+          git fetch --depth=1 origin 584547344988341c44b46b0fa05d18d03777e55c
+          git show 584547344988341c44b46b0fa05d18d03777e55c:index.html > /tmp/fo-v277.html
+          git fetch --depth=1 origin 2d60406b372ccf666c87cd6b0fe15132f6ad7e47
+          git show 2d60406b372ccf666c87cd6b0fe15132f6ad7e47:index.html > /tmp/fo-v273.html
+          FO_V277_BASELINE=/tmp/fo-v277.html node scripts/check-v279-combat-continuity.mjs
+          FO_V273_BASELINE=/tmp/fo-v273.html node scripts/check-v277-combat-feedback.mjs
+          node scripts/check-v273-muzzle-profiles.mjs
+          FO_V277_BASELINE=/tmp/fo-v277.html node scripts/browser-v281-combat-scenes.mjs
       - name: V277 visual-only impact and unchanged simulation regression
         if: github.ref_name == 'art/v277-combat-feedback'
         run: |
