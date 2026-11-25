@@ -15649,16 +15649,31 @@ return {createExperimentalRig,createAdaptiveRigController};
       function botVisualCombatPose(muzzleTimer,reloadLeft,reloadDuration,role){
         const phase=reloadDuration>0?Math.max(0,Math.min(1,1-reloadLeft/reloadDuration)):0;
         const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
-        const reload=reloadDuration>0?smooth(phase/.18)*smooth((1-phase)/.22):0;
-        const swap=reloadDuration>0?smooth((phase-.12)/.26)*smooth((.78-phase)/.24):0;
+        // V254: hands acquire the magazine, hold it briefly, then seat it.
+        // All timing is derived from the existing reload counter; ammo and
+        // fire mechanics remain unchanged.
+        const pickup=smooth((phase-.09)/.18);
+        const returnSeat=smooth((.87-phase)/.17);
+        const reload=reloadDuration>0?smooth(phase/.15)*smooth((1-phase)/.18):0;
+        const swap=reloadDuration>0?pickup*returnSeat:0;
         const scale=role==='sniper'?1:role==='heavy'?.72:.52;
         const kick=Math.max(0,Math.min(1,(muzzleTimer||0)/.055))*scale;
         return {kick,reload,swap};
       }
-      function botVisualFall(progress,side){
-        const t=Math.max(0,Math.min(1,progress)),ease=t*t*(3-2*t);
-        return {pitch:ease*Math.PI*.48,roll:ease*side*.31,drop:ease*.45,
-          knee:Math.sin(t*Math.PI)*.72,head:Math.sin(t*Math.PI)*.28};
+      function botVisualFall(progress,side,role='assault',crouch=0){
+        // V254: preserve the actual death-start pose; the recovery animation
+        // bends the trailing knee later and separates the two leg weights.
+        const t=Math.max(0,Math.min(1,Number.isFinite(progress)?progress:0));
+        const ease=t*t*(3-2*t),rollSide=side<0?-1:1;
+        const heavy=role==='heavy',c=Math.max(0,Math.min(1,crouch||0));
+        const base=Math.sin(t*Math.PI)*(heavy?.58:.72);
+        const kneeLeft=base*(rollSide<0?1:.62)+c*.12*(1-ease);
+        const kneeRight=base*(rollSide>0?1:.62)+c*.12*(1-ease);
+        return {pitch:ease*Math.PI*(heavy?.43:.48),roll:ease*rollSide*(heavy?.24:.31),
+          drop:ease*(heavy?.43:.45),knee:base,head:Math.sin(t*Math.PI)*.28,
+          leftHip:-kneeLeft*.30,rightHip:-kneeRight*.24,
+          leftKnee:kneeLeft,rightKnee:kneeRight,
+          leftFoot:-.12*ease,rightFoot:.13*ease};
       }
       function updateBots(dt) {
         if (!matchState.started || matchState.ended) return;
@@ -15685,16 +15700,17 @@ return {createExperimentalRig,createAdaptiveRigController};
             observeBotCoverLifecycle(bot,nowSec);
             bot.deathAnimTimer -= dt;
             const fallProg = Math.min(1, 1 - bot.deathAnimTimer / 0.65);
-            const fall=botVisualFall(fallProg,bot.deathFallDir);
+            const fall=botVisualFall(fallProg,bot.deathFallDir,bot.classId,bot.crouchAmt);
             const start=bot.visualDeathStart,remain=(1-fallProg)**2;
             bot.mesh.root.rotation.x=fall.pitch+(start?.pitch||0)*remain;
             bot.mesh.root.rotation.z=fall.roll+(start?.roll||0)*remain;
             bot.mesh.root.position.y=bot.pos.y-fall.drop+((start?.y??bot.pos.y)-bot.pos.y)*remain;
-            bot.mesh.leftHip.rotation.x=(start?.leftHip||0)*remain-fall.knee*.30;
-            bot.mesh.rightHip.rotation.x=(start?.rightHip||0)*remain-fall.knee*.16;
-            bot.mesh.leftKnee.rotation.x=fall.knee+(start?.leftKnee||0)*remain;
-            bot.mesh.rightKnee.rotation.x=fall.knee*.7+(start?.rightKnee||0)*remain;
+            bot.mesh.leftHip.rotation.x=(start?.leftHip||0)*remain+fall.leftHip;
+            bot.mesh.rightHip.rotation.x=(start?.rightHip||0)*remain+fall.rightHip;
+            bot.mesh.leftKnee.rotation.x=fall.leftKnee+(start?.leftKnee||0)*remain;
+            bot.mesh.rightKnee.rotation.x=fall.rightKnee+(start?.rightKnee||0)*remain;
             bot.mesh.head.rotation.z=fall.head*bot.deathFallDir+(start?.head||0)*remain;
+            if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(fall.leftFoot,fall.rightFoot);
             bot.mesh.updateVisualJointFit?.();
             if (bot.deathAnimTimer <= 0) {
               bot.dying = false;
