@@ -4798,6 +4798,116 @@
         }
       }
 
+      // V282–V286: presentation-only animation overlay. No new meshes, timers,
+      // ammo changes or input locks. All temporary transforms are restored before
+      // the next simulation step, including the original muzzle/ejection anchors.
+      const V287_POSES=Object.freeze({
+        hk416:{draw:.048,tilt:.11,drop:.032,side:.010,hand:.038,turn:.09,heft:.85},
+        mp7:{draw:.032,tilt:.075,drop:.026,side:.008,hand:.028,turn:.065,heft:.65},
+        mrad:{draw:.065,tilt:.13,drop:.031,side:.012,hand:.039,turn:.075,heft:1.10},
+        minimi:{draw:.072,tilt:.15,drop:.037,side:.020,hand:.044,turn:.08,heft:1.25},
+        p320:{draw:.025,tilt:.065,drop:.024,side:.006,hand:.026,turn:.065,heft:.52},
+        glock18c:{draw:.027,tilt:.075,drop:.022,side:.008,hand:.029,turn:.072,heft:.55},
+        carlgustaf:{draw:.070,tilt:.13,drop:0,side:0,hand:.026,turn:.055,heft:1.25},
+        knife:{draw:.031,tilt:.08,drop:0,side:0,hand:0,turn:0,heft:.45},
+        drone:{draw:.025,tilt:.06,drop:0,side:0,hand:.012,turn:.035,heft:.65},
+        m67:{draw:.025,tilt:.065,drop:0,side:0,hand:0,turn:0,heft:.50},
+        medkit:{draw:.038,tilt:.075,drop:0,side:0,hand:0,turn:0,heft:.75},
+        claymore:{draw:.044,tilt:.085,drop:0,side:0,hand:0,turn:0,heft:.85}
+      });
+      const v287Clamp=x=>Number.isFinite(x)?Math.max(0,Math.min(1,x)):0;
+      function v287Ease(x){x=v287Clamp(x);return x*x*(3-2*x);}
+      function v287Window(t,a,b,c,d){return v287Ease((t-a)/(b-a))*(1-v287Ease((t-c)/(d-c)));}
+      function initV287RenderPose(refs,group,root,id){
+        const support=root.children.find(n=>n.userData.v267SupportHand);
+        const nodes=[...new Set([group,root,refs.magazineMesh,support,refs.slideMesh,
+          refs.boltMesh,...(refs.v287CoverParts||[])].filter(Boolean))];
+        refs.v287Pose={id,group,root,support,active:false,sprint:0,
+          entries:nodes.map(n=>({node:n,position:n.position.clone(),rotation:n.rotation.clone(),
+            restPosition:n.position.clone(),restRotation:n.rotation.clone()}))};
+      }
+      function restoreV287RenderPose(refs){
+        const pose=refs?.v287Pose;if(!pose?.active)return;
+        for(const e of pose.entries){e.node.position.copy(e.position);e.node.rotation.copy(e.rotation);}
+        pose.active=false;
+        pose.group.updateMatrixWorld(true);
+      }
+      function beginV287RenderPose(refs,actor,dt,flashActive=false){
+        const pose=refs?.v287Pose;if(!pose||pose.active)return false;
+        const profile=V287_POSES[pose.id]||V287_POSES.knife;
+        const group=pose.group,root=pose.root;
+        if(!actor.alive||!root.visible||!group.visible){pose.sprint=0;return false;}
+        const step=Math.max(0,Math.min(.05,Number.isFinite(dt)?dt:0));
+        const aiming=!!actor.ads,shooting=flashActive||actor.fireCooldown>0;
+        const sprintTarget=actor.sprinting&&!aiming?1:0;
+        pose.sprint=aiming||shooting?sprintTarget:pose.sprint+(sprintTarget-pose.sprint)*(1-Math.exp(-step*(sprintTarget?12:17)));
+        for(const e of pose.entries){e.position.copy(e.node.position);e.rotation.copy(e.node.rotation);}
+        pose.active=true;
+        const draw=v287Clamp(actor.switchAnim),easeDraw=v287Ease(draw);
+        // V282: the incoming model follows a distinct soft presentation curve;
+        // the actual slot switch and previous model disposal remain immediate.
+        if(!aiming&&!shooting){
+          const arc=Math.sin(Math.PI*draw);
+          group.position.y+=profile.draw*(draw-easeDraw)-profile.draw*.35*arc;
+          group.rotation.x+=profile.tilt*(draw-easeDraw)-profile.tilt*.35*arc;
+          group.rotation.z-=profile.tilt*.20*arc;
+          // V286: soften existing sprint orientation at transition boundaries.
+          // Preserve the original ADS alignment and all recoil transforms.
+          const delta=pose.sprint-sprintTarget;
+          group.rotation.x-=.22*delta;group.rotation.y+=.34*delta;
+          group.position.y-=.009*profile.heft*pose.sprint;
+        }
+        const t=actor.reloading?v287Clamp(1-actor.reloadTimer/Math.max(.01,actor.reloadDuration)):0;
+        const mag=refs.magazineMesh,rest=refs.magazineRest,support=pose.support;
+        const out=v287Window(t,.13,.34,.58,.83),reach=v287Window(t,.05,.25,.67,.93);
+        // V283: separate stylized hand and magazine arcs per visual model.
+        // V285: pistol profiles use shorter arcs than long guns.
+        if(actor.reloading&&mag&&rest){
+          mag.position.copy(rest.position);mag.rotation.copy(rest.rotation);
+          mag.position.y-=out*profile.drop;mag.position.x-=out*profile.side;
+          mag.rotation.z+=out*profile.turn;
+          if(support&&refs.supportRest){
+            support.position.copy(refs.supportRest.position);support.rotation.copy(refs.supportRest.rotation);
+            support.position.y-=reach*profile.hand;
+            support.position.x-=reach*profile.side*.8;
+            support.rotation.z+=reach*profile.turn*.7;
+          }
+        }else if(actor.reloading&&support&&profile.hand){
+          // Existing two-hand utility/launcher model, compact visual shift only.
+          support.position.y-=reach*profile.hand;
+          support.rotation.z+=reach*profile.turn;
+        }
+        // V285: use the already existing knife swing phase for a small
+        // wrist follow-through. Single-use gear keeps its immediate slot switch.
+        if(pose.id==='knife'&&actor.knifeSwingTimer>0){
+          const swing=Math.sin(Math.PI*v287Clamp(1-actor.knifeSwingTimer/.24));
+          root.rotation.z-=swing*.075;root.position.y-=swing*.009;
+        }
+        // V284: refine the existing MRAD bolt and Minimi cover as stylized
+        // model animation, with no modification of the actual firing state.
+        if(refs.boltMesh){
+          const bt=actor.boltAnimTimer>0?v287Clamp(1-actor.boltAnimTimer/.52):0;
+          const amount=v287Window(bt,0,.23,.51,1);
+          const e=pose.entries.find(e=>e.node===refs.boltMesh);
+          refs.boltMesh.position.z=e.restPosition.z+amount*.042;
+          refs.boltMesh.rotation.z=e.restRotation.z+amount*.52;
+        }
+        if(refs.v287CoverParts?.length){
+          const lift=actor.reloading?v287Window(t,.08,.24,.68,.90):0;
+          for(const part of refs.v287CoverParts){
+            part.position.y+=lift*.012;
+            part.rotation.x-=lift*.13;
+          }
+        }
+        if(refs.slideMesh){
+          const e=pose.entries.find(e=>e.node===refs.slideMesh);
+          const kick=v287Clamp(actor.slideKick);
+          const amount=v287Ease(kick);
+          refs.slideMesh.position.z=e.restPosition.z+amount*(pose.id==='glock18c'?.029:.032);
+        }
+        return true;
+      }
+
       function disposeViewmodel(group) {
         if (!group) return;
         const sharedSet = new Set([...Object.values(WEAPON_MATS),...V259_DETAIL_MATERIALS.values()]);
@@ -5208,6 +5318,7 @@
           const feedRail = buildPicatinnyRail(0.155, 0.022, 0.006, WEAPON_MATS.metalSteel, 0.012);
           feedRail.position.set(0, 0.055, -0.015);
           root.add(feedRail);
+          vmRefs.v287CoverParts=[feedCover,feedRail];
 
           const rearLeft = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.024, 0.016), WEAPON_MATS.metalDark);
           rearLeft.position.set(-0.009, 0.072, 0.055);
@@ -5602,6 +5713,7 @@
         root.add(vmRefs.ejectPoint);
         viewmodelGroup.add(root);
         currentViewmodelMesh = root;
+        initV287RenderPose(vmRefs,viewmodelGroup,root,weaponId);
       }
 
       // =========================================================================
@@ -18642,7 +18754,15 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
         }
 
-        renderer.render(scene, camera);
+        // V287: isolate presentation transforms from simulation and all aim queries.
+        try{
+          if(matchState.started&&!matchState.ended&&!gamePaused&&!droneSystem.isPlayerControlling())
+            beginV287RenderPose(vmRefs,player,dt,!!v271PlayerFlash?.visible);
+          else if(vmRefs.v287Pose)vmRefs.v287Pose.sprint=0;
+          renderer.render(scene, camera);
+        }finally{
+          restoreV287RenderPose(vmRefs);
+        }
       }
 
       window.onload = function () {

@@ -71,6 +71,7 @@ on:
       - art/v273-distinct-muzzle-designs
       - art/v277-combat-feedback
       - art/v281-combat-acceptance
+      - art/v287-weapon-animation
   workflow_dispatch:
 
 jobs:
@@ -222,6 +223,14 @@ jobs:
           FO_WEAPON_BASELINE=/tmp/fo-v255.html FO_WEAPON_PREVIOUS=/tmp/fo-v264.html node scripts/check-v270-integrated-weapon.mjs
           FO_WEAPON_BASELINE=/tmp/fo-v255.html node scripts/weapon-turntable-v270.mjs
           FO_CHARACTER_BASELINE=/tmp/fo-v255.html FO_CHARACTER_BASELINE_LABEL=V255 FO_CHARACTER_CANDIDATE_LABEL=V270 FO_CHARACTER_EXPANDED=1 node scripts/character-turntable.mjs
+      - name: V287 isolated weapon animation and resource acceptance
+        if: github.ref_name == 'art/v287-weapon-animation'
+        run: |
+          git fetch --depth=1 origin 1b99db408570ea48d1dc9652ab582dddf7edfbc6
+          git show 1b99db408570ea48d1dc9652ab582dddf7edfbc6:index.html > /tmp/fo-v281.html
+          FO_V281_BASELINE=/tmp/fo-v281.html node scripts/check-v287-animation.mjs
+          node scripts/check-v273-muzzle-profiles.mjs
+          node scripts/browser-v287-animation.mjs
       - name: V281 combat continuity and three-mode scene acceptance
         if: github.ref_name == 'art/v281-combat-acceptance'
         run: |
