@@ -6262,6 +6262,35 @@
             }
           }
         }
+        // V177–V182: readable class identity through existing silhouette, not bright extra markers.
+        const roleArt={
+          assault:{torso:[1.025,1,1.02],pouch:[1,1,1],kit:[1,1,1]},
+          medic:{torso:[.985,1,.98],pouch:[.94,.94,.91],kit:[.98,1,.97]},
+          engineer:{torso:[1.015,1,1.02],pouch:[1.03,1.02,1.06],kit:[1.025,1,1.04]},
+          sniper:{torso:[.96,1,.96],pouch:[.92,.95,.85],kit:[.94,1,.96]},
+          heavy:{torso:[1.055,1,1.045],pouch:[1.04,1.025,1.10],kit:[1.08,1,1.06]}
+        }[classId]||{torso:[1,1,1],pouch:[1,1,1],kit:[1,1,1]};
+        if(G.v176){
+          for(const n of model.upperBody.children){
+            if(n.name==='v105_role_vest'){
+              n.scale.x*=roleArt.torso[0];n.scale.z*=roleArt.torso[2];
+            }
+            if(['pouch','admin'].includes(n.userData?.v176Equipment)){
+              n.scale.x*=roleArt.pouch[0];n.scale.y*=roleArt.pouch[1];n.scale.z*=roleArt.pouch[2];
+              n.position.x*=roleArt.torso[0];
+            }
+            if(n.geometry===H.shapes.get(approved.heavyShoulder)){
+              n.scale.x*=roleArt.kit[0];n.scale.z*=roleArt.kit[2];
+            }
+            if(geomOf(n)===approved.sniperCape){
+              n.scale.x*=.96;n.scale.z*=1.08;
+            }
+          }
+          // Rear and side pieces of the existing carrier stay proportional to the role.
+          for(const n of rig.children){
+            if(n.position.z<-.10){n.position.x*=roleArt.kit[0];n.scale.x*=roleArt.kit[0];}
+          }
+        }
         const groups=[face,rig,...[model.leftHip,model.rightHip,model.leftKnee,model.rightKnee].map(p=>p.children.find(c=>String(c.name).startsWith('v99_'))),...arms.map(a=>a.glove),closeFace,closeRig,...footOverlays.map(a=>a.group)];
         const buildBatches=group=>{
           const buckets=new Map();
@@ -6843,7 +6872,7 @@
           for(const g of midDetails)g.visible=next<2;
           for(const c of clothLods)c.mesh.geometry=next===2?c.low:c.high;
         };
-        model.root.userData=model.root.userData||{};model.root.userData.visualVariant=variantId;
+        model.root.userData=model.root.userData||{};model.root.userData.visualVariant=variantId;model.root.userData.v182Role=classId;
         return model;
       }
       function createEnhancedBotSoldierMesh(team, classId, variant=0) {
