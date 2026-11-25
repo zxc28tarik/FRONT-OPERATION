@@ -6214,6 +6214,54 @@
         // V104: combine static detail meshes by material within each existing animated pivot.
         // Geometry is cached per role/team/pivot. No skeleton, visible muzzle or hitbox changes.
         if(!G.v104)G.v104=new Map();
+        // V171–V176: integrate accessory silhouettes with the existing carrier and joints.
+        // Before batching: geometry and fit changes do not increase mesh count.
+        if(typeof H.rounded==='function'&&typeof approved.belt.getAttribute==='function'){
+          if(!G.v176)G.v176=new Map();
+          const mold=(key,source,transform)=>{
+            if(!G.v176.has(key)){
+              const g=source.clone(),p=g.getAttribute('position');
+              for(let i=0;i<p.count;i++)p.setXYZ(i,...transform(p.getX(i),p.getY(i),p.getZ(i)));
+              p.needsUpdate=true;g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();G.v176.set(key,g);
+            }
+            return G.v176.get(key);
+          };
+          const belt=model.root.children.find(n=>geomOf(n)===approved.belt);
+          if(belt){
+            belt.geometry=mold('belt',H.rounded(.34,.055,.23,.018),(x,y,z)=>[x,y,z*(1-.06*Math.abs(x)/.17)]);
+            belt.userData.v176Equipment='belt';
+          }
+          for(const n of model.upperBody.children){
+            const g=n.geometry;
+            if(g===H.shapes.get(approved.magPouch)||g===H.shapes.get(approved.adminPouch)){
+              const key=g===H.shapes.get(approved.magPouch)?'pouch':'admin';
+              n.geometry=mold(key,g,(x,y,z)=>{
+                const w=key==='pouch'?.034:.075,h=key==='pouch'?.063:.038;
+                const fullness=Math.max(0,1-(x/w)**2)*Math.max(0,1-(y/h)**2);
+                return [x*(1-.055*Math.max(0,y/h)),y,z+Math.max(0,z/.023)*fullness*.005];
+              });
+              n.userData.v176Equipment=key;
+            }
+          }
+          for(const knee of [model.leftKnee,model.rightKnee]){
+            const pad=knee.children.find(n=>n.geometry===H.shapes.get(approved.kneePad));
+            if(pad){
+              pad.geometry=mold('kneepad',pad.geometry,(x,y,z)=>[x*(1-.14*Math.abs(y)/.048),y,z-.006*(Math.abs(x)/.044)**2]);
+              pad.userData.v176Equipment='kneepad';
+            }
+          }
+          for(const arm of arms){
+            arm.hand.geometry=mold('glove',arm.hand.geometry,(x,y,z)=>[x*(1-.085*Math.max(0,-z/.039)),y-.004*Math.max(0,z/.039),z]);
+            arm.hand.userData.v176Equipment='glove';
+          }
+          // V171/V173: align existing side webbing and shoulder straps with the carrier width.
+          for(const n of rig.children){
+            if(Math.abs(n.position.x)>.10&&Math.abs(n.position.x)<.19){
+              n.position.x*=vestProfile[0];
+              if(n.position.y>.34)n.position.z*=vestProfile[2];
+            }
+          }
+        }
         const groups=[face,rig,...[model.leftHip,model.rightHip,model.leftKnee,model.rightKnee].map(p=>p.children.find(c=>String(c.name).startsWith('v99_'))),...arms.map(a=>a.glove),closeFace,closeRig,...footOverlays.map(a=>a.group)];
         const buildBatches=group=>{
           const buckets=new Map();
@@ -6751,6 +6799,13 @@
             let material=G.v163.get(n.material);
             if(!material){material=n.material.clone();material.vertexColors=true;material.needsUpdate=true;G.v163.set(n.material,material);}
             n.material=material;n.userData.v163Contact=true;
+          }
+        }
+        // V174: class pack harness fit. Keep medical marker and attachment parent intact.
+        if(G.v176){
+          for(const n of model.upperBody.children.filter(n=>n.userData.v149Pack)){
+            n.scale.x*=classId==='heavy'?1.035:classId==='medic'?.99:1.015;
+            n.userData.v174Harness=true;
           }
         }
         // V170: retain facial shape identity in a cheaper distance mesh.
