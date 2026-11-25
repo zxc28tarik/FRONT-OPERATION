@@ -4709,10 +4709,20 @@
         const n=64,data=new Uint8Array(n*n*4);
         for(let y=0;y<n;y++)for(let x=0;x<n;x++){
           const noise=((Math.imul(x+1,73856093)^Math.imul(y+1,19349663))>>>0)%17;
-          let value=247-noise*.35;
-          if(kind==='rubber')value-=((x%8<2) !== (y%8<2))?17:3;
-          else if(kind==='polymer')value-=((x+2*y)%11===0)?8:2;
-          else value-=(y%7===0?7:1);
+          // V264: tonal detail without extra texture samples or larger maps.
+          const grain=((Math.imul(x+19,83492791)^Math.imul(y+31,2971215073))>>>0)%13;
+          let value=248-noise*.42;
+          if(kind==='rubber'){
+            const cellX=x%8,cellY=y%8;
+            const recess=cellX===0||cellY===0;
+            const crown=cellX>=2&&cellX<=5&&cellY>=2&&cellY<=5;
+            value-=recess?23:crown?3:10;
+          }else if(kind==='polymer'){
+            value-=grain*.72+((x+3*y)%13===0?6:0);
+          }else{
+            value-=(y%8===0?8:y%8===1?4:1)+grain*.30;
+            if(x%16===7&&y%8===2)value+=4;
+          }
           const i=(y*n+x)*4;data[i]=data[i+1]=data[i+2]=Math.round(value);data[i+3]=255;
         }
         const tex=new THREE.DataTexture(data,n,n,THREE.RGBAFormat);
@@ -5805,13 +5815,16 @@
           const rail = createLimbMesh(G.weaponTopRail, mats.gunSteel, false);
           rail.scale.z = isSniper ? 0.30 : isCompact ? 0.65 : 1;
           rail.position.set(0, isSniper ? 0.041 : 0.053, mainLen * 0.23);
+          rail.userData.v263Part='dark';
           weapon.add(rail);
           const handguard = createLimbMesh(G.weaponHandguard, mats.vestRig, false);
           handguard.scale.z = isCompact ? 0.68 : isSniper ? 1.1 : 1;
           handguard.position.set(0, 0.009, mainLen * 0.69);
+          handguard.userData.v263Part='guard';
           weapon.add(handguard);
           const grip = createLimbMesh(G.weaponGrip, mats.bootLeather, false);
           grip.position.set(0, -0.083, -0.014);
+          grip.userData.v263Part='grip';
           grip.rotation.x = -0.19;
           weapon.add(grip);
           if (!isSniper) {
@@ -7835,6 +7848,30 @@
             n.material=G.v262.materials.get(original);
           }
         }
+        // V263: first/third-person cosmetic palette parity. Clone only weapon
+        // materials; uniforms, boots, team colors and the effect remain untouched.
+        if(!G.v263)G.v263=new Map();
+        const worldFinishes={
+          body:[0x343e48,.48,.70],stock:[0x25292e,.98,.01],
+          steel:[0x87909a,.34,.85],optic:[0x262c32,.56,.66],
+          painted:[0x3b4d38,.68,.20],dark:[0x262c32,.56,.66],
+          grip:[0x25292e,.98,.01],
+          guard:classId==='assault'?[0x877254,.73,.08]:[0x30363d,.85,.03],
+          magazine:classId==='assault'?[0x30363d,.85,.03]:[0x262c32,.56,.66]
+        };
+        if(magazine&&classId==='sniper')magazine.userData.v263Part='magazine';
+        for(const n of model.weaponPivot.children){
+          const part=n.userData?.v263Part,finish=worldFinishes[part];
+          if(!n.isMesh||!finish||n===model.muzzleFlash)continue;
+          const key=n.material.uuid+':'+part+':'+finish.join(':');
+          if(!G.v263.has(key)){
+            const m=n.material.clone();m.color.setHex(finish[0]);
+            m.roughness=finish[1];m.metalness=finish[2];
+            m.userData.v263Finish=part;G.v263.set(key,m);
+          }
+          n.material=G.v263.get(key);
+          n.userData.v263Finish=part;
+        }
         // V170: retain facial shape identity in a cheaper distance mesh.
         if(oldSkull&&G.v130&&typeof F.lowSkull.getAttribute==='function'){
           if(!G.v170)G.v170=new Map();
@@ -8162,10 +8199,12 @@
           mats.gunMetal
         );
         wBody.position.z = receiverLen * 0.22;
+          wBody.userData.v263Part='body';
         weaponPivot.add(wBody);
 
         const wStock = createLimbMesh(new THREE.BoxGeometry(0.044, 0.082, 0.20), mats.bootLeather, false);
         wStock.position.set(0, -0.01, -0.14);
+          wStock.userData.v263Part='stock';
         weaponPivot.add(wStock);
 
         const wBarrel = createLimbMesh(
@@ -8174,21 +8213,25 @@
           false
         );
         wBarrel.rotation.x = Math.PI / 2;
+          wBarrel.userData.v263Part='steel';
         wBarrel.position.set(0, 0.014, receiverLen * 0.72 + barrelLen * 0.45);
         weaponPivot.add(wBarrel);
 
         if (classId === 'sniper') {
           const wScope = createLimbMesh(new THREE.CylinderGeometry(0.024, 0.026, 0.28, 10), mats.bootLeather, false);
           wScope.rotation.x = Math.PI / 2;
+          wScope.userData.v263Part='optic';
           wScope.position.set(0, 0.062, 0.14);
           weaponPivot.add(wScope);
         } else if (classId === 'heavy') {
           const wBox = createLimbMesh(new THREE.BoxGeometry(0.11, 0.13, 0.13), mats.ghillieOlive, false);
           wBox.position.set(-0.07, -0.06, 0.12);
+          wBox.userData.v263Part='painted';
           weaponPivot.add(wBox);
         } else {
           const wMag = createLimbMesh(new THREE.BoxGeometry(0.032, 0.14, 0.052), mats.bootLeather, false);
           wMag.position.set(0, -0.085, 0.16);
+          wMag.userData.v263Part='magazine';
           wMag.rotation.x = -0.16;
           weaponPivot.add(wMag);
         }
