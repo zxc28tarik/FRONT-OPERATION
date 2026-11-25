@@ -1,0 +1,5 @@
+# V271 — Namlu ateş efekti
+
+Oyuncu ve botlar için önceki katı küre/çapraz çubuk görsellerinin yerini sıcak beyaz merkezli, turuncu ve şeffaf kenarlı yönlü bir efekt alır. 128×64 RGBA doku (32 KiB ham), ortak altı üçgenli geometri ve botlarda ortak materyal kullanılır. Oyuncu efekti tekrar kullanılır; 50 ms içinde küçülür ve solar. Botların mevcut 55 ms görsel süresi korunur; efekt küçülür. Mevcut tek nokta ışığı doğru namlu konumunda söner; yeni ışık eklenmez. Eski bot görseli ilk ateşte değiştirilir; mevcut namlu bağlantısı, üç ateş yolu, hasar, recoil, atış ve AI zamanlamaları korunur. Oyuncu efekti silah değişiminde ayrılır, ölüm ve maç bitiminde temizlenir. Görsel varyasyon deterministik olup oyun RNG'sini tüketmez.
+
+V270'teki eski sahne testi mock nesnesinin userData eksikliğine karşı V263 etiketlerine koruma eklendi; V25 kurucusu değiştirilmedi. Yeni regresyon: doku, kaynak kullanımı, namlu ışığı, tekrar ateş ve sıfırlama, bot bağlantısı. Gerçek tarayıcı görüntüsü ve FPS onayı henüz yoktur. Ana dal değiştirilmez.
