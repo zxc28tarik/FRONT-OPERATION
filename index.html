@@ -15801,10 +15801,18 @@ return {createExperimentalRig,createAdaptiveRigController};
         const a=Math.sin(phase),b=Math.cos(phase);
         const stride=a*amplitude*forward;
         const lateral=side*amplitude*.54;
-        return {leftHip:stride,rightHip:-stride,
-          leftSide:lateral*(.42+.58*a),rightSide:lateral*(.42-.58*a),
-          leftKnee:Math.max(0,-a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,-b)*Math.abs(side)*.20+stance*.43,
-          rightKnee:Math.max(0,a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,b)*Math.abs(side)*.20+stance*.43};
+        // V291: local presentation angles only. Preserve forward and idle.
+        const back=Math.max(0,-forward),sideAbs=Math.abs(side);
+        const reverseReach=a*amplitude*back*.20;
+        const sideReach=side*amplitude*.12,sideOpen=sideAbs*amplitude*.13;
+        const motion=Math.min(1,speed/.9);
+        const reverseLift=back*motion*weight*(1-stance*.4)*.06;
+        const sideLift=sideAbs*motion*weight*(1-.35*stance)*(.07+.04*run);
+        return {leftHip:stride+reverseReach,rightHip:-stride-reverseReach,
+          leftSide:lateral*(.42+.58*a)+sideReach*(.5+.5*a)-sideOpen,
+          rightSide:lateral*(.42-.58*a)+sideReach*(.5-.5*a)+sideOpen,
+          leftKnee:Math.max(0,-a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,-b)*Math.abs(side)*.20+stance*.43+Math.max(0,-a)*reverseLift+Math.max(0,-b)*sideLift,
+          rightKnee:Math.max(0,a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,b)*Math.abs(side)*.20+stance*.43+Math.max(0,a)*reverseLift+Math.max(0,b)*sideLift};
       }
       // V58: derive map awareness from static, validated geometry, never enemy coordinates.
       let botMapAwarenessCache=null;
