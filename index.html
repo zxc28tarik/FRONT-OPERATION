@@ -4877,6 +4877,12 @@
           support.position.y-=reach*profile.hand;
           support.rotation.z+=reach*profile.turn;
         }
+        // V285: use the already existing knife swing phase for a small
+        // wrist follow-through. Single-use gear keeps its immediate slot switch.
+        if(pose.id==='knife'&&actor.knifeSwingTimer>0){
+          const swing=Math.sin(Math.PI*v287Clamp(1-actor.knifeSwingTimer/.24));
+          root.rotation.z-=swing*.075;root.position.y-=swing*.009;
+        }
         // V284: refine the existing MRAD bolt and Minimi cover as stylized
         // model animation, with no modification of the actual firing state.
         if(refs.boltMesh){
