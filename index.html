@@ -7399,6 +7399,144 @@
             }
           }
         }
+        // V251: class-specific Engineer load-bearing and Sniper low-profile kit.
+        // Reshape only existing static meshes and keep the V250 Assault/Medic
+        // sculpt, all rig/hitbox mounts and gameplay weapon visuals untouched.
+        if((classId==='engineer'||classId==='sniper')&&
+           typeof v248Front?.geometry?.getAttribute==='function'){
+          if(!G.v251)G.v251={surfaces:new Map()};
+          const v251Role=classId;
+          const shapeExisting=(key,source,deform)=>{
+            let g=G.v251.surfaces.get(key);
+            if(!g&&source&&typeof source.getAttribute==='function'&&typeof source.clone==='function'){
+              g=source.clone();
+              if(!g.boundingBox)g.computeBoundingBox();
+              const b=g.boundingBox,p=g.getAttribute('position');
+              const hx=Math.max(.01,(b.max.x-b.min.x)*.5);
+              const hy=Math.max(.01,(b.max.y-b.min.y)*.5);
+              const hz=Math.max(.01,(b.max.z-b.min.z)*.5);
+              const centerY=(b.min.y+b.max.y)*.5;
+              for(let i=0;i<p.count;i++){
+                const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+                const nx=x/hx,ny=(y-centerY)/hy,nz=z/hz;
+                p.setXYZ(i,...deform(x,y,z,nx,ny,nz));
+              }
+              p.needsUpdate=true;
+              g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();
+              G.v251.surfaces.set(key,g);
+            }
+            return g;
+          };
+          // Engineer has a reinforced rectangular work carrier and broad
+          // tool clearance. Sniper narrows the upper carrier and softens the
+          // chest/belt line for a less bulky silhouette.
+          for(const n of [v248Front,v248Back]){
+            if(!n)continue;
+            const face=n.position.z>0?'front':'back',side=face==='front'?1:-1;
+            const key='carrier:'+v251Role+':'+face;
+            const shaped=shapeExisting(key,n.geometry,(x,y,z,nx,ny,nz)=>{
+              const top=Math.max(0,ny),lower=Math.max(0,-ny);
+              const shoulder=Math.exp(-((ny-.65)**2)/.20);
+              const middle=Math.exp(-(ny**2)/.48);
+              const edge=Math.min(1,Math.abs(nx));
+              const width=v251Role==='engineer'
+                ?1+.032*shoulder+.012*middle-.013*lower
+                :1-.047*shoulder-.018*middle+.011*lower;
+              const panel=v251Role==='engineer'
+                ?.0050*middle*(1-edge*.7)
+                :.0028*(1-top*.5)*(1-edge*.6);
+              const rim=.0018*edge*(v251Role==='engineer'?1:-.5);
+              return [x*width,y-side*.0018*shoulder*edge,z+side*(panel+rim)];
+            });
+            if(shaped){n.geometry=shaped;n.userData.v251Carrier=v251Role;}
+          }
+          // Fit original four pockets and two carrier straps to the selected
+          // class. Never duplicate them or move their parent rig.
+          for(const n of model.upperBody.children){
+            const type=n.userData?.v176Equipment;
+            if(type==='pouch'||type==='admin'){
+              const side=Math.sign(n.position.x);
+              if(v251Role==='engineer'){
+                n.position.y+=type==='admin'?.010:side===0?-.013:.009;
+                n.scale.x*=type==='admin'?1.055:1.035;
+                n.rotation.z+=side*.036;
+              }else{
+                n.scale.x*=.955;n.scale.y*=.93;n.scale.z*=.94;
+                n.position.y+=type==='admin'?.003:-.014;
+                n.position.z-=.005;
+                n.rotation.z+=side*.018;
+              }
+              n.userData.v251Loadout=v251Role;
+            }
+            if(n.geometry===G.carrierStrap){
+              const side=Math.sign(n.position.x);
+              n.position.x*=v251Role==='engineer'?1.035:.947;
+              n.rotation.z+=side*(v251Role==='engineer'?.031:.015);
+              n.userData.v251Harness=v251Role;
+            }
+          }
+          if(v251Role==='engineer'){
+            const pack=model.upperBody.children.find(n=>n.userData?.v149Pack);
+            if(pack){
+              const shaped=shapeExisting('engineer:field-pack',pack.geometry,(x,y,z,nx,ny,nz)=>{
+                const edge=Math.min(1,Math.abs(nx));
+                const top=Math.max(0,ny);
+                const front=Math.max(0,nz);
+                const rib=Math.sin(ny*6.0+nx*2.0)*.0018*(1-edge);
+                const bulge=(1-edge*edge)*(.0033*(1-Math.abs(ny)*.45));
+                return [x*(1+.023*top-.008*Math.max(0,-ny)),y,
+                  z+front*(bulge+rib)];
+              });
+              if(shaped){pack.geometry=shaped;pack.userData.v251EngineerPack=true;}
+            }
+            // Original tool tube and utility panel remain next to the pack;
+            // only adjust their existing attachment alignment.
+            for(const n of model.upperBody.children){
+              const base=geomOf(n);
+              if(base===approved.engTube){
+                n.position.x+=.009;
+                n.position.z-=.007;
+                n.rotation.z+=.065;
+                n.userData.v251ToolMounted=true;
+              }else if(base===approved.claymoreBack){
+                n.position.x-=.009;
+                n.position.y-=.003;
+                n.userData.v251UtilityMounted=true;
+              }
+            }
+          }else{
+            // Existing partial cape gets a soft asymmetric cloth fall rather
+            // than a circular rigid cylinder; the existing hood becomes a
+            // slimmer cowl without changing helmet articulation.
+            const cape=model.upperBody.children.find(n=>geomOf(n)===approved.sniperCape);
+            if(cape){
+              const shaped=shapeExisting('sniper:shoulder-drape',cape.geometry,(x,y,z,nx,ny,nz)=>{
+                const bottom=Math.max(0,-ny),edge=Math.min(1,Math.abs(nx));
+                const fold=Math.sin(nx*5.2+ny*3.4)*.0041*bottom;
+                const flank=(nx>.0?1:-1)*.0042*bottom;
+                const width=1+.025*bottom-.012*(1-bottom);
+                return [x*width+flank,y-.0045*bottom*edge,
+                  z+.0032*bottom+fold-.0018*edge];
+              });
+              if(shaped){
+                cape.geometry=shaped;
+                cape.scale.x*=1.025;
+                cape.scale.z*=1.018;
+                cape.userData.v251DrapedCape=true;
+              }
+            }
+            const hood=model.head.children.find(n=>geomOf(n)===approved.sniperHood);
+            if(hood){
+              const shaped=shapeExisting('sniper:cloth-hood',hood.geometry,(x,y,z,nx,ny,nz)=>{
+                const lower=Math.max(0,-ny);
+                const face=Math.max(0,nz);
+                return [x*(1-.024*face+.013*lower),y-.0028*lower*face,
+                  z-.0035*face+Math.sin(nx*5+ny*4)*.0011*lower];
+              });
+              if(shaped){hood.geometry=shaped;hood.userData.v251FittedHood=true;}
+            }
+          }
+        }
         // V170: retain facial shape identity in a cheaper distance mesh.
         if(oldSkull&&G.v130&&typeof F.lowSkull.getAttribute==='function'){
           if(!G.v170)G.v170=new Map();
