@@ -7114,7 +7114,7 @@
           if(!n.geometry.boundingBox)n.geometry.computeBoundingBox();
           return n.geometry.boundingBox;
         };
-        if(v248Front&&v248Back&&v248Front.geometry&&v248Back.geometry){
+        if(v248Front&&v248Back&&typeof v248Front.geometry?.computeBoundingBox==='function'&&typeof v248Back.geometry?.computeBoundingBox==='function'){
           const fb=v248Bounds(v248Front),bb=v248Bounds(v248Back);
           const frontFace=v248Front.position.z+fb.max.z*v248Front.scale.z;
           const backFace=v248Back.position.z+bb.min.z*v248Back.scale.z;
