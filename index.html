@@ -6789,18 +6789,21 @@
           // V215: bend-dependent textile volume in the approved visual model.
           const kneeFits=[model.leftKnee,model.rightKnee].map(p=>({pivot:p,joint:p.children.find(n=>n.userData?.v154Joint==='knee')}));
           const hipFits=[model.leftHip,model.rightHip].map(p=>({pivot:p,joint:p.children.find(n=>n.userData?.v154Joint==='hip')}));
+          // V222: avoid rewriting identical visual transforms on every stationary frame.
+          const fitScale=(joint,x,z)=>{
+            if(Math.abs(joint.scale.x-x)>.0001)joint.scale.x=x;
+            if(Math.abs(joint.scale.z-z)>.0001)joint.scale.z=z;
+          };
           model.updateVisualJointFit=()=>{
             for(const {pivot,joint} of kneeFits){
               if(!joint)continue;
               const bend=Math.min(1,Math.abs(pivot.rotation.x)/1.5);
-              joint.scale.x=bodyProfile[0]*(1+.045*bend);
-              joint.scale.z=bodyProfile[1]*(1+.075*bend);
+              fitScale(joint,bodyProfile[0]*(1+.045*bend),bodyProfile[1]*(1+.075*bend));
             }
             for(const {pivot,joint} of hipFits){
               if(!joint)continue;
               const bend=Math.min(1,Math.hypot(pivot.rotation.x,pivot.rotation.z));
-              joint.scale.x=bodyProfile[0]*(1+.025*bend);
-              joint.scale.z=bodyProfile[1]*(1+.04*bend);
+              fitScale(joint,bodyProfile[0]*(1+.025*bend),bodyProfile[1]*(1+.04*bend));
             }
           };
           // Arm bridge orientation follows the actual elbow bend rather than a fixed globe.
@@ -6822,8 +6825,7 @@
                 if(bisector.lengthSq()>.0001)arm.elbow.quaternion.setFromUnitVectors(up,bisector.normalize());
                 if(a.lengthSq()>.0001)arm.shoulder.quaternion.setFromUnitVectors(up,a);
                 const bend=Math.max(0,Math.min(1,(1-a.dot(b))*.5));
-                arm.elbow.scale.x=bodyProfile[0]*(1+.065*bend);
-                arm.elbow.scale.z=bodyProfile[1]*(1+.085*bend);
+                fitScale(arm.elbow,bodyProfile[0]*(1+.065*bend),bodyProfile[1]*(1+.085*bend));
               }
             };
             model.updateVisualGrip(0);

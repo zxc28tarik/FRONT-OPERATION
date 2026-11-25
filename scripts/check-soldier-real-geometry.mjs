@@ -103,6 +103,10 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  m.leftKnee.rotation.x=0;m.updateVisualJointFit();const neutral=knee.scale.z;
  m.leftKnee.rotation.x=1.5;m.updateVisualJointFit();assert(knee.scale.z>neutral&&knee.scale.z<neutral*1.09);
  m.leftKnee.rotation.x=0;m.updateVisualJointFit();assert(Math.abs(knee.scale.z-neutral)<1e-6);
+ const hip=m.leftHip.children.find(n=>n.userData.v154Joint==='hip');assert(hip);
+ m.leftHip.rotation.x=0;m.leftHip.rotation.z=0;m.updateVisualJointFit();const hipNeutral=hip.scale.z;
+ m.leftHip.rotation.x=.7;m.leftHip.rotation.z=.3;m.updateVisualJointFit();assert(hip.scale.z>hipNeutral&&hip.scale.z<hipNeutral*1.041);
+ m.leftHip.rotation.set(0,0,0);m.updateVisualJointFit();assert(Math.abs(hip.scale.z-hipNeutral)<1e-6);
  const near=countVisible(m.root);
  const armBands=m.upperBody.children.filter(n=>n.geometry===api.base(team,cls).upperBody.children.find(c=>c.geometry?.parameters?.height===.065)?.geometry);
  const closeGroups=[m.head.children.find(n=>n.name==='v99_close_face'),m.upperBody.children.find(n=>n.name==='v99_close_rig')];

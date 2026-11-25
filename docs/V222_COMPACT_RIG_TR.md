@@ -1,0 +1,5 @@
+# V217–V222 kompakt iskelet
+V216 son doğrulama: tüm CI/WebGL adımları geçti (45590274950). Kesit çevresi 1.0; merkez sapması 5.88e-8; boyuna kenar oranı maksimum 6.59. 15 botta yazılım WebGL performans sınırı geçilemedi (yakın 8→9 ms, orta 7.5→9.2 ms, uzak 8.8→8 ms). Donanım FPS ölçümü değil.
+V217–222 deneysel rig: düz bölgelerde boyuna ölçeklenen ortak kemikler, eklem çevresinde ayrı kesit kemikleri. 24 adımda 125→45, 16 adımda 85→35. Kıyafet için beş materyal grubu yerine iki bitişik grup. Dünya matrisi tersini her update'te bir kez hesaplama. Eklem merkez çizgisi kuadratik Bezier ile yuvarlatılır. Kesit çevresi ve merkez testleri korunur; boyuna gerilme ölçülür, düşüşü doğrulanmadan başarı sayılmaz.
+Mevcut model: değişmeyen eklem ölçeklerinin tekrar yazılmasını engelleyen eşik ve kalça testi. Deneysel rig varsayılan oyuna dahil edilmedi; haritalar, silah ve AI değiştirilmedi.
+Kabul: tüm testler geçmeli, %10 yazılım A/B sınırı, görsel inceleme ve donanım karşılaştırması ayrı açık kriterlerdir.
