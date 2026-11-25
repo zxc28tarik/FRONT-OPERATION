@@ -5752,8 +5752,8 @@
         const face=detail(model.head,'head');
         // V106: fitted facial contours and eyewear, shared geometries.
         if(!G.v106){
-          const fitted=(kind)=>{
-            const geo=new THREE.SphereGeometry(1,32,24);
+          const fitted=(kind,detail=true)=>{
+            const geo=new THREE.SphereGeometry(1,detail?32:16,detail?24:12);
             if(typeof geo.getAttribute!=='function')return geo;
             const p=geo.getAttribute('position');
             for(let i=0;i<p.count;i++){
@@ -5764,17 +5764,22 @@
                 // V138: continuous brow, eye socket and jaw taper.
                 const brow=Math.exp(-((Math.abs(x)-.36)**2*15+(y-.36)**2*32))*front;
                 const orbit=Math.exp(-((Math.abs(x)-.39)**2*21+(y-.18)**2*42))*front;
-                p.setXYZ(i,x*(.096+.009*Math.max(0,y)-Math.max(0,-y)*.012),y*.107,z*.095+nose*.018+cheek*.007+brow*.006-orbit*.007);
+                // V165: cheekbones, jaw angle and temple shape remain under the helmet.
+                const jaw=Math.exp(-((Math.abs(x)-.66)**2*16+(y+.49)**2*12));
+                const temple=Math.exp(-((Math.abs(x)-.85)**2*22+(y-.36)**2*16));
+                p.setXYZ(i,x*(.096+.009*Math.max(0,y)-Math.max(0,-y)*.012+.004*jaw-.004*temple),y*.107,z*.095+nose*.018+cheek*.009+brow*.007-orbit*.009);
               }
               else{
                 const chin=Math.exp(-(x*x*12+(y+.62)**2*12))*front;
-                p.setXYZ(i,x*(.078-.014*Math.max(0,-y)),y*.068,z*.043+nose*.019+cheek*.006+chin*.006);
+                // V166: softer cheek-to-chin transition, shallow fabric relief.
+                const pleat=Math.sin(x*14+y*7)*Math.exp(-((y+.42)**2*10))*front*.0015;
+                p.setXYZ(i,x*(.078-.012*Math.max(0,-y)),y*.068,z*.043+nose*.018+cheek*.008+chin*.008+pleat);
               }
             }
             p.needsUpdate=true;geo.computeVertexNormals();geo.computeBoundingSphere();return geo;
           };
           const skin=[0xc89a78,0xa98164,0x92745f].map(color=>new THREE.MeshStandardMaterial({color,roughness:.78,metalness:0}));
-          G.v106={skull:fitted('skull'),mask:fitted('mask'),skin};
+          G.v106={skull:fitted('skull'),lowSkull:fitted('skull',false),mask:fitted('mask'),skin};
         }
         const F=G.v106,variantId=((Math.floor(variant)||0)%3+3)%3;
         const approved=getSoldierSharedAssets().geos;
@@ -5793,12 +5798,13 @@
         part(face,F.mask,mask,0,-.045,.079,...maskProfile);
         ell(face,D.maskEdge,0,-.076,.102,.037,.014,.015);
         for(const s of [-1,1]){
-          const eyewear=classId==='heavy'?[.048,.027]:classId==='sniper'?[.037,.017]:[.043,.022];
+          const eyewear=classId==='heavy'?[.048,.027]:classId==='sniper'?[.037,.017]:classId==='medic'?[.041,.020]:classId==='engineer'?[.045,.024]:[.043,.022];
           ell(face,D.rubber,s*.046,.012,.116,eyewear[0],eyewear[1],.023,0,-s*.18);
           ell(face,D.lens,s*.046,.013,.132,eyewear[0]*.85,eyewear[1]*.77,.013,0,-s*.18);
           ell(face,D.lensEdge,s*.046,.024,.141,eyewear[0]*.55,.0025,.003,0,-s*.18);
           ell(face,mask,s*.052,-.022,.086,.027,.034,.022,0,s*.23);
-          block(face,D.strap,s*.103,-.037,.061,.012,.072,.018,0,0,-s*.26);
+          // V169: existing retention straps follow the cheek toward the jaw.
+          block(face,D.strap,s*.098,-.043,.068,.012,.078,.016,-.15,0,-s*.31);
           ell(face,D.hard,s*.132,.002,-.011,.013,.033,.035);
           block(face,D.hard,s*.120,.053,-.024,.018,.013,.078);
         }
@@ -6009,9 +6015,20 @@
         // V105: coherent, role-specific protective shells instead of one generic helmet.
         // Use the existing helmet reference and head pivot; approved V25 factory stays intact.
         if(!G.v105){
-          const shape=(rows,sx,sz)=>{
-            const g=new THREE.LatheGeometry(rows.map(p=>new THREE.Vector2(p[0],p[1])),20);
+          const shape=(rows,sx,sz,detail=true)=>{
+            const dense=detail?rows.flatMap((p,i)=>i===rows.length-1?[p]:[p,[(p[0]+rows[i+1][0])*.5,(p[1]+rows[i+1][1])*.5]]):rows;
+            const g=new THREE.LatheGeometry(dense.map(p=>new THREE.Vector2(p[0],p[1])),detail?32:16);
             if(typeof g.scale==='function')g.scale(sx,1,sz);
+            if(typeof g.getAttribute==='function'){
+              const p=g.getAttribute('position');
+              for(let i=0;i<p.count;i++){
+                const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+                // V167: rear protection and subtle side flattening, preserving overall fit.
+                const rear=Math.max(0,-z/.14),rim=Math.max(0,1-(y+.04)/.10);
+                p.setXYZ(i,x*(1-.035*rim),y-.009*rear*rim,z*(1+.025*rear*rim));
+              }
+              p.needsUpdate=true;g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();
+            }
             return g;
           };
           const helmets={
@@ -6479,6 +6496,17 @@
           };
           textile(model.root);
         }
+        // V168: separate lens optics from the matte rubber surround.
+        if(typeof D.lens.getAttribute==='undefined'&&typeof D.lens.color?.clone==='function'){
+          if(!G.v168)G.v168=new Map();
+          const source=G.v117.get(D.lens)||D.lens;
+          let glass=G.v168.get(classId);
+          if(!glass){
+            glass=source.clone();glass.color.setHex(classId==='sniper'?0x283d46:classId==='heavy'?0x2d414b:0x374e59);
+            glass.roughness=.23;glass.metalness=.18;glass.needsUpdate=true;G.v168.set(classId,glass);
+          }
+          for(const n of face.children)if(n.material===source)n.material=glass;
+        }
         // V149: sculpt existing class packs into distinct textile volumes; keep attachment planes fixed.
         if(!G.v149)G.v149=new Map();
         const packSource={medic:approved.medBag,engineer:approved.engPack,heavy:approved.heavyPack}[classId];
@@ -6696,6 +6724,21 @@
             };
             model.updateVisualGrip(0);
           }
+        }
+        // V170: retain facial shape identity in a cheaper distance mesh.
+        if(oldSkull&&G.v130&&typeof F.lowSkull.getAttribute==='function'){
+          if(!G.v170)G.v170=new Map();
+          let low=G.v170.get(variantId);
+          if(!low){
+            low=F.lowSkull.clone();const p=low.getAttribute('position');
+            const [width,height]=[[0,0],[-.035,.025],[.038,-.018]][variantId];
+            for(let i=0;i<p.count;i++){
+              const x=p.getX(i),y=p.getY(i),z=p.getZ(i),jaw=Math.max(0,Math.min(1,-y/.08));
+              p.setXYZ(i,x*(1+width*jaw),y*(1+height),z*(1-width*.35*jaw));
+            }
+            p.needsUpdate=true;low.computeVertexNormals();low.computeBoundingBox();low.computeBoundingSphere();G.v170.set(variantId,low);
+          }
+          G.v146.set(oldSkull.geometry,low);oldSkull.userData.v170Head=true;
         }
         // V144: reuse existing silhouette and animation hierarchy, with no added draw calls.
         model.setVisualFootPose=(left,right)=>{
