@@ -6477,6 +6477,10 @@
               G.v149.set(classId,shaped);
             }
             pack.geometry=shaped;pack.userData.v149Pack=true;
+            // Keep the medic's existing cross in front of the reshaped cloth.
+            if(classId==='medic')for(const marker of model.upperBody.children){
+              if(geomOf(marker)===approved.medCrossH||geomOf(marker)===approved.medCrossV)marker.position.z-=.012;
+            }
           }
         }
         // V150: finer helmet-shell highlights through role-specific matte finishes.
