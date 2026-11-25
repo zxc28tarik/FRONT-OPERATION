@@ -219,3 +219,5 @@ jobs:
         run: node tests/soldier_v145_transition_regression.cjs
       - name: Validate V196 contact and directional smoothing
         run: node tests/soldier_v196_contact_regression.cjs
+      - name: Validate critical 01–03 clocks, grenade contact and resource release
+        run: node tests/critical_01_03_regression.cjs
