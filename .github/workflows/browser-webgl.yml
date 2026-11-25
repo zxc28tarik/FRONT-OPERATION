@@ -222,7 +222,9 @@ jobs:
           FO_CHARACTER_BASELINE=/tmp/fo-v255.html FO_CHARACTER_BASELINE_LABEL=V255 FO_CHARACTER_CANDIDATE_LABEL=V270 FO_CHARACTER_EXPANDED=1 node scripts/character-turntable.mjs
       - name: V273 distinct muzzle profile checks
         if: github.ref_name == 'art/v273-distinct-muzzle-designs'
-        run: node scripts/check-v273-muzzle-profiles.mjs
+        run: |
+          node scripts/check-v273-muzzle-profiles.mjs
+          node scripts/render-v273-muzzle-profiles.mjs
       - name: V271 muzzle flash resource and origin checks
         if: github.ref_name == 'art/v271-muzzle-visual-fx'
         run: node scripts/check-v271-muzzle.mjs
