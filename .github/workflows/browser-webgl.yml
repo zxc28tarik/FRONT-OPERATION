@@ -1,0 +1,32 @@
+name: Front Operation WebGL browser acceptance
+on:
+  push:
+    branches:
+      - restore/v25-approved-components-20261122
+  workflow_dispatch:
+
+jobs:
+  chromium-webgl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright and Chromium browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run actual WebGL 6v6 match and UI acceptance
+        run: node scripts/browser-webgl-smoke.mjs
+      - name: Render V25 versus V25+V11 characters from three angles
+        run: node scripts/character-turntable.mjs
+      - name: Save browser screenshots and report even if tests fail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-operation-webgl-browser-qa
+          path: test-artifacts/front-operation-browser/
+          if-no-files-found: warn
+          retention-days: 14

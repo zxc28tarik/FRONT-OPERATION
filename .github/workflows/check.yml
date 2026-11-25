@@ -12,3 +12,7 @@ jobs:
           node-version: '22'
       - name: Check game JavaScript syntax
         run: node scripts/check-inline-js.mjs
+      - name: Verify best approved V5-V25 components
+        run: node scripts/check-best-components.mjs
+      - name: Validate 3D soldier rigs and visual muzzle placement
+        run: node scripts/check-soldier-scene.mjs
