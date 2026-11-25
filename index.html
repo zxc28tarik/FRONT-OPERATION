@@ -7001,6 +7001,102 @@
             n.material=material;n.userData.v163Contact=true;
           }
         }
+        // V247: tailored textile construction on existing anatomy surfaces.
+        // Reuse the same draw calls and articulation. High/low surfaces and
+        // compatible vertex-color materials are cached across team/variants.
+        if(!G.v247){
+          const kinds=new Map();
+          for(const [kind,base,halfHeight] of [
+            ['chest',approved.chest,.18],['abdomen',approved.abdomen,.09],
+            ['thigh',approved.thigh,.18],['shin',approved.shin,.175],
+            ['upperArm',approved.upperArm,.12],['forearm',approved.forearm,.115]
+          ]){
+            const source=V101.anatomy.get(base),high=G.v129.get(source);
+            if(high)kinds.set(high,{kind,halfHeight});
+          }
+          G.v247={kinds,surfaces:new Map(),materials:new Map()};
+        }
+        const clothWeight={assault:1,medic:.88,engineer:1.07,sniper:.85,heavy:1.12}[classId]||1;
+        const refineTailoring=(geometry,kind,halfHeight)=>{
+          if(!geometry||typeof geometry.clone!=='function')return null;
+          const refined=geometry.clone(),pos=refined.getAttribute('position');
+          if(!pos)return null;
+          const priorColor=refined.getAttribute('color');
+          const colors=new Float32Array(pos.count*3);
+          const limb=kind==='thigh'||kind==='shin'||kind==='upperArm'||kind==='forearm';
+          const leg=kind==='thigh'||kind==='shin';
+          const creaseAt=leg?(kind==='shin'?.52:-.46):limb?-.36:-.64;
+          for(let i=0;i<pos.count;i++){
+            const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i),r=Math.hypot(x,z);
+            const angle=Math.atan2(x,z);
+            const t=Math.max(-1,Math.min(1,y/halfHeight));
+            const seam=Math.exp(-Math.pow((Math.abs(angle)-1.20)/.30,2));
+            const rearSeam=Math.exp(-Math.pow((Math.abs(angle)-2.47)/.27,2));
+            const cuff=Math.exp(-Math.pow((Math.abs(t)-.79)/.16,2));
+            const panel=Math.max(0,Math.cos(angle))*(1-Math.abs(t)*.44);
+            const foldWindow=Math.pow(Math.max(0,1-Math.abs(t)),.62);
+            const bend=Math.exp(-Math.pow((t-creaseAt)/.36,2));
+            const fold1=Math.sin(y*(limb?90:70)+Math.sin(angle*2)*1.18);
+            const fold2=Math.sin(y*(limb?54:46)-angle*2.7);
+            const fold3=Math.cos(y*132+angle*4.1);
+            const wrinkle=clothWeight*foldWindow*
+              (fold1*.00215+fold2*.00185+fold3*.00065+bend*fold2*.0019);
+            const tailoredCut=clothWeight*((limb?-.0017:-.0022)*seam+.0012*panel);
+            const radial=Math.max(-.0075,Math.min(.0075,wrinkle+tailoredCut+.0010*rearSeam));
+            if(r>.008){
+              const ratio=(r+radial)/r;
+              pos.setXYZ(i,x*ratio,y,z*ratio);
+            }
+            // Stitches, panel breaks and stressed cuff wear baked into vertices:
+            // no new decals, no high-frequency shader or per-frame updates.
+            const stitch=.017*seam*Math.max(0,Math.sin(y*175+angle*5));
+            const stress=.021*cuff*Math.max(0,Math.sin(angle*7+y*107));
+            const shade=Math.max(.84,Math.min(1.015,
+              1-.071*seam-.042*rearSeam-.037*cuff-.015*panel-stress+stitch));
+            const j=i*3;
+            colors[j]=(priorColor?priorColor.getX(i):1)*shade;
+            colors[j+1]=(priorColor?priorColor.getY(i):1)*shade;
+            colors[j+2]=(priorColor?priorColor.getZ(i):1)*shade;
+          }
+          pos.needsUpdate=true;
+          refined.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+          refined.computeVertexNormals();
+          refined.computeBoundingBox();
+          refined.computeBoundingSphere();
+          return refined;
+        };
+        if(typeof model.root.traverse==='function')model.root.traverse(n=>{
+          if(!n.isMesh||!n.userData?.v129Sculpted)return;
+          const source=n.geometry,profile=G.v247.kinds.get(source);
+          if(!profile)return;
+          const key=classId+':'+profile.kind;
+          let tailored=G.v247.surfaces.get(key);
+          if(!tailored){
+            const high=refineTailoring(source,profile.kind,profile.halfHeight);
+            const sourceLow=G.v146.get(source);
+            const low=sourceLow?refineTailoring(sourceLow,profile.kind,profile.halfHeight):null;
+            if(!high||!low)return;
+            tailored={high,low};
+            G.v247.surfaces.set(key,tailored);
+            G.v146.set(high,low);
+          }
+          n.geometry=tailored.high;
+          const mat=n.material;
+          if(mat&&typeof mat.clone==='function'){
+            const keyMat=mat.uuid;
+            let material=G.v247.materials.get(keyMat);
+            if(!material){
+              material=mat.clone();
+              material.vertexColors=true;
+              material.name=(mat.name||'textile')+' V247 tailored';
+              material.needsUpdate=true;
+              G.v247.materials.set(keyMat,material);
+            }
+            n.material=material;
+          }
+          n.userData.v247Tailored=true;
+          n.userData.v247TextileKind=profile.kind;
+        });
         // V174: class pack harness fit. Keep medical marker and attachment parent intact.
         if(G.v176){
           for(const n of model.upperBody.children.filter(n=>n.userData.v149Pack)){
