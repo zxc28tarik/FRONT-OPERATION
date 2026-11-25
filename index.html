@@ -15667,8 +15667,9 @@ return {createExperimentalRig,createAdaptiveRigController};
         const ease=t*t*(3-2*t),rollSide=side<0?-1:1;
         const heavy=role==='heavy',c=Math.max(0,Math.min(1,crouch||0));
         const base=Math.sin(t*Math.PI)*(heavy?.58:.72);
-        const kneeLeft=base*(rollSide<0?1:.62)+c*.12*(1-ease);
-        const kneeRight=base*(rollSide>0?1:.62)+c*.12*(1-ease);
+        const crouchShift=c*.12*Math.sin(t*Math.PI);
+        const kneeLeft=base*(rollSide<0?1:.62)+crouchShift;
+        const kneeRight=base*(rollSide>0?1:.62)+crouchShift;
         return {pitch:ease*Math.PI*(heavy?.43:.48),roll:ease*rollSide*(heavy?.24:.31),
           drop:ease*(heavy?.43:.45),knee:base,head:Math.sin(t*Math.PI)*.28,
           leftHip:-kneeLeft*.30,rightHip:-kneeRight*.24,
