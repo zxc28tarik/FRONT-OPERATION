@@ -7289,6 +7289,116 @@
           };
           visit(model.root,false);
         }
+        // V250: Assault / Medic silhouettes using approved existing mesh slots.
+        // Carrier profile, magazines and bag contours are refitted without
+        // adding meshes, changing team insignia, rig, weapon or collision.
+        if((classId==='assault'||classId==='medic')&&
+          typeof v248Front?.geometry?.getAttribute==='function'){
+          if(!G.v250)G.v250={armor:new Map(),packs:new Map()};
+          const role=classId;
+          for(const n of [v248Front,v248Back]){
+            const face=n.position.z>0?'front':'back',key=role+':'+face;
+            let shaped=G.v250.armor.get(key);
+            if(!shaped){
+              const source=n.geometry;
+              shaped=source.clone();
+              if(!shaped.boundingBox)shaped.computeBoundingBox();
+              const bounds=shaped.boundingBox;
+              const halfX=Math.max(.05,(bounds.max.x-bounds.min.x)*.5);
+              const halfY=Math.max(.05,(bounds.max.y-bounds.min.y)*.5);
+              const centerY=(bounds.max.y+bounds.min.y)*.5;
+              const p=shaped.getAttribute('position');
+              const front=face==='front'?1:-1;
+              for(let i=0;i<p.count;i++){
+                const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+                const t=Math.max(-1,Math.min(1,(y-centerY)/halfY));
+                const top=Math.max(0,t),bottom=Math.max(0,-t);
+                const nx=Math.abs(x)/halfX;
+                const soft=1-Math.min(1,nx*nx);
+                const shoulder=Math.exp(-((t-.70)**2)/.16);
+                const waist=Math.exp(-((t+.65)**2)/.22);
+                const change=role==='assault'
+                  ?(.009*waist-.030*shoulder-.018*bottom*bottom)
+                  :(.014*waist-.047*shoulder-.012*bottom*bottom);
+                const width=1+change;
+                const compress=role==='assault'?.006:.0035;
+                const swell=(role==='medic'?.0055:.0035)*soft*(1-.42*Math.abs(t));
+                const setZ=z+front*(swell-compress*nx*top*.35);
+                const setY=y-(role==='medic'?.0023:.0017)*shoulder*nx;
+                p.setXYZ(i,x*width,setY,setZ);
+              }
+              p.needsUpdate=true;
+              shaped.computeVertexNormals();
+              shaped.computeBoundingBox();
+              shaped.computeBoundingSphere();
+              G.v250.armor.set(key,shaped);
+            }
+            n.geometry=shaped;
+            n.userData.v250ArmorContour=role;
+          }
+          // Assault keeps a staggered, quick-access magazine arrangement;
+          // medic runs a lower, slimmer carry set with a clear upper chest.
+          for(const n of model.upperBody.children){
+            const type=n.userData?.v176Equipment;
+            if(type!=='pouch'&&type!=='admin')continue;
+            const side=Math.sign(n.position.x);
+            if(role==='assault'){
+              if(type==='pouch'){
+                n.position.y+=(side===0?-.006:.008);
+                n.rotation.z+=side*.048;
+              }else n.position.y+=.016;
+            }else{
+              if(type==='pouch'){
+                n.scale.x*=.94;n.scale.y*=.92;
+                n.position.y-=.012;
+                n.rotation.z+=side*.022;
+              }else{
+                n.scale.x*=1.035;
+                n.position.y+=.018;
+              }
+            }
+            n.userData.v250RoleArrangement=role;
+          }
+          for(const n of model.upperBody.children){
+            if(n.geometry!==G.carrierStrap)continue;
+            const side=Math.sign(n.position.x);
+            n.position.x*=role==='medic'?.965:1.017;
+            n.rotation.z+=side*(role==='medic'?.023:.035);
+            n.userData.v250StrapContour=role;
+          }
+          if(role==='medic'){
+            const pack=model.upperBody.children.find(n=>n.userData?.v149Pack);
+            if(pack?.geometry?.getAttribute){
+              let medicPack=G.v250.packs.get('medic');
+              if(!medicPack){
+                medicPack=pack.geometry.clone();
+                if(!medicPack.boundingBox)medicPack.computeBoundingBox();
+                const bounds=medicPack.boundingBox;
+                const halfWidth=Math.max(.06,(bounds.max.x-bounds.min.x)*.5);
+                const halfHeight=Math.max(.08,(bounds.max.y-bounds.min.y)*.5);
+                const p=medicPack.getAttribute('position');
+                for(let i=0;i<p.count;i++){
+                  const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+                  const ax=Math.min(1,Math.abs(x)/halfWidth);
+                  const ay=Math.min(1,Math.abs(y)/halfHeight);
+                  const panel=(1-ax*ax)*(1-ay*ay);
+                  const cuff=Math.exp(-((ay-.78)**2)/.032);
+                  const outside=z<0;
+                  const xFit=x*(1-.018*Math.max(0,y/halfHeight));
+                  const zFit=z-(outside?.0048*panel-.0014*cuff:0);
+                  p.setXYZ(i,xFit,y,zFit);
+                }
+                p.needsUpdate=true;
+                medicPack.computeVertexNormals();
+                medicPack.computeBoundingBox();
+                medicPack.computeBoundingSphere();
+                G.v250.packs.set('medic',medicPack);
+              }
+              pack.geometry=medicPack;
+              pack.userData.v250MedicContour=true;
+            }
+          }
+        }
         // V170: retain facial shape identity in a cheaper distance mesh.
         if(oldSkull&&G.v130&&typeof F.lowSkull.getAttribute==='function'){
           if(!G.v170)G.v170=new Map();
