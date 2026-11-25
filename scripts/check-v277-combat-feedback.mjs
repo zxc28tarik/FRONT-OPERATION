@@ -16,16 +16,16 @@ function factory(s){
  const update=cut(s,'        for (let i = activeParticles.length - 1; i >= 0; i--) {','        for (let i = activeShellCasings.length - 1; i >= 0; i--) {');
  const rng=Object.create(Math);let seed=123456,count=0;
  rng.random=()=>{count++;seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
- return new Function('THREE','Math',`const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera();
+ return new Function('THREE','Math','getRngCount',`const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera();
  const activeParticles=[],activeImpactMarks=[];
  `+common+funcs+`\nfunction step(dt){`+update+`}
- return {spawnImpactFX,spawnCharacterHitFX,step,activeParticles,activeImpactMarks,scene,randomCount:()=>0,
- assets:typeof getV277ImpactAssets==='function'?getV277ImpactAssets:null};`)(THREE,rng);
+ return {spawnImpactFX,spawnCharacterHitFX,step,activeParticles,activeImpactMarks,scene,randomCount:getRngCount,
+ assets:typeof getV277ImpactAssets==='function'?getV277ImpactAssets:null};`)(THREE,rng,()=>count);
 }
 const a=factory(old),b=factory(now);
 const normal=new THREE.Vector3(0,1,0),pos=new THREE.Vector3(1,2,3);
 const signature=x=>JSON.stringify({particles:x.activeParticles.map(p=>({pos:p.mesh.position.toArray(),vel:p.vel.toArray(),life:p.life,max:p.maxLife,gravity:p.gravity,grow:p.growRate,align:p.alignVel})),marks:x.activeImpactMarks.map(p=>({pos:p.mesh.position.toArray(),life:p.life}))});
-const compare=()=>assert.equal(signature(a),signature(b),'particle state/RNG/cap timing changed');
+const compare=()=>{assert.equal(signature(a),signature(b),'particle state/RNG/cap timing changed');assert.equal(a.randomCount(),b.randomCount(),'explicit gameplay RNG consumption changed');};
 for(let i=0;i<80;i++){
  for(const x of [a,b]){
   x.spawnImpactFX(pos,normal,i%2===0,10+i);
