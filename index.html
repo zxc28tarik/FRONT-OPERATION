@@ -6788,12 +6788,19 @@
           }
           // V215: bend-dependent textile volume in the approved visual model.
           const kneeFits=[model.leftKnee,model.rightKnee].map(p=>({pivot:p,joint:p.children.find(n=>n.userData?.v154Joint==='knee')}));
+          const hipFits=[model.leftHip,model.rightHip].map(p=>({pivot:p,joint:p.children.find(n=>n.userData?.v154Joint==='hip')}));
           model.updateVisualJointFit=()=>{
             for(const {pivot,joint} of kneeFits){
               if(!joint)continue;
               const bend=Math.min(1,Math.abs(pivot.rotation.x)/1.5);
               joint.scale.x=bodyProfile[0]*(1+.045*bend);
               joint.scale.z=bodyProfile[1]*(1+.075*bend);
+            }
+            for(const {pivot,joint} of hipFits){
+              if(!joint)continue;
+              const bend=Math.min(1,Math.hypot(pivot.rotation.x,pivot.rotation.z));
+              joint.scale.x=bodyProfile[0]*(1+.025*bend);
+              joint.scale.z=bodyProfile[1]*(1+.04*bend);
             }
           };
           // Arm bridge orientation follows the actual elbow bend rather than a fixed globe.
@@ -11169,6 +11176,11 @@
         bot.mesh.root.visible = true;
         bot.mesh.root.position.copy(bot.pos);
         bot.mesh.root.rotation.set(0, bot.legYaw, 0);
+        // V216: clear visual fall/crouch state before a new life, leaving gameplay spawn unchanged.
+        for(const joint of [bot.mesh.leftHip,bot.mesh.rightHip,bot.mesh.leftKnee,bot.mesh.rightKnee]){
+          if(joint?.rotation?.set)joint.rotation.set(0,0,0);
+        }
+        if(bot.mesh.updateVisualJointFit)bot.mesh.updateVisualJointFit();
         assignBotTacticalGoal(bot);
       }
 

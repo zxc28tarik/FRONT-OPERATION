@@ -65,6 +65,19 @@ try{
   }
   camera.position.set(0,2.4,9);camera.lookAt(0,1,-1);
   window.previewRig=(on)=>{for(const {model,rig} of models){model.setVisualDetailDistance(12);rig.setEnabled(on);}render(8,on);return renderer.domElement.toDataURL('image/png');};
+  window.previewPose=(on,pose)=>{
+   camera.position.set(0,1.15,4.7);camera.lookAt(0,.9,0);
+   for(let j=0;j<models.length;j++){
+    const {model:m,rig:r}=models[j];m.root.visible=j<5;m.setVisualDetailDistance(10);r.setEnabled(on);
+    m.root.rotation.y=pose==='side'?Math.PI*.5:0;
+    const crouch=pose==='crouch';m.root.position.y=crouch?-.26:0;
+    m.leftHip.rotation.set(crouch?-.70:0,0,0);m.rightHip.rotation.set(crouch?-.70:0,0,0);
+    m.leftKnee.rotation.x=crouch?1.35:0;m.rightKnee.rotation.x=crouch?1.35:0;
+    m.upperBody.rotation.set(crouch?.20:0,0,0);m.weaponPivot.rotation.x=pose==='aim'?.55:0;m.updateVisualGrip(m.weaponPivot.rotation.x);
+    m.updateVisualJointFit?.();if(on)r.update();
+   }
+   renderer.render(scene,camera);gl.finish();return renderer.domElement.toDataURL('image/png');
+  };
   return {renderer:gl.getParameter(gl.RENDERER),webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL1',botCount:15,boneCount:models[0].rig.bones.length,bands,softwareGate:bands.every(x=>x.ratio<=1.10),hardwareGate:'NOT_MEASURED',activeRig:'legacy'};
  },factory);
  // Persist measurements before optional screenshots, even if image capture fails.
@@ -75,5 +88,10 @@ try{
   const data=await page.evaluate(on=>window.previewRig(on),enabled);
   if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid canvas capture');
   fs.writeFileSync(path.join(out,'v216-15bots-'+(enabled?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
+ }
+ for(const pose of ['side','aim','crouch'])for(const on of [false,true]){
+  const data=await page.evaluate(({on,pose})=>window.previewPose(on,pose),{on,pose});
+  if(!data.startsWith('data:image/png;base64,')||data.length<2000)throw Error('Invalid pose capture '+pose);
+  fs.writeFileSync(path.join(out,'v216-'+pose+'-'+(on?'experimental':'current')+'.png'),Buffer.from(data.split(',')[1],'base64'));
  }
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
