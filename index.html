@@ -5790,7 +5790,7 @@
         const geomOf=n=>n.geometry||n.args?.[0];
         const oldSkull=model.head.children.find(n=>geomOf(n)===approved.headSkull);
         const oldJaw=model.head.children.find(n=>geomOf(n)===approved.jaw);
-        if(oldSkull){oldSkull.geometry=F.skull;oldSkull.material=F.skin[variantId];oldSkull.name='v106_face';oldSkull.userData.v245Face=true;}
+        if(oldSkull){oldSkull.geometry=F.skull;oldSkull.material=F.skin[variantId];oldSkull.name='v106_face';if(oldSkull.userData)oldSkull.userData.v245Face=true;}
         if(oldJaw)oldJaw.visible=false;
         for(const n of model.head.children){
           if([approved.goggles,G.goggleLensLeft,G.goggleBridge,G.visorSideGuard,G.visorUpperSeal].includes(geomOf(n)))n.visible=false;
@@ -6118,7 +6118,7 @@
             p.needsUpdate=true;g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();G.v245Pelvis=g;
           }
           pelvisMesh.geometry=G.v245Pelvis||G.v120.pelvis||approved.pelvis;
-          pelvisMesh.scale.x*=bodyProfile[0];pelvisMesh.name='v120_fitted_waist';pelvisMesh.userData.v245Pelvis=true;
+          pelvisMesh.scale.x*=bodyProfile[0];pelvisMesh.name='v120_fitted_waist';if(pelvisMesh.userData)pelvisMesh.userData.v245Pelvis=true;
         }
         // Side panels form a shaped transition between belt and plate carrier.
         for(const s of [-1,1]){
