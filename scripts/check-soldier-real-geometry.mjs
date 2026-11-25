@@ -88,6 +88,15 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert(contacts.every(n=>n.material.vertexColors&&n.geometry.getAttribute('color').array.some(v=>v<.99)));
  const headHigh=head.geometry;assert(head.userData.v170Head);
  assert(shell.geometry.getAttribute('position').count>300);
+ const equipment=[];m.root.traverse(n=>{if(n.userData.v176Equipment)equipment.push(n);});
+ for(const kind of ['belt','glove','kneepad','pouch','admin']){
+  assert(equipment.some(n=>n.userData.v176Equipment===kind),'missing '+kind);
+ }
+ assert.equal(equipment.filter(n=>n.userData.v176Equipment==='glove').length,2);
+ assert.equal(equipment.filter(n=>n.userData.v176Equipment==='kneepad').length,2);
+ assert(equipment.every(n=>n.geometry.boundingBox&&n.geometry.getAttribute('position').array.every(Number.isFinite)));
+ assert.equal(m.root.userData.v182Role,cls);
+ assert.equal(m.root.children.find(n=>n.userData.v176Equipment==='belt').geometry,twin.root.children.find(n=>n.userData.v176Equipment==='belt').geometry);
  const near=countVisible(m.root);
  const armBands=m.upperBody.children.filter(n=>n.geometry===api.base(team,cls).upperBody.children.find(c=>c.geometry?.parameters?.height===.065)?.geometry);
  const closeGroups=[m.head.children.find(n=>n.name==='v99_close_face'),m.upperBody.children.find(n=>n.name==='v99_close_rig')];
@@ -108,4 +117,4 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert.equal(head.geometry,headHigh);assert.equal(m.head.parent,m.upperBody);assert.equal(m.muzzleFlash.parent,m.weaponPivot);
  nearTotal+=near;farTotal+=far;models+=3;
 }
-console.log('V170 real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
+console.log('V188 candidate real Three.js PASS: '+models+' models; near '+nearTotal+' / far '+farTotal+' visible meshes across 10 representatives');
