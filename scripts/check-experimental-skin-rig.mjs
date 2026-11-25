@@ -10,20 +10,25 @@ let cases=0,maxRestError=0;
 const reps=[];
 for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer','sniper','heavy'])for(let variant=0;variant<3;variant++){
  const m=api.enhanced(team,cls,variant),r=createExperimentalRig(m);
- assert.equal(r.bones.length,8);assert.equal(r.mesh.visible,false);
+ assert.equal(r.bones.length,10);assert.equal(r.mesh.visible,false);
  const p=r.geometry.getAttribute('position'),w=r.geometry.getAttribute('skinWeight'),idx=r.geometry.getAttribute('skinIndex');
  for(let i=0;i<p.count;i++){
   assert(Math.abs(w.getX(i)+w.getY(i)+w.getZ(i)+w.getW(i)-1)<1e-6);
-  assert(idx.getX(i)<8&&idx.getY(i)<8);
+  assert(idx.getX(i)<10&&idx.getY(i)<10);
   const v=new THREE.Vector3().fromBufferAttribute(p,i),deformed=v.clone();
   r.mesh.boneTransform(i,deformed);
   maxRestError=Math.max(maxRestError,v.distanceTo(deformed));
  }
  assert(maxRestError<.0001,'bind pose equivalence');
  const muzzle=m.muzzleFlash.position.clone();
+ r.setEnabled(true);assert(r.mesh.visible&&m.head.visible&&m.weaponPivot.visible);
+ const cloth=[];m.root.traverse(n=>{if(n.userData.v129Sculpted)cloth.push(n);});
+ assert(cloth.length===10&&cloth.every(n=>!n.visible));
+ r.setEnabled(false);assert(!r.mesh.visible&&cloth.every(n=>n.visible));
  for(const angle of [0,.45,Math.PI/2,-.65]){
   m.leftHip.rotation.x=angle*.5;m.rightHip.rotation.x=-angle*.5;
   m.leftKnee.rotation.x=angle;m.rightKnee.rotation.x=angle*.6;
+  m.upperBody.rotation.y=angle*.35;m.upperBody.rotation.x=angle*.12;
   m.weaponPivot.rotation.x=angle*.6;m.updateVisualGrip(angle*.6);
   m.root.position.set(3,0,-2);m.root.rotation.y=angle;r.update();
   for(let i=0;i<p.count;i+=7){
@@ -41,5 +46,5 @@ const frames=120,run=()=>{for(let i=0;i<frames;i++)for(const {m,r} of reps){
  m.rightKnee.rotation.x=Math.cos(phase)*.55;r.update();
 }};
 run();const start=performance.now();run();const elapsed=performance.now()-start;
-console.log(JSON.stringify({cases,bones:8,maxRestError,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
+console.log(JSON.stringify({cases,bones:10,maxRestError,cpuMsPerFrame15Bots:elapsed/frames,vertices:reps[0].r.geometry.getAttribute('position').count,triangles:reps[0].r.geometry.index.count/3,gpuAcceptance:'NOT_MEASURED'},null,2));
 for(const {r} of reps)r.dispose();

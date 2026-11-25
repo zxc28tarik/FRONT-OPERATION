@@ -13,10 +13,12 @@ function chains(model){
   return [shoulder,elbow,hand];
  };
  const leg=side=>[model[side+'Hip'],model[side+'Knee'],model[side+'Knee'].children.find(n=>n.name==='v132_ankle')];
- return ['left','right'].flatMap(side=>[{kind:'leg',nodes:leg(side),radii:[.073,.059,.048]},{kind:'arm',nodes:arm(side),radii:[.057,.049,.035]}]).map(c=>{
+ const extremities=['left','right'].flatMap(side=>[{kind:'leg',nodes:leg(side),radii:[.073,.059,.048]},{kind:'arm',nodes:arm(side),radii:[.057,.049,.035]}]).map(c=>{
   if(c.nodes.some(n=>!n))throw Error('V188 rig missing '+c.kind+' pivot');
   return {...c,points:()=>c.nodes.map(n=>point(root,n))};
  });
+ const torsoPoint=y=>root.worldToLocal(model.upperBody.localToWorld(new THREE.Vector3(0,y,0)));
+ return [...extremities,{kind:'torso',radii:[.135,.159,.129],points:()=>[new THREE.Vector3(0,.88,0),torsoPoint(.15),torsoPoint(.45)]}];
 }
 function segmentBasis(a,b){
  const d=b.clone().sub(a),length=d.length();
@@ -44,7 +46,7 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
    const w=ease((t-.34)/.32);
    for(let k=0;k<=radial;k++){
     const angle=k/radial*Math.PI*2;
-    const v=new THREE.Vector3(Math.cos(angle)*r,0,Math.sin(angle)*r*.94).applyQuaternion(q).add(center);
+    const v=new THREE.Vector3(Math.cos(angle)*r,0,Math.sin(angle)*r*(limb.kind==='torso'?.70:.94)).applyQuaternion(q).add(center);
     pos.push(v.x,v.y,v.z);uv.push(k/radial,t);
     skinIndex.push(base,base+1,0,0);skinWeight.push(1-w,w,0,0);
     if(j<steps&&k<radial){
@@ -69,6 +71,17 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
  const skeleton=new THREE.Skeleton(bones);mesh.bind(skeleton);
  // Attached binding keeps root transforms independent from the visual pose.
  mesh.visible=false;
+ // Toggle only the cloth replacement. Armor, head, hands, boots, IFF, and weapon stay attached.
+ const hidden=[];
+ root.traverse(n=>{
+  if(n===mesh||!n.isMesh)return;
+  if(n.userData.v154Joint||n.userData.v129Sculpted)hidden.push({n,visible:n.visible});
+ });
+ const setEnabled=enabled=>{
+  mesh.visible=!!enabled;
+  for(const item of hidden)item.n.visible=enabled?false:item.visible;
+  if(enabled)update();
+ };
  const update=()=>{
   root.updateMatrixWorld(true);
   limbs.forEach((limb,i)=>{
@@ -80,6 +93,6 @@ export function createExperimentalRig(model,{radial=16,steps=24}={}){
   });
   mesh.updateMatrixWorld(true);skeleton.update();
  };
- const dispose=()=>{root.remove(mesh);geometry.dispose();material.dispose();skeleton.dispose?.();};
- return {mesh,bones,update,dispose,limbs,geometry};
+ const dispose=()=>{setEnabled(false);root.remove(mesh);geometry.dispose();material.dispose();skeleton.dispose?.();};
+ return {mesh,bones,update,dispose,limbs,geometry,setEnabled};
 }
