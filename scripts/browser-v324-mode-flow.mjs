@@ -35,7 +35,7 @@ window.__foG324QA={
   const status=document.getElementById('fo-bomb-status'),timer=document.getElementById('match-timer'),hint=document.getElementById('fo-spectator-hud').lastElementChild;
   const panels=[document.querySelector('#hud .fo-status-panel'),document.getElementById('slot-bar'),document.querySelector('#hud .fo-ammo-panel')];
   const old=panels.map(e=>e.style.visibility),oldHint=hint.textContent;
-  const sync=()=>{foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document);};
+  const sync=()=>{foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document,foBomb);};
   const snapshot=()=>JSON.stringify({matchState,foBomb,foRescue,alive:player.alive,kills:player.kills,deaths:player.deaths,mode:foSpectator.mode,target:foSpectator.targetId});
   const read=name=>({name,label:status.textContent,timer:timer.textContent,hint:hint.textContent,panels:panels.map(e=>e.style.visibility),old,oldHint,
    result:document.getElementById('match-result-text').textContent,summary:document.getElementById('menu-subtitle').textContent,title:document.getElementById('menu-title').textContent,mode:matchState.mode,ended:matchState.ended});
@@ -91,7 +91,7 @@ try{
   assert.equal(r('bomb-start').timer,'02:30');assert.equal(r('bomb-planted').timer,'00:35');
   for(const n of ['bomb-follow','bomb-free','rescue-follow','rescue-free'])assert(r(n).panels.every(x=>x==='hidden'),n);
   for(const n of ['bomb-result','rescue-result'])assert.deepEqual(r(n).panels,r(n).old,n);
-  assert.match(r('bomb-result').result,/N.I.U. KAZANDI.*etkisizleştirildi/);assert.match(r('bomb-result').summary,/3 – 5/);
+  assert.match(r('bomb-result').result,/N.I.U. KAZANDI.*etkisizleştirildi/);assert.match(r('bomb-result').summary,/3 – 5/);assert.equal(r('bomb-result').timer,'00:31');
   assert.equal(r('rescue-start').timer,'03:00');assert.match(r('rescue-start').label,/ESİRLERİ BUL/);
   assert.match(r('rescue-pickup').label,/KURTARMA %50/);assert.match(r('rescue-carry').label,/TAHLİYEYE DÖN/);
   assert.match(r('rescue-one').label,/ESİR 1\/2/);assert.match(r('rescue-follow').label,/TAKIMINI İZLE/);assert.match(r('rescue-free').hint,/Shift/);
