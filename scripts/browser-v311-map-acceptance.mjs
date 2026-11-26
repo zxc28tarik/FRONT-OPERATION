@@ -90,7 +90,8 @@ try{
  const report={maps:{},views:{},errors};
  for(const mode of modes){
   const a=data.before.inv[mode],b=data.after.inv[mode];
-  for(const key of ['colliders','ramps','nodes','edges','adj','objects','rngDraws','sight'])assert.equal(b[key],a[key],mode+' '+key);
+  for(const key of ['colliders','ramps','nodes','edges','adj','objects','rngDraws'])assert.equal(b[key],a[key],mode+' '+key);
+  assert.deepEqual(b.sight,a.sight,mode+' exact LOS result parity');
   const strip=rows=>rows.map(({textures,...m})=>m);
   assert.deepEqual(strip(b.mesh),strip(a.mesh),mode+' exact geometry/transform/raycast material parity');
   const changed=b.mesh.reduce((n,m,i)=>n+Number(JSON.stringify(m.textures)!==JSON.stringify(a.mesh[i].textures)),0);
