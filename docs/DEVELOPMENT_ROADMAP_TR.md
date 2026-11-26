@@ -310,3 +310,39 @@ Kapsam sınırları: tam süreli doğal üç maç, gerçek fiziksel telefon/dona
 - V343 16/16 CI başarılı (özel patlama 45830500836, integrated 45830500634). B #6/#7 kodu eklendi, C #8/#9 sırada. Yeni maçta eski rig teardown ve scene.remove sonrası foV344ReleaseRetiredSoldiers: SOLDIER_SHARED, SOLDIER_V11_DETAIL_GEOMETRIES ve V273_MUZZLE_ASSETS cache ağacında Map anahtar/değerleri dahil koruma; canlı sahne kaynakları korunur. Eski root'lardaki özel geometry/material tekil dispose. Texture'lar dispose edilmez, ortak asset cache değişmez. Yeni geometri, RNG, AI, animasyon/hasar değişikliği yok. Yerel mock 30 reset, 90 özel kaynak dispose; ortak/cache/live kaynaklarda 0 dispose. Gerçek Three/WebGL kaynak testi yeni CI'da bekliyor.
 - Oyuncunun kendi patlama hasarı (isBlast && attackerName===player.name) ile ölümü, ölüm sayacı, 3 saniye respawn timer, input temizliği, tek canlı mod spectate, dead target cleanup korunarak yalnız düşman kill metric/score yolunu atlar. Killfeed kendi takım renginde. Rakip kaynaklı ölüm eski yolu aynen izler. Yerel 18 izole ölüm senaryosu PASS (3 mod, self/enemy, lethal/nonlethal, blast/bullet; tekrar ölüm yok). #4/#5 test kolaylıkları korunur; #3/#10 kullanıcı kararı korunur. AI kilidi sürüyor.
 - Üç V344 tag çıkarılınca V343 byte-for-byte aynı, inline JS syntax PASS. Game blob 969432fb88c61b824ee6836df40006a64cdd3065. Tarihsel exact source testleri V344 tag ayırır; özel V344 testi güncel kaynakla çalışır. PR68 aynı, main merge yok; gerçek cihaz FPS veya tam maç kabulü iddia edilmez.
+
+
+## BOT-KISS — Yeni bot yaklaşımı ve salt okunur ön inceleme (26 Kasım 2026)
+
+Proje sahibi geri bildirimi: önceki AI geliştirmeleri oynanışı kötüleştirmiş olabilir; daha agresif, az düşünen, kararlı; harita ve göreve göre farklılaşan botlar isteniyor. KEEP IT SIMPLE yaklaşımı beğenildi. Bu onay tasarım yönüne ilişkindir; AGENTS.md'deki açık AI değişikliği izni gereksinimi korunur. Bu kayıt salt okunur teşhis/plan; oyun kaynak kodunda veya AI'da değişiklik yok. Önceki C paketi (#8/#9) iptal edilmedi, bekliyor.
+
+### Korunacak referans
+- V344 commit 5fd037e83cb0aa77a5ff997b610e1b17c04f0486, index.html blob 969432fb88c61b824ee6836df40006a64cdd3065. V344 17/17 CI başarıyla tamamlandı. Özel asker temizliği ve ölüm puanı dahil. Bu sonuçlar botların eğlenceli olduğunu kanıtlamaz.
+- Aynı PR #68 ve mevcut geliştirme dalı. Main merge yok. Yeni dal yok. V344 sabit commit, geri dönüş ve A/B referansı.
+- Silahlar, karakterler, animasyonlar, haritalar, sesler, hasar, oyuncu kontrolleri, HUD ve #3/4/5/10 kararları korunur. Görüş, fizik, dost ateş hattı, gerçek mühimmat ve görev kurallarını gevşetme. Orta nişan oturma hızı (0.34 s), önceki zorluk dağılımı korunur; ayrıca açık onay olmadan değişmez.
+
+### İlk kaynak incelemesi (V344 satırları; oynanış etkileri henüz ölçülmedi)
+1. L17369–17545: directCombat/openingPriority/followThrough/holdContact, retreat/cover/flank ve dodge birbirinden farklı değerlendirmeler. Görüş veya ateş hattı kaybında farklı kararlara geçiş riski. Açık ateş hattında directCombat zaten mevcut; yalnızca global agresiflik katsayısı eklemek sorunu çözmez.
+2. L16818–16881: cover RETURN/HOLD/OUT/AIM döngüsü; varsayılan .85 s hold/1.65 s peek, başarısız peek tekrarları; coverFire false, retreat/flank ve hız kapıları ateşi keser. Siper süresinin bir kısmı meşru; ölçmeden silinmez.
+3. L17300–17320 ve L17800 civarı freshLostContact: son doğrudan temas için .75 s hareketsiz bekleme; süre ve görev bağlamı ölçülmeli.
+4. L17975–18030: kapı/sniper/engineer düğümlerinde 5.5 s hold; TDM için sınıfa göre değerlendirilir, görev savunmasına aynen genellenmez.
+5. L16584–16606: behavior kind değişimi stuck/unstuck/passage/routeProgress bilgilerini temizler. Geçerli rota için sık geçişte ilerleme kaybı riski; fizik doğrulamaları korunur.
+6. L17965–18010: squad rally/formation, 6.5–28 mesafede destek planı ve rota yoksa sıfır hız; bu dalın temas/ilerleme etkisi ölçülür.
+7. L17545–17610, L18055–18130: ateş kararı hareket/look arbitration öncesinde; görev retry, cover phase, fire-lane recovery ve look ownership etkileri. Tek yetkili plan ve görünür hedef önceliği; gerçek ateş/nişan güvenlik kapılarını koru.
+8. L9565–9635 ve L9707–9764: bomba ve rescue zaten ayrı görev emirlerine sahip. L16070, L16792 ve L18125: harita momentum varsayılanı deneysel olarak kapalı; rescue çağrısı marien fallback kullanıyor; harita bakışı köşe hızını 2.6 ile sınırlıyor. Yeni sistem mevcut görev ayrımlarını yok etmez, harita ve rol bazında ölçer.
+
+### Aşama sırası
+- BOT01 — referans/ölçüm. V344 aynı seed, aynı roster, mod, maç başlangıcı ve simülasyon adımı ile karşılaştırma; var olan BOT_METRICS ve test-harness üzerinden doğal maçlar. Önce baseline üret. Ölçüm için üretim davranışını değiştirme. Mevcut 11 bot doğal kadrosu; 5/15 fixture ayrı. 3 mod, her mod için önerilen en az 5 seed, tam maç ve sabit süreli senaryo. İnsan oyuncu izlenimi ayrı kabul.
+- BOT02 — karar sadeleştirme: yalnızca izin sonrası. Gereksiz tekrar/çakışan state kararlarını azalt, tek yetkili davranış seçimi; önce sabit senaryo ve A/B. Yeni katman yığma.
+- BOT03 — temas devamlılığı/agresiflik: gözlenen hedef ve gerçek ateş hattı varsa kararlı çatışma; kısa görüş kaybında son bilinen bilgiye göre devam; gereksiz siper/hold azalt. Görünmeyen hedef bilgisi, snap-aim, hasar, atış hızı değişikliği yok.
+- BOT04 — rota/movement: geçerli rotayı gereksiz yenileme ve dur-kalk azalt; collision, kat/merdiven, dost ayrımı ve recovery kontrollerini koru.
+- BOT05 — sınıf: Assault öncü; Medic hareketli destek; Engineer görev/ekipman; Sniper mesafe; Heavy baskı. Bunları minimal parametreyle ifade et, aynı ek karar ağacını beş kez kopyalama.
+- BOT06 — mod/harita: TDM aktif temas arama; bomb saldıran hedef ilerleme, savunan bölgeyi tutma, plant/defuse ve retake; rescue kurtaran ilerleme, koruyan savunma, escort/çıkış. Dar koridor, açık alan, katlı bina için nav verisinden basit profil. Görev ilerlemesi ve savunma korunur.
+- BOT07 — doğrulama/denge: V344 A/B, aynı test koşulları; gerileme varsa paketi geri al. Kullanıcı oyun içi kabulü ve açık main merge onayı olmadan ana dal değişmez.
+
+### Önerilen kabul metrikleri (hedef, henüz ölçüm değil)
+- Görünür ve fiziksel olarak ateş edilebilir, mühimmatı bulunan temas başına ilk atış süresi; kaçırılan ateş fırsatları; shots/engagedSeconds; K/D tek başına kalite değildir.
+- Geçerli sebepsiz davranış/rota değişimleri ve hedef kayıpları; sıkışma ve recovery sayıları/100 alive seconds; siper yaklaşma/bekleme süresi; boşta kalma (görev bekleme ve reload hariç).
+- Mod bazında görev tamamlama/ilerleme: plant, defuse, retake, rescue, escort, maç sonuçları ve süre. Saldırı/savunma, sınıf, harita, difficulty ayrı raporlanır.
+- A/B başlangıç hedefi: gereksiz beklemeyi ve karar değişimini azalt, ateş fırsatını iyileştir; görev başarısı, collision/LOS/ammo ve görsel/işitsel regresyon olmamalı. Sayısal kabul eşikleri baseline ölçülünce sabitlenecek. Bir seed veya kısa test ile genel başarı iddia etme.
+- BOT01 kaynak teşhisi ve plan tamamlandı; baseline doğal maç ölçümü açık. BOT02–07 bekliyor, üretim AI kilidi korunuyor.
