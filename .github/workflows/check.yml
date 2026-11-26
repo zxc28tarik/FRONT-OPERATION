@@ -221,3 +221,5 @@ jobs:
         run: node tests/soldier_v196_contact_regression.cjs
       - name: Validate critical 01–03 clocks, grenade contact and resource release
         run: node tests/critical_01_03_regression.cjs
+      - name: Validate critical 01/04/05/06 frame catch-up and physical contacts
+        run: node tests/critical_01_04_06_regression.cjs
