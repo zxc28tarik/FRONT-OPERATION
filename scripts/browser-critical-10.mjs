@@ -30,7 +30,8 @@ const hook=`
           clearAllMatchEntities();
           const render=()=>{renderer.render(scene,camera);renderer.getContext().finish();return renderer.info.memory.geometries;};
           const before=render(),cycles=[];
-          let released=0,expected=0,sharedDisposed=0;
+          let released=0,expected=0,sharedDisposed=0,cacheDisposed=0;
+          const cacheSeen=new Set();
           const shared=[WEAPON_MATS.olivePaint,WEAPON_MATS.brass,WEAPON_MATS.medRed,WEAPON_MATS.medWhite];
           const onShared=()=>sharedDisposed++;
           shared.forEach(m=>m.addEventListener('dispose',onShared));
@@ -42,14 +43,18 @@ const hook=`
               deployMedkit(p,player.team);deployClaymore(p,0,player.name,player.team);
               for(const e of [...activeGrenades,...activeRockets,...activeMedkits,...activeClaymores]){
                 const unique=new Set(e.ownedMaterials||[]);e.mesh.traverse(n=>{if(n.geometry)unique.add(n.geometry);});
-                for(const resource of unique){expected++;resource.addEventListener('dispose',()=>released++);}
+                for(const resource of unique){
+                  if(resource.foH332Shared){
+                    if(!cacheSeen.has(resource)){cacheSeen.add(resource);resource.addEventListener('dispose',()=>cacheDisposed++);}
+                  }else{expected++;resource.addEventListener('dispose',()=>released++);}
+                }
               }
               const peak=render();clearAllMatchEntities();cycles.push({peak,after:render()});
             }
           }finally{shared.forEach(m=>m.removeEventListener('dispose',onShared));}
           const counts=renderer.info.render;
           return {mode,roster,colliderCount,grenade:grenade.pos.x,rocket:rocketPos.x,casing:casing.mesh.position.y,healBlocked,healOpen,
-            budget:foFrameBudget(.2,0),before,cycles,released,expected,sharedDisposed,calls:counts.calls,triangles:counts.triangles};
+            budget:foFrameBudget(.2,0),before,cycles,released,expected,sharedDisposed,cacheDisposed,cacheSize:cacheSeen.size,calls:counts.calls,triangles:counts.triangles};
         },
         inputs(){
           gamePaused=false;clearGameplayInputs();
@@ -99,8 +104,11 @@ try{
   assert.equal(physical.mode,mode);assert.equal(physical.roster,11);assert(physical.colliderCount>0&&physical.calls>0&&physical.triangles>0);
   assert(physical.grenade<-.085&&physical.rocket<0&&Math.abs(physical.casing-2.22)<1e-8);
   assert(physical.healBlocked&&physical.healOpen);assert.equal(physical.budget.count,4);assert.equal(physical.budget.debt,0);
-  assert(physical.expected>0&&physical.released===physical.expected&&physical.sharedDisposed===0,'equipment disposal');
-  assert(physical.cycles.every(c=>c.after===physical.before),'GPU geometry counter did not return to baseline');
+  assert(physical.expected>0&&physical.released===physical.expected&&physical.sharedDisposed===0&&physical.cacheDisposed===0,'equipment ownership and disposal');
+  assert(physical.cacheSize<=16,'shared geometry cache cap');
+  const resident=physical.cycles[0].after;
+  assert(resident>=physical.before&&resident-physical.before<=physical.cacheSize,'only bounded shared buffers may remain');
+  assert(physical.cycles.every(c=>c.after===resident),'GPU geometry counter did not plateau after first cache warmup');
   for(const [key,value] of Object.entries(inputs))assert.equal(value,true,mode+' '+key);
   await page.screenshot({path:path.join(out,'critical-'+mode+'.png')});
   await page.close();
