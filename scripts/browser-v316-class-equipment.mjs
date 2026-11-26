@@ -40,6 +40,7 @@ window.__foF316QA={
  ready:()=>!!FO_MAPS.deathmatch,
  test(){
   const results=[],shots=[];
+  camera.position.set(0,1.62,35);camera.lookAt(0,1.62,0);viewmodelGroup.visible=true;
   const read=()=>({badge:document.getElementById('hud-class-badge').textContent,accent:document.getElementById('hud-class-badge').style.color,
    label:document.getElementById('slot-sub-4').textContent,opacity:document.getElementById('slot-box-4').style.opacity,
    ammo:document.getElementById('ammo-mag').textContent,weapon:document.getElementById('hud-weapon-name').textContent});
@@ -73,6 +74,7 @@ window.__foF316QA={
   deployMedkit(new THREE.Vector3(0,0,35),player.team);
   deployMedkit(new THREE.Vector3(3,0,35),player.team==='blue'?'red':'blue');
   const [friend,enemy]=activeMedkits.slice(-2);friend.life=1;enemy.life=1;
+  camera.position.set(0,3.2,40);camera.lookAt(1.5,0,35);
   const oldF=friend.ring.material.opacity,oldE=enemy.ring.material.opacity;
   const pre=draw();let post,changed,restored;
   try{foF316BeginEquipmentRender(player,vmRefs,[friend,enemy],droneSystem);changed=friend.ring.material.opacity<oldF&&enemy.ring.material.opacity===oldE;post=draw();}
@@ -110,7 +112,7 @@ try{
  assert.equal(row('heavy','empty-mag').label,'0+2');assert.equal(row('heavy','loading').label,'DOLUYOR');assert.equal(row('heavy','empty-all').label,'0+0');
  assert.equal(row('sniper','absent').label,'—');assert.match(row('engineer','empty').label,/KULLANILDI/);assert.match(row('engineer','restored').label,/HAZIR/);
  assert.equal(new Set(Object.keys(expected).map(id=>row(id,'full').accent)).size,5);
- for(const s of report.shots){assert(s.changed&&s.restored,s.name);assert(s.pre.calls>0);assert.equal(s.pre.calls,s.post.calls);assert.equal(s.pre.triangles,s.post.triangles);
+ for(const s of report.shots){assert(s.changed&&s.restored,s.name);assert(s.pre.calls>0);assert.equal(s.pre.calls,s.post.calls);assert.equal(s.pre.triangles,s.post.triangles);assert.notEqual(s.pre.image,s.post.image,s.name+' visible render difference');
   for(const k of ['pre','post']){fs.writeFileSync(path.join(out,s.name+'-'+k+'.png'),Buffer.from(s[k].image.split(',')[1],'base64'));delete s[k].image;}
  }
  assert.deepEqual(errors,[]);
