@@ -132,3 +132,14 @@ C4 düzeltilmiş inline CI run 45712232088 başarılı (V103 dahil). C4 WebGL ve
 ### C kalan beş aşama — V295 bütünleşik görsel katman
 
 V289, V290, V293–V295 kodlandı; V288, V291, V292 korundu. C 8/8 kod kapsamında; 3/8 önceki teknik kabul, kalan beşin 161.815 sayısal kontrolü başarılı. Yeni katman yalnız render sırasında mevcut alt eklemleri ve bağımsız zırh/ekipman parçalarını geçici olarak değiştirip finally ile geri yükler. AI ve rig üretimi birebir sabit, yeni geometri yok, uzak LOD ve opt-in rig korunuyor. Gerçek 30 varyant / 120 çift WebGL kabulü CI 45733955697 üzerinden takip edilir; gerçek FPS ölçülmedi. Ayrıntı docs/V295_CHARACTER_ANIMATION_C_TR.md. Aynı dal, ana dal birleştirmesi yok. D, C teknik kabulü doğrulandıktan sonra.
+
+
+### C teknik kabul kapanışı / D1 V296 — 26 Kasım 2026
+
+C V295 run [45733955697](https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45733955697): integrated-animation-webgl, historical-visual-contracts ve integrated-critical-webgl 3/3 başarılı. A 8/8, B 6/6, C 8/8 teknik kabul = 22/62. Donanım FPS ve kullanıcı görsel onayı ayrı.
+
+D1 SoundEngine salt okunur taban analizi: index.html blob 487e4717e7826fba521312fe8df6875608557b12 değişmedi. scripts/check-v296-audio-baseline.mjs, commit 8dbcf844691a872ac0f95e494e18569571c26794. 151 grafik/sayısal kontrol mock Web Audio ile başarılı: 7 ayrı silah profili × 8 mesafe, 16 yardımcı olay, drone hum yaşam döngüsü, IR seçimi, kanal temizliği ve ses sınırı. Master 0.44, dry 0.90, outdoor wet 0.16, indoor wet 0.34, kompresör -16 dB, limiter -3 dB. Bunlar parametreler; duyulan SPL veya PCM seviyesi değildir.
+
+Bulgular: 22 ses sınırı yumuşak; eşzamanlı 20 uzak atış denemesinde 24 alt kaynak, ardından öncelikli yerel atışla 28 oldu. Crack katmanı 42'de, sub katmanı 48'de kesiliyor; 65 ve üstünde 0.05 attenuation ve 950 Hz alt geçiren filtre sabit. 7 mevcut profil zaten ayrı, V297 yeniden yazım değil işitsel ayrışma iyileştirmesi. Drone hum ayrı yaşam döngüsünde. Henüz gerçek ses kalitesi/clipping sonucu yok.
+
+D1 gerçek Chromium OfflineAudioContext ölçümü 63 örnek (49 silah/mesafe, 14 yardımcı ses), peak/RMS dBFS ve clipping raporu: .github/workflows/v296-audio-baseline.yml, commit 5b28ec4828e11df6cb14af65ce7ef426f3ce286a. Test sonucu henüz doğrulanmadı; D1 kod/test altyapısı tamamlandı, teknik kabul bekliyor; V297 bu kabulden sonra. Yeni dal yok; PR #68 üzerinde aynı dal. AI, RNG, ses çağrıları, oyun ve ana dal değişmedi.
