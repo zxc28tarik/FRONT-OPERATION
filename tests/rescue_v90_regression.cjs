@@ -7,7 +7,7 @@ assert(a>=0&&b>a&&s>=0&&e>s);
 const solids=[];let graph;
 const mesh=()=>({position:{set(){}},visible:true});
 const three=new Proxy({}, {get:()=>function(){return {}}});
-const api=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph',html.slice(a,b)+html.slice(s,e)+'\nbuildFoPrisonMap();return {points:FO_RESCUE_POINTS,exit:FO_RESCUE_EXIT,state:foRescue,reset:resetFoRescue,step:stepFoRescue};')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return mesh()},()=>mesh(),null,(nodes,edges)=>graph={nodes,edges});
+const api=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph','const foE311ShareBumps=()=>{},foE311PrisonFinish=()=>{},foE311PrisonInterior=()=>{};\n'+html.slice(a,b)+html.slice(s,e)+'\nbuildFoPrisonMap();return {points:FO_RESCUE_POINTS,exit:FO_RESCUE_EXIT,state:foRescue,reset:resetFoRescue,step:stepFoRescue};')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return mesh()},()=>mesh(),null,(nodes,edges)=>graph={nodes,edges});
 assert.equal(solids.length,144);
 const walk=(x,z)=>!solids.some(c=>1.6>c.y-c.h/2+.05&&0<c.y+c.h/2-.25&&x+.42>c.x-c.w/2&&x-.42<c.x+c.w/2&&z+.42>c.z-c.d/2&&z-.42<c.z+c.d/2);
 const adj=graph.nodes.map(()=>[]);
