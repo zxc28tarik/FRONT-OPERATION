@@ -5960,6 +5960,9 @@
           statusBar.rotation.x = -0.18;
           root.add(statusBar);
 
+      // FO_F316_BEGIN controller-reference
+          vmRefs.foF316DroneStatus=statusBar;
+      // FO_F316_END controller-reference
           [-0.046, 0.046].forEach((ax) => {
             const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.004, 0.075, 8), WEAPON_MATS.gunmetal);
             ant.position.set(ax, 0.072, -0.048);
@@ -18305,6 +18308,83 @@ return {createExperimentalRig,createAdaptiveRigController};
       const radarCanvas = document.getElementById('radar-canvas');
       const rctx = radarCanvas.getContext('2d');
 
+      // FO_F316_BEGIN helper
+      // V313–V314: presentation-only class identity and equipment state.
+      const FO_F316_IDENTITIES=Object.freeze({
+        assault:Object.freeze({label:'Hücum',color:'#c4c9b1'}),
+        medic:Object.freeze({label:'Sıhhiye',color:'#c3b4a9'}),
+        engineer:Object.freeze({label:'Drone operatörü',color:'#a9c5c8'}),
+        sniper:Object.freeze({label:'Keskin nişancı',color:'#b3c3aa'}),
+        heavy:Object.freeze({label:'Ağır piyade',color:'#cabd9e'})
+      });
+      function foF316EquipmentStatus(actor,classes,weapons,droneCharges=0,droneActive=false){
+        const id=classes[actor.classId]?.slots[4],w=id&&weapons[id];
+        if(!w)return {id:null,label:'—',state:'none',hint:'Bu sınıfta özel ekipman yok',opacity:.35};
+        if(w.category==='drone'){
+          const max=w.magSize,remaining=Math.max(0,Math.min(max,Number.isFinite(droneCharges)?droneCharges:0));
+          return {id,label:droneActive?'AKTİF':remaining>0?remaining+'/'+max:'0/'+max,
+            state:droneActive?'active':remaining>0?'ready':'empty',
+            hint:droneActive?'Drone aktif':remaining>0?'Drone hazır':'Yeni canda tekrar hazır',opacity:remaining>0||droneActive?1:.68};
+        }
+        const ammo=actor.ammoState?.[id];
+        if(!ammo||!Number.isFinite(ammo.mag)||!Number.isFinite(ammo.reserve))
+          return {id,label:'—',state:'unknown',hint:'Ekipman bilgisi hazır değil',opacity:.68};
+        const mag=Math.max(0,ammo.mag),reserve=Math.max(0,ammo.reserve);
+        if(w.category==='rocket'){
+          const loading=actor.slot===4&&actor.reloading;
+          const state=loading?'loading':mag>0?'ready':reserve>0?'reload':'empty';
+          return {id,label:loading?'DOLUYOR':mag+'+'+reserve,state,
+            hint:loading?'Yeniden dolduruluyor':mag>0?'Hazır / yedek mühimmat':reserve>0?'Yeniden doldur':'Mühimmat kalmadı',
+            opacity:state==='empty'?.68:1};
+        }
+        return {id,label:mag+'/'+w.magSize,state:mag>0?'ready':'empty',hint:mag>0?'Kalan ekipman: '+mag:'Ekipman tükendi',opacity:mag>0?1:.68};
+      }
+      function foF316ApplyHud(actor,classes,weapons,drone,doc){
+        const badge=doc.getElementById('hud-class-badge'),identity=FO_F316_IDENTITIES[actor.classId];
+        if(badge&&identity){
+          badge.style.color=identity.color;badge.style.borderColor=identity.color+'66';
+          badge.title=identity.label;
+        }
+        const isDrone=classes[actor.classId]?.slots[4]==='drone';
+        const status=foF316EquipmentStatus(actor,classes,weapons,isDrone?drone.getRemainingCharges('player'):0,isDrone&&drone.isPlayerControlling());
+        const box=doc.getElementById('slot-box-4'),sub=doc.getElementById('slot-sub-4');
+        if(!box||!sub)return;
+        // Preserve the established drone label and controls; improve other class slots.
+        if(!isDrone){
+          sub.textContent=status.label;
+          sub.style.color=status.state==='empty'||status.state==='reload'||status.state==='loading'?'#d3b786':'';
+          sub.className='';
+          box.style.opacity=String(status.opacity);
+        }else sub.style.color='';
+        box.title=status.hint;
+      }
+      const foF316RenderRestore=[];
+      function foF316BeginEquipmentRender(actor,refs,medkits,drone){
+        if(foF316RenderRestore.length)foF316RestoreEquipmentRender();
+        // Existing local controller bar only; no drone geometry or collision changes.
+        const bar=refs?.foF316DroneStatus;
+        if(bar&&actor.alive&&actor.classId==='engineer'&&actor.slot===4){
+          const available=drone.getRemainingCharges('player')>0;
+          foF316RenderRestore.push([bar.scale,'x',bar.scale.x]);
+          bar.scale.x*=available?1:.16;
+        }
+        // Existing friendly healing ring fades near expiration but remains readable.
+        for(const kit of medkits){
+          const mat=kit.ring?.material;
+          if(!mat||kit.team!==actor.team||!Number.isFinite(kit.life))continue;
+          const factor=.45+.55*Math.max(0,Math.min(1,kit.life/4));
+          if(factor===1)continue;
+          foF316RenderRestore.push([mat,'opacity',mat.opacity]);mat.opacity*=factor;
+        }
+      }
+      function foF316RestoreEquipmentRender(){
+        for(let i=foF316RenderRestore.length-1;i>=0;i--){
+          const [obj,key,value]=foF316RenderRestore[i];obj[key]=value;
+        }
+        foF316RenderRestore.length=0;
+      }
+
+      // FO_F316_END helper
       function updateHUD() {
         document.getElementById('hp-value').textContent = player.hp;
         const hpBar = document.getElementById('hp-bar');
@@ -18395,6 +18475,9 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
         }
 
+      // FO_F316_BEGIN hud
+        foF316ApplyHud(player,CLASSES,WEAPONS,droneSystem,document);
+      // FO_F316_END hud
         let zoneText = 'ORTA MEYDAN (MID)';
         if (player.pos.z > 38) zoneText = 'DERBARAN ÜSSÜ (GÜNEY)';
         else if (player.pos.z < -38) zoneText = 'N.I.U. ÜSSÜ (KUZEY)';
@@ -19377,8 +19460,14 @@ return {createExperimentalRig,createAdaptiveRigController};
             beginV287RenderPose(vmRefs,player,renderDt,!!v271PlayerFlash?.visible);
           else if(vmRefs.v287Pose)vmRefs.v287Pose.sprint=0;
           if(matchState.started)beginFoC295Render(bots,camera);
+      // FO_F316_BEGIN render
+          if(matchState.started)foF316BeginEquipmentRender(player,vmRefs,activeMedkits,droneSystem);
+      // FO_F316_END render
           renderer.render(scene, camera);
         }finally{
+      // FO_F316_BEGIN restore
+          foF316RestoreEquipmentRender();
+      // FO_F316_END restore
           restoreFoC295Render();
           restoreV287RenderPose(vmRefs);
         }
