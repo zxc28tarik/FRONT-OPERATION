@@ -225,3 +225,5 @@ jobs:
         run: node tests/critical_01_04_06_regression.cjs
       - name: Validate critical 07–10 scoreboard, life state and mobile inputs
         run: node tests/critical_07_10_regression.cjs
+      - name: Validate C295 isolated render pose continuity and exact restoration
+        run: node tests/soldier_v295_render_pose_regression.cjs
