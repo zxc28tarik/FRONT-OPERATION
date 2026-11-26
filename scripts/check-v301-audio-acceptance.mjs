@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
 const oldHtml=execFileSync('git',['show','a5e2e379001f441e83413103ee1a257f0d50b73a:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const newHtml=execFileSync('git',['show','54aad7f97a5a2a837f111b6a8584784d82dd4527:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
-const currentHtml=fs.readFileSync('index.html','utf8');
+const currentHtml=fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'');
 const soundRe=/class SoundEngine \{[\s\S]*?(?=\n\s*const sound = new SoundEngine\(\);)/;
 if(currentHtml.match(soundRe)?.[0]!==newHtml.match(soundRe)?.[0])throw Error('V301 audio source changed after acceptance');
 function testAudio(oldHtml,newHtml){

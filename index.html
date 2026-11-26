@@ -1744,6 +1744,12 @@
             glock18c:   { crackFreq: 4800, crackQ: 1.13, crackGain: 0.38, bodyFreq: 1740, bodyQ: 1.13, bodyGain: 0.47, subGain: 0.40, mechFreq: 3750, mechGain: 0.17, reverbSend: 0.36 },
             carlgustaf: { crackFreq: 980, crackQ: 0.65, crackGain: 0.45, bodyFreq: 350, bodyQ: 0.58, bodyGain: 0.89, subGain: 1.01, mechFreq: 640, mechGain: 0.23, reverbSend: 1.20 }
           };
+          // FO_V336_BEGIN audio-profiles
+          // Stronger transient, shorter perceived tail; preserve every voice lifetime.
+          Object.assign(styles.mrad,{crackFreq:3100,crackQ:.82,crackGain:1.14,bodyFreq:1020,bodyQ:.76,bodyGain:1.20,subStart:142,subEnd:43,subGain:.62,mechFreq:1550,mechGain:.065,reverbSend:.86,bodyEarly:.16,bodyEarlyGain:.09});
+          Object.assign(styles.p320,{crackFreq:2850,crackQ:.92,crackGain:.77,bodyFreq:1120,bodyQ:.84,bodyGain:.83,subStart:174,subEnd:64,subGain:.37,mechFreq:2100,mechGain:.085,reverbSend:.40,bodyEarly:.28,bodyEarlyGain:.35});
+          Object.assign(styles.glock18c,{crackFreq:5300,crackQ:1.04,crackGain:.95,bodyFreq:2250,bodyQ:.90,bodyGain:.80,subStart:235,subEnd:82,subGain:.30,mechFreq:3650,mechGain:.065,reverbSend:.29,bodyEarly:.23,bodyEarlyGain:.27});
+          // FO_V336_END audio-profiles
           return Object.assign(base, Object.prototype.hasOwnProperty.call(styles, weaponId) ? styles[weaponId] : {});
         }
 
@@ -1877,6 +1883,10 @@
           }
 
           const bodySrc = this.ctx.createBufferSource();
+          // FO_V336_BEGIN audio-transient
+          if(weaponId==='mrad')bodySrc.buffer=this.noiseBuffers.white;
+          else
+          // FO_V336_END audio-transient
           bodySrc.buffer = category === 'sniper' || category === 'rocket' ? this.noiseBuffers.pink : this.noiseBuffers.white;
           bodySrc.playbackRate.value = pitchJitter;
           const bodyFlt = this.ctx.createBiquadFilter();
@@ -1887,6 +1897,9 @@
 
           const bodyGain = this.ctx.createGain();
           bodyGain.gain.setValueAtTime(Math.max(0.001, prof.bodyGain * atten), now);
+          // FO_V336_BEGIN audio-envelope
+          if(prof.bodyEarly)bodyGain.gain.exponentialRampToValueAtTime(Math.max(.001,prof.bodyGain*atten*prof.bodyEarlyGain),now+prof.bodyDur*prof.bodyEarly);
+          // FO_V336_END audio-envelope
           bodyGain.gain.exponentialRampToValueAtTime(0.001, now + prof.bodyDur);
 
           bodySrc.connect(bodyFlt);
@@ -5383,6 +5396,43 @@
         return geo;
       }
 
+      // FO_V336_BEGIN viewmodel-helper
+      // Extra artwork uses an isolated synchronous UUID stream, never the match RNG.
+      let foV336VisualSeed=0x36a791fd;
+      function foV336WeaponFinish(root,refs,id){
+        if(id!=='minimi'&&id!=='p320')return;
+        const savedRandom=Math.random;
+        try{
+          Math.random=()=>((foV336VisualSeed=(Math.imul(foV336VisualSeed,1664525)+1013904223)>>>0)/4294967296);
+          if(id==='minimi'){
+            const ring=root.children.find(n=>n.isMesh&&n.geometry.type==='TorusGeometry'&&n.position.z===-.355);
+            const post=root.children.find(n=>n.isMesh&&n.material===WEAPON_MATS.tritiumGreen&&n.position.z===-.355);
+            // A continuous, tapered visual silhouette from the existing barrel to the sight.
+            const support=createExtrudedProfile([[-.014,.020],[.014,.020],[.014,.037],[.007,.048],[.005,.066],[.0022,.066],[.0022,.084],[-.0022,.084],[-.0022,.066],[-.005,.066],[-.007,.048],[-.014,.037]],.018,WEAPON_MATS.metalDark);
+            support.name='V336_Minimi_sight_support';support.position.z=-.355;root.add(support);
+            ring.rotation.z=Math.PI*.8;ring.name='V336_Minimi_sight_guard';
+            post.scale.y=.33;post.position.y=.084;post.name='V336_Minimi_sight_tip';
+          }else{
+            const slide=refs.slideMesh,main=slide.children[0],top=slide.children[1];
+            main.material=main.material.clone();main.material.color.copy(WEAPON_MATS.gunmetal.color);
+            main.material.roughness=.55;main.material.metalness=.64;
+            top.material=WEAPON_MATS.gunmetal;top.scale.y=.54;top.position.y=.038;
+            main.name='V336_P320_satin_slide';
+            const ribs=new THREE.InstancedMesh(new THREE.BoxGeometry(.0018,.014,.0018),WEAPON_MATS.metalDark,20);
+            const dummy=new THREE.Object3D();let k=0;
+            for(const side of [-1,1])for(const start of [.038,-.066])for(let i=0;i<5;i++){
+              dummy.position.set(side*.0119,.026,start+i*.0048);dummy.rotation.set(-.22,0,0);dummy.updateMatrix();ribs.setMatrixAt(k++,dummy.matrix);
+            }
+            ribs.instanceMatrix.needsUpdate=true;ribs.name='V336_P320_slide_detail';slide.add(ribs);
+            const port=new THREE.Mesh(new THREE.BoxGeometry(.014,.002,.025),WEAPON_MATS.metalDark);
+            port.position.set(.003,.0395,-.010);port.name='V336_P320_chamber_detail';slide.add(port);
+            const bridge=new THREE.Mesh(new THREE.BoxGeometry(.015,.025,.006),WEAPON_MATS.polymerFDE);
+            bridge.position.set(0,-.014,-.024);bridge.rotation.x=-.16;bridge.name='V336_P320_guard_bridge';root.add(bridge);
+          }
+        }finally{Math.random=savedRandom;}
+      }
+
+      // FO_V336_END viewmodel-helper
       function buildViewmodel(weaponId) {
         if (currentViewmodelMesh) {
           if(typeof clearV271PlayerFlash==='function')clearV271PlayerFlash();
@@ -6110,6 +6160,9 @@
 
         refineV266GloveSurfaces(root);
         applyV259ViewmodelDetail(root);
+        // FO_V336_BEGIN viewmodel-call
+        foV336WeaponFinish(root,vmRefs,weaponId);
+        // FO_V336_END viewmodel-call
         if(vmRefs.magazineMesh){
           vmRefs.magazineRest={
             position:vmRefs.magazineMesh.position.clone(),
