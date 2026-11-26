@@ -3028,6 +3028,111 @@
     return tex;
   }
 
+      // FO_E306_BEGIN helper
+      // V303–V306: bake detail into existing UV maps; no geometry, lights or random draws.
+      function foE306PaintSurface(tex, style) {
+        const c=tex.image,ctx=c.getContext('2d'),w=c.width,h=c.height;
+        let seed=0x306;
+        for(let i=0;i<style.length;i++)seed=Math.imul(seed^style.charCodeAt(i),16777619)>>>0;
+        const rand=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+        const box=(x,y,a,b,color)=>{ctx.fillStyle=color;ctx.fillRect(x*w,y*h,a*w,b*h);};
+        const line=(x,y,x2,y2,color,width=1)=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x*w,y*h);ctx.lineTo(x2*w,y2*h);ctx.stroke();};
+        const dot=(x,y,r,color)=>{ctx.fillStyle=color;ctx.beginPath();ctx.arc(x*w,y*h,r*w,0,Math.PI*2);ctx.fill();};
+        ctx.save();
+        if(style==='marien-road'||style==='depot-road'){
+          const depot=style==='depot-road';
+          for(let i=0;i<32;i++){
+            const x=rand(),y=rand(),rx=.012+rand()*.045,ry=.009+rand()*.025;
+            const grad=ctx.createRadialGradient(x*w,y*h,0,x*w,y*h,rx*w);
+            grad.addColorStop(0,depot?'rgba(57,45,30,.18)':'rgba(24,28,32,.18)');grad.addColorStop(1,'rgba(20,20,20,0)');
+            ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(x*w,y*h,rx*w,ry*h,0,0,Math.PI*2);ctx.fill();
+          }
+          for(let i=0;i<12;i++){
+            const x=.06+rand()*.86,y=.06+rand()*.84;
+            line(x,y,x+.012+rand()*.023,y+.025,'rgba(17,20,23,.24)',1.1);
+            line(x+.01,y+.018,x-.012,y+.035,'rgba(22,25,27,.16)',.7);
+          }
+        }else if(style==='marien-wall'||style==='depot-wall'){
+          const depot=style==='depot-wall';
+          for(const y of [.03,.53]){
+            box(.012,y,.476,.009,'rgba(16,22,26,.12)');box(.512,y,.476,.009,'rgba(16,22,26,.12)');
+          }
+          for(let i=0;i<28;i++){
+            const x=.025+rand()*.95,y=.05+rand()*.78,len=.025+rand()*.12,wide=.004+rand()*.012;
+            const gr=ctx.createLinearGradient(0,y*h,0,(y+len)*h);
+            gr.addColorStop(0,depot?'rgba(85,57,32,.23)':'rgba(37,48,53,.23)');gr.addColorStop(1,'rgba(35,35,35,0)');
+            ctx.fillStyle=gr;ctx.fillRect(x*w,y*h,wide*w,len*h);
+          }
+          for(let i=0;i<24;i++){const x=.03+rand()*.94,y=.03+rand()*.94;dot(x,y,.002+rand()*.003,'rgba(29,32,34,.17)');}
+        }else if(style==='marien-metal'||style==='depot-metal'||style==='cargo'){
+          const cargo=style==='cargo';
+          for(let i=0;i<30;i++){
+            const x=.015+rand()*.95,y=.015+rand()*.95,len=.014+rand()*.075;
+            line(x,y,Math.min(.995,x+len),y+.002,'rgba(196,197,181,.14)',.9);
+            if(i%3===0)line(x,y+.005,Math.min(.995,x+len*.7),y+.006,'rgba(25,24,21,.22)',1.2);
+          }
+          for(const y of [.04,.96]){
+            box(0,y,.999,.008,'rgba(24,27,27,.20)');
+            for(let i=1;i<=8;i++){const x=i/9;dot(x,y+.012,.004,'rgba(21,25,26,.32)');dot(x-.001,y+.010,.0018,'rgba(207,210,200,.30)');}
+          }
+          if(cargo)for(let i=0;i<15;i++){const x=.02+rand()*.94,y=.12+rand()*.65;box(x,y,.005,.025+rand()*.06,'rgba(82,42,23,.18)');}
+        }else if(style==='marien-machine'||style==='depot-machine'){
+          const depot=style==='depot-machine';
+          for(const [x,y] of [[.04,.07],[.54,.07],[.04,.57],[.54,.57]]){
+            box(x,y,.42,.36,'rgba(17,24,27,.31)');box(x+.009,y+.009,.402,.342,'rgba(158,170,166,.17)');
+            box(x+.026,y+.025,.368,.31,'rgba(30,37,38,.26)');
+            for(const dx of [.022,.398])for(const dy of [.02,.34]){dot(x+dx,y+dy,.006,'rgba(16,20,21,.65)');dot(x+dx-.002,y+dy-.002,.0025,'rgba(212,214,199,.55)');}
+            if(depot){
+              for(let i=0;i<7;i++)box(x+.045,y+.06+i*.035,.24,.012,'rgba(15,20,21,.47)');
+              box(x+.31,y+.07,.056,.052,'rgba(183,145,77,.42)');
+              box(x+.32,y+.085,.014,.012,'rgba(35,40,34,.65)');
+            }else{
+              box(x+.055,y+.065,.30,.15,'rgba(22,29,33,.34)');
+              for(let i=0;i<5;i++)box(x+.067+i*.055,y+.075,.015,.13,'rgba(15,21,24,.49)');
+              box(x+.14,y+.255,.14,.026,'rgba(177,183,174,.38)');
+              box(x+.158,y+.261,.105,.009,'rgba(29,33,34,.56)');
+            }
+          }
+        }else if(style==='marien-storage'||style==='depot-storage'){
+          for(const x of [.045,.91]){
+            box(x,0,.045,1,'rgba(38,31,22,.36)');box(x+.006,0,.006,1,'rgba(203,177,128,.23)');
+            for(let i=1;i<8;i++){dot(x+.021,i/8,.005,'rgba(28,27,22,.50)');dot(x+.019,i/8-.002,.002,'rgba(194,180,151,.40)');}
+          }
+          for(const y of [.08,.55]){
+            box(.26,y,.48,.26,'rgba(29,25,19,.24)');box(.27,y+.012,.46,.235,'rgba(168,154,118,.15)');
+            box(.40,y+.07,.20,.036,'rgba(36,34,27,.51)');box(.405,y+.104,.19,.009,'rgba(190,174,142,.23)');
+          }
+        }else if(style==='depot-interior-floor'){
+          for(let i=0;i<4;i++){
+            const p=i/4;
+            box(p,0,.003,1,'rgba(15,19,20,.30)');box(0,p,1,.003,'rgba(15,19,20,.30)');
+            box(p+.004,0,.002,1,'rgba(205,202,177,.15)');box(0,p+.004,1,.002,'rgba(205,202,177,.15)');
+          }
+          for(let i=0;i<28;i++){const x=rand()*.94,y=rand()*.98;line(x,y,x+.025,y+.006,'rgba(30,32,31,.24)',1.4);}
+        }else throw Error('Unknown map finish '+style);
+        ctx.restore();tex.needsUpdate=true;return tex;
+      }
+
+      function foE306FinishSet(set,style){
+        foE306PaintSurface(set.map,style);return set;
+      }
+      function foE306InteriorMaterial(base,style,source=base.map){
+        const image=document.createElement('canvas');
+        image.width=source.image.width;image.height=source.image.height;
+        image.getContext('2d').drawImage(source.image,0,0);
+        const tex=source.clone();tex.image=image;foE306PaintSurface(tex,style);
+        const mat=base.clone();mat.map=tex;mat.needsUpdate=true;
+        return mat;
+      }
+      function foE306UseInterior(meshes,base,replacement,accept){
+        let count=0;
+        for(const mesh of meshes)if(mesh.material===base&&mesh.isMesh&&accept(mesh)){
+          mesh.material=replacement;count++;
+        }
+        return count;
+      }
+
+      // FO_E306_END helper
       function buildMarienCQCMap() {
         const texAsphalt = makeProceduralTextureSet('asphalt', 16, 24);
         const texConcrete = makeProceduralTextureSet('concrete', 4, 2);
@@ -3040,6 +3145,14 @@
         const texContBlue = makeProceduralTextureSet('container_blue', 2, 1);
         const texContRust = makeProceduralTextureSet('container_rust', 2, 1);
 
+      // FO_E306_BEGIN marien-exterior
+        // V303: outdoor surface weathering, baked into the original texture allocations.
+        foE306FinishSet(texAsphalt,'marien-road');
+        foE306FinishSet(texConcrete,'marien-wall');
+        foE306FinishSet(texWeathered,'marien-wall');
+        foE306FinishSet(texSteel,'marien-metal');
+        for(const set of [texContRed,texContBlue,texContRust])foE306FinishSet(set,'cargo');
+      // FO_E306_END marien-exterior
         const matAsphalt = new THREE.MeshStandardMaterial({
           map: texAsphalt.map, bumpMap: texAsphalt.bumpMap, bumpScale: 0.042, roughness: 0.93, metalness: 0.02
         });
@@ -3657,6 +3770,15 @@
     scene.add(mesh);
   }
 
+      // FO_E306_BEGIN marien-interior
+        // V304: existing warehouse machinery and storage only; no new props.
+        const warehouseMachine=foE306InteriorMaterial(matSteel,'marien-machine');
+        const warehouseCrate=foE306InteriorMaterial(matWood,'marien-storage');
+        const inWarehouse=m=>m.position.x<-18&&m.position.x>-40&&Math.abs(m.position.z)<42;
+        const machine=m=>inWarehouse(m)&&Math.abs(m.position.x+24)<.01&&Math.abs(m.position.y-.75)<.01&&Math.abs(Math.abs(m.position.z)-8)<.01;
+        foE306UseInterior(mapEnvironmentMeshes,matSteel,warehouseMachine,machine);
+        foE306UseInterior(mapEnvironmentMeshes,matWood,warehouseCrate,inWarehouse);
+      // FO_E306_END marien-interior
         const dustCount = 140;
         const dustGeo = new THREE.BufferGeometry();
         const dustPos = new Float32Array(dustCount * 3);
@@ -3798,6 +3920,12 @@
         const asphalt=makeProceduralTextureSet('asphalt',12,18);
         const steel=makeProceduralTextureSet('steel',2,2);
         const wood=makeProceduralTextureSet('wood',2,2);
+      // FO_E306_BEGIN depot-exterior
+        // V305: port-specific mineral staining, pavement wear and brushed metal.
+        foE306FinishSet(concrete,'depot-wall');
+        foE306FinishSet(asphalt,'depot-road');
+        foE306FinishSet(steel,'depot-metal');
+      // FO_E306_END depot-exterior
         const mat=(t,color,metalness=.12)=>new THREE.MeshStandardMaterial({map:t.map,
           bumpMap:t.bumpMap,bumpScale:.035,color,roughness:.84,metalness});
         const wall=mat(concrete,0xb8b5a8),darkWall=mat(concrete,0x797d78),
@@ -4117,6 +4245,17 @@
           deco(x,2.55,z,.035,4.7,.065,seal);
           deco(x,5.18,z,.19,.11,2.0,galv);
         }
+      // FO_E306_BEGIN depot-interior
+        // V306: distinguish maintenance machinery, storage and existing interior floor slabs.
+        const machineFinish=foE306InteriorMaterial(metal,'depot-machine');
+        const storageFinish=foE306InteriorMaterial(crate,'depot-storage');
+        const interiorFloorFinish=foE306InteriorMaterial(darkFloor,'depot-interior-floor',asphalt.map);
+        const near=(m,x,z,t=.02)=>Math.abs(m.position.x/FO_TERSANE_X-x)<t&&Math.abs(m.position.z/FO_TERSANE_Z-z)<t;
+        const at=(m,points)=>points.some(([x,z])=>near(m,x,z));
+        foE306UseInterior(mapEnvironmentMeshes,metal,machineFinish,m=>at(m,[[-21,-22]])&&Math.abs(m.position.y-.775)<.02);
+        foE306UseInterior(mapEnvironmentMeshes,crate,storageFinish,m=>at(m,[[-11,-34],[-35.3,10],[-35.3,30],[35,-7]]));
+        foE306UseInterior(mapEnvironmentMeshes,darkFloor,interiorFloorFinish,m=>at(m,[[-16,-28],[-32,20],[32,-5]])&&m.geometry.type==='PlaneGeometry');
+      // FO_E306_END depot-interior
         // Objective markers stay purely game-specific and visually restrained.
         for(const site of FO_BOMB_SITES){
           const accent=site.id==='A'?0xd4aa63:0x77aab0;
