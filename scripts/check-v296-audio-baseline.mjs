@@ -1,7 +1,8 @@
 // V296: read-only baseline; no game runtime, AI, input or audio changes.
 import fs from 'node:fs';
+import {execFileSync} from 'node:child_process';
 import { createHash } from 'node:crypto';
-const html=fs.readFileSync('index.html','utf8');
+const html=execFileSync('git',['show','a5e2e379001f441e83413103ee1a257f0d50b73a:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const source=html.match(/class SoundEngine \{[\s\S]*?(?=\n\s*const sound = new SoundEngine\(\);)/)?.[0];
 if(!source) throw Error('SoundEngine not found');
 function baselineStatic(source){
