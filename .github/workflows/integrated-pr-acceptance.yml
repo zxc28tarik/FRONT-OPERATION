@@ -39,6 +39,18 @@ jobs:
         run: |
           node scripts/check-v292-crouch-transition.mjs
           node scripts/check-v273-muzzle-profiles.mjs
+      - name: V288 current rig and locomotion baseline
+        if: ${{ !cancelled() }}
+        run: |
+          git show a34c2ca958379b0023b0ee0418b40d01daeced61:index.html > /tmp/fo-v287-v288.html
+          FO_V287_BASELINE=/tmp/fo-v287-v288.html node scripts/check-v288-animation-baseline.mjs
+      - name: Save V288 baseline report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-operation-v288-baseline
+          path: test-artifacts/front-operation-browser/v288-baseline.json
+          if-no-files-found: warn
   integrated-critical-webgl:
     if: github.head_ref == 'art/v292-crouch-transition'
     runs-on: ubuntu-24.04
