@@ -3143,6 +3143,110 @@
       }
 
       // FO_E306_END helper
+      // FO_E311_BEGIN helper
+      // V307–V310: static surface detailing, shared identical bump maps.
+      const foE311Bumps=new Map();
+      function foE311ShareBumps(entries){
+        for(const [key,set] of entries){
+          const t=set.bumpMap,known=foE311Bumps.get(key);
+          if(!known){foE311Bumps.set(key,t);continue;}
+          if(t===known)continue;
+          // Same deterministic factory type, dimensions, repeat and sampler.
+          if(t.image.width!==known.image.width||t.image.height!==known.image.height||
+            t.repeat.x!==known.repeat.x||t.repeat.y!==known.repeat.y||
+            t.wrapS!==known.wrapS||t.wrapT!==known.wrapT||t.anisotropy!==known.anisotropy)
+            throw Error('Shared map relief mismatch '+key);
+          set.bumpMap=known;t.dispose();
+        }
+      }
+      function foE311Paint(tex,style){
+        const c=tex.image,ctx=c.getContext('2d'),w=c.width,h=c.height;
+        let seed=0x311;
+        for(const ch of style)seed=Math.imul(seed^ch.charCodeAt(0),16777619)>>>0;
+        const rand=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+        const rect=(x,y,a,b,color)=>{ctx.fillStyle=color;ctx.fillRect(x*w,y*h,a*w,b*h);};
+        const stroke=(x,y,X,Y,color,width)=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x*w,y*h);ctx.lineTo(X*w,Y*h);ctx.stroke();};
+        const rivet=(x,y,r,color)=>{ctx.fillStyle=color;ctx.beginPath();ctx.arc(x*w,y*h,r*w,0,Math.PI*2);ctx.fill();};
+        ctx.save();
+        if(style==='prison-concrete'){
+          for(let i=0;i<34;i++){
+            const x=.025+rand()*.95,y=.035+rand()*.72,dy=.03+rand()*.18;
+            const g=ctx.createLinearGradient(0,y*h,0,(y+dy)*h);
+            g.addColorStop(0,'rgba(40,49,44,.22)');g.addColorStop(1,'rgba(40,49,44,0)');
+            ctx.fillStyle=g;ctx.fillRect(x*w,y*h,(.004+rand()*.016)*w,dy*h);
+          }
+          for(const y of [.035,.535]){
+            rect(.012,y,.476,.007,'rgba(46,54,50,.22)');rect(.512,y,.476,.007,'rgba(46,54,50,.22)');
+            rect(.012,y+.007,.476,.002,'rgba(207,210,192,.15)');rect(.512,y+.007,.476,.002,'rgba(207,210,192,.15)');
+          }
+          for(let i=0;i<20;i++){const x=.04+rand()*.91,y=.04+rand()*.9;stroke(x,y,x+.018,y+.036,'rgba(30,36,35,.16)',.85);}
+        }else if(style==='prison-steel'){
+          for(let i=0;i<42;i++){const x=.02+rand()*.89,y=.02+rand()*.96;stroke(x,y,Math.min(.99,x+.025+rand()*.06),y+.001,'rgba(198,205,192,.17)',.8);}
+          for(const y of [.04,.94]){
+            rect(0,y,.999,.012,'rgba(29,35,34,.22)');
+            for(let k=1;k<9;k++){rivet(k/9,y+.021,.004,'rgba(20,27,26,.45)');rivet(k/9-.001,y+.019,.0018,'rgba(200,209,194,.40)');}
+          }
+        }else if(style==='prison-interior-wall'){
+          // Subdued painted dado in the lower part of each existing UV panel.
+          for(const y of [.36,.86]){
+            rect(.012,y,.976,.115,'rgba(82,91,78,.26)');
+            rect(.012,y,.976,.008,'rgba(31,41,37,.35)');
+            rect(.012,y+.112,.976,.003,'rgba(193,199,180,.25)');
+          }
+          for(let i=0;i<22;i++){const x=.02+rand()*.94,y=.38+Math.floor(rand()*2)*.5+rand()*.07;stroke(x,y,Math.min(.99,x+.02),y+.005,'rgba(202,200,181,.20)',1);}
+        }else if(style==='prison-interior-crate'){
+          for(const [x,y] of [[.05,.06],[.55,.06],[.05,.56],[.55,.56]]){
+            rect(x,y,.40,.36,'rgba(25,31,29,.42)');rect(x+.012,y+.013,.376,.334,'rgba(143,156,143,.22)');
+            for(let k=0;k<5;k++)rect(x+.035+k*.063,y+.055,.027,.23,'rgba(30,38,34,.36)');
+            rect(x+.11,y+.282,.18,.026,'rgba(25,30,28,.57)');
+            for(const dx of [.025,.375])for(const dy of [.028,.33])rivet(x+dx,y+dy,.005,'rgba(21,26,24,.55)');
+          }
+        }else if(style==='prison-interior-slab'){
+          for(let i=0;i<4;i++){
+            const t=i/4;rect(t,0,.004,1,'rgba(29,36,32,.28)');rect(0,t,1,.004,'rgba(29,36,32,.28)');
+            rect(t+.004,0,.002,1,'rgba(200,206,186,.18)');rect(0,t+.004,1,.002,'rgba(200,206,186,.18)');
+          }
+          for(let i=0;i<28;i++){const x=rand()*.95,y=rand()*.98;stroke(x,y,x+.035,y+.004,'rgba(36,43,39,.20)',1);}
+        }else throw Error('Unknown prison finish '+style);
+        ctx.restore();tex.needsUpdate=true;return tex;
+      }
+      function foE311PrisonFinish(concrete,steel){
+        foE311Paint(concrete.map,'prison-concrete');
+        foE311Paint(steel.map,'prison-steel');
+      }
+      function foE311PrisonVariant(base,style){
+        const source=base.map,image=document.createElement('canvas');
+        image.width=source.image.width;image.height=source.image.height;
+        image.getContext('2d').drawImage(source.image,0,0);
+        const oldRandom=Math.random;let seed=0xE311;
+        for(const ch of style)seed=Math.imul(seed^ch.charCodeAt(0),16777619)>>>0;
+        let tex,mat;
+        try{
+          Math.random=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+          tex=source.clone();mat=base.clone();
+        }finally{Math.random=oldRandom;}
+        tex.image=image;foE311Paint(tex,style);
+        if(style==='prison-interior-slab')tex.repeat.set(2,3);
+        mat.name='FO_E311:'+style;mat.map=tex;mat.needsUpdate=true;return mat;
+      }
+      function foE311PrisonInterior(wall,metal,dark){
+        const wallFinish=foE311PrisonVariant(wall,'prison-interior-wall');
+        const crateFinish=foE311PrisonVariant(metal,'prison-interior-crate');
+        const slabFinish=foE311PrisonVariant(dark,'prison-interior-slab');
+        const near=(m,x,z)=>Math.abs(m.position.x-x)<.015&&Math.abs(m.position.z-z)<.015;
+        const crateCenters=[];
+        for(const x of [-18,18]){
+          const d=Math.sign(x);
+          crateCenters.push([x-d*5.5,-43],[x+d*5.5,-30.2],[x+d*12.8,-41.7],[x+d*12.8,-32]);
+        }
+        crateCenters.push([4,-38]);
+        // Existing opaque meshes only; no new volume, lighting, shader or alpha.
+        foE306UseInterior(mapEnvironmentMeshes,wall,wallFinish,m=>m.geometry.type==='BoxGeometry'&&m.position.z<=-27&&m.position.z>=-45&&m.geometry.parameters.height>=2.5);
+        foE306UseInterior(mapEnvironmentMeshes,metal,crateFinish,m=>crateCenters.some(([x,z])=>near(m,x,z))&&m.geometry.type==='BoxGeometry'&&m.geometry.parameters.height>=.9&&m.geometry.parameters.height<=1.8);
+        foE306UseInterior(mapEnvironmentMeshes,dark,slabFinish,m=>Math.abs(m.position.y-4.98)<.015&&m.geometry.type==='BoxGeometry'&&Math.abs(m.geometry.parameters.height-.36)<.015);
+      }
+
+      // FO_E311_END helper
       function buildMarienCQCMap() {
         const texAsphalt = makeProceduralTextureSet('asphalt', 16, 24);
         const texConcrete = makeProceduralTextureSet('concrete', 4, 2);
@@ -3156,6 +3260,9 @@
         const texContRust = makeProceduralTextureSet('container_rust', 2, 1);
 
       // FO_E306_BEGIN marien-exterior
+      // FO_E311_BEGIN marien-share
+        foE311ShareBumps([['concrete_weathered:3:2',texWeathered],['steel:2:2',texSteel],['wood:2:2',texWood]]);
+      // FO_E311_END marien-share
         // V303: outdoor surface weathering, baked into the original texture allocations.
         foE306FinishSet(texAsphalt,'marien-road');
         foE306FinishSet(texConcrete,'marien-wall');
@@ -3931,6 +4038,9 @@
         const steel=makeProceduralTextureSet('steel',2,2);
         const wood=makeProceduralTextureSet('wood',2,2);
       // FO_E306_BEGIN depot-exterior
+      // FO_E311_BEGIN depot-share
+        foE311ShareBumps([['concrete_weathered:3:2',concrete],['steel:2:2',steel],['wood:2:2',wood]]);
+      // FO_E311_END depot-share
         // V305: port-specific mineral staining, pavement wear and brushed metal.
         foE306FinishSet(concrete,'depot-wall');
         foE306FinishSet(asphalt,'depot-road');
@@ -4401,6 +4511,10 @@
       function buildFoPrisonMap(){
         const solids=[],ramps=[];
         const concrete=makeProceduralTextureSet('concrete_weathered',3,2),steel=makeProceduralTextureSet('steel',2,2);
+      // FO_E311_BEGIN prison-exterior
+        foE311ShareBumps([['concrete_weathered:3:2',concrete],['steel:2:2',steel]]);
+        foE311PrisonFinish(concrete,steel);
+      // FO_E311_END prison-exterior
         const mat=(t,color)=>new THREE.MeshStandardMaterial({map:t.map,bumpMap:t.bumpMap,bumpScale:.035,color,roughness:.88});
         const wall=mat(concrete,0xa5a69e),dark=mat(concrete,0x666f70),metal=mat(steel,0x57676b);
         const floor=mat(concrete,0x858983);
@@ -4568,6 +4682,9 @@
         for(const [x,z,w,d] of [[-32,33,3.1,1.2],[32,33,3.1,1.2],[-5,46,2.2,1.1],[5,46,2.2,1.1]]){
           box(x,z,w,d,1.05,metal);deco(x,1.10,z,w+.08,.1,d+.08,trim);
         }
+      // FO_E311_BEGIN prison-interior
+        foE311PrisonInterior(wall,metal,dark);
+      // FO_E311_END prison-interior
         const exitMat=new THREE.MeshBasicMaterial({color:0x82bba2,transparent:true,opacity:.75,side:THREE.DoubleSide});
         addDecoMesh(new THREE.RingGeometry(5.8,6,48),exitMat,0,.035,50,-Math.PI/2);
         const cloth=new THREE.MeshStandardMaterial({color:0xd0b37c,roughness:1});
