@@ -1530,12 +1530,17 @@
           this.dryBus = null;
           this.reverbNode = null;
           this.reverbGain = null;
+          this.indoorWet = null;
+          this.outdoorWet = null;
           this.indoorIR = null;
           this.outdoorIR = null;
           this.noiseBuffers = {};
           this.isIndoor = false;
           this.activeVoices = 0;
           this.maxVoices = 22;
+          this.audibleVoices = 0;
+          this.maxAudibleVoices = 32;
+          this.remoteAudibleLimit = 24;
           this.droneHumNodes = null;
         }
 
@@ -1546,12 +1551,12 @@
             this.ctx = new AudioCtx();
 
             this.master = this.ctx.createGain();
-            this.master.gain.value = 0.44;
+            this.master.gain.value = 0.42;
 
             this.comp = this.ctx.createDynamicsCompressor();
-            this.comp.threshold.value = -16;
+            this.comp.threshold.value = -18;
             this.comp.knee.value = 14;
-            this.comp.ratio.value = 5;
+            this.comp.ratio.value = 4;
             this.comp.attack.value = 0.002;
             this.comp.release.value = 0.14;
 
@@ -1563,18 +1568,30 @@
             this.limiter.release.value = 0.05;
 
             this.dryBus = this.ctx.createGain();
-            this.dryBus.gain.value = 0.90;
+            this.dryBus.gain.value = 0.86;
 
-            this.reverbNode = this.ctx.createConvolver();
+            this.reverbNode = this.ctx.createGain();
             this.reverbGain = this.ctx.createGain();
             this.reverbGain.gain.value = 0.16;
 
             this.indoorIR = this._buildImpulseResponse(true);
             this.outdoorIR = this._buildImpulseResponse(false);
-            this.reverbNode.buffer = this.outdoorIR;
+            const indoorConvolver = this.ctx.createConvolver();
+            const outdoorConvolver = this.ctx.createConvolver();
+            indoorConvolver.buffer = this.indoorIR;
+            outdoorConvolver.buffer = this.outdoorIR;
+            this.indoorWet = this.ctx.createGain();
+            this.outdoorWet = this.ctx.createGain();
+            this.indoorWet.gain.value = 0;
+            this.outdoorWet.gain.value = 1;
+            this.reverbNode.connect(indoorConvolver);
+            this.reverbNode.connect(outdoorConvolver);
+            indoorConvolver.connect(this.indoorWet);
+            outdoorConvolver.connect(this.outdoorWet);
+            this.indoorWet.connect(this.reverbGain);
+            this.outdoorWet.connect(this.reverbGain);
 
             this.dryBus.connect(this.comp);
-            this.reverbNode.connect(this.reverbGain);
             this.reverbGain.connect(this.comp);
             this.comp.connect(this.limiter);
             this.limiter.connect(this.master);
@@ -1625,17 +1642,10 @@
           if (this.isIndoor === isIndoor) return;
           this.isIndoor = isIndoor;
           const now = this.ctx.currentTime;
-          this.reverbGain.gain.cancelScheduledValues(now);
-          this.reverbGain.gain.setTargetAtTime(0.02, now, 0.03);
-          const targetIR = isIndoor ? this.indoorIR : this.outdoorIR;
-          const targetGain = isIndoor ? 0.34 : 0.16;
-          setTimeout(() => {
-            if (!this.ctx || !this.reverbNode) return;
-            if (this.isIndoor === isIndoor) {
-              this.reverbNode.buffer = targetIR;
-              this.reverbGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.05);
-            }
-          }, 55);
+          for (const [param, target] of [[this.indoorWet.gain, isIndoor ? 1 : 0], [this.outdoorWet.gain, isIndoor ? 0 : 1], [this.reverbGain.gain, isIndoor ? 0.28 : 0.14]]) {
+            param.cancelScheduledValues(now);
+            param.setTargetAtTime(target, now, 0.075);
+          }
         }
 
         createNoiseBuffers() {
@@ -1683,17 +1693,41 @@
           return true;
         }
 
-        _autoCleanup(sourceNode, nodesToDisconnect) {
+        _autoCleanup(sourceNode, nodesToDisconnect, priority = true, onFinished = null) {
+          // Preserve legacy activeVoices and source stop times for the existing shared-RNG gate.
           this.activeVoices++;
+          const audible = this.audibleVoices < (priority ? this.maxAudibleVoices : this.remoteAudibleLimit);
+          if (audible) this.audibleVoices++;
+          else { try { sourceNode.disconnect(); } catch (e) {} }
+          let ended = false;
           sourceNode.onended = () => {
+            if (ended) return;
+            ended = true;
             this.activeVoices = Math.max(0, this.activeVoices - 1);
+            if (audible) this.audibleVoices = Math.max(0, this.audibleVoices - 1);
             for (let i = 0; i < nodesToDisconnect.length; i++) {
               try { nodesToDisconnect[i].disconnect(); } catch (e) {}
             }
+            if (onFinished) onFinished();
           };
         }
 
         _resolveWeaponProfile(category, weaponId) {
+          const base = this._legacyWeaponProfile(category, weaponId);
+          const styles = {
+            hk416:      { crackFreq: 3150, crackQ: 0.88, crackGain: 0.57, bodyFreq: 1080, bodyQ: 0.78, bodyGain: 0.76, subGain: 0.72, mechFreq: 2150, mechGain: 0.19, reverbSend: 0.69 },
+            mp7:        { crackFreq: 4450, crackQ: 1.05, crackGain: 0.41, bodyFreq: 2350, bodyQ: 0.98, bodyGain: 0.50, subGain: 0.39, mechFreq: 3400, mechGain: 0.17, reverbSend: 0.39 },
+            mrad:       { crackFreq: 2250, crackQ: 0.72, crackGain: 0.68, bodyFreq: 570, bodyQ: 0.62, bodyGain: 0.91, subGain: 1.02, mechFreq: 1280, mechGain: 0.21, reverbSend: 1.32 },
+            minimi:     { crackFreq: 2550, crackQ: 0.82, crackGain: 0.51, bodyFreq: 790, bodyQ: 0.76, bodyGain: 0.76, subGain: 0.80, mechFreq: 1690, mechGain: 0.30, reverbSend: 0.78 },
+            p320:       { crackFreq: 3450, crackQ: 1.05, crackGain: 0.47, bodyFreq: 1460, bodyQ: 0.92, bodyGain: 0.60, subGain: 0.53, mechFreq: 2460, mechGain: 0.22, reverbSend: 0.47 },
+            glock18c:   { crackFreq: 4800, crackQ: 1.13, crackGain: 0.38, bodyFreq: 1740, bodyQ: 1.13, bodyGain: 0.47, subGain: 0.40, mechFreq: 3750, mechGain: 0.17, reverbSend: 0.36 },
+            carlgustaf: { crackFreq: 980, crackQ: 0.65, crackGain: 0.45, bodyFreq: 350, bodyQ: 0.58, bodyGain: 0.89, subGain: 1.01, mechFreq: 640, mechGain: 0.23, reverbSend: 1.20 }
+          };
+          return Object.assign(base, Object.prototype.hasOwnProperty.call(styles, weaponId) ? styles[weaponId] : {});
+        }
+
+        // Preserve the V296 event lengths and fallback profile.
+        _legacyWeaponProfile(category, weaponId) {
           if (weaponId === 'glock18c') {
             return {
               crackFreq: 4200, crackQ: 1.3, crackGain: 0.42,
@@ -1755,26 +1789,51 @@
           }
         }
 
+        _audioDistance(dist, range = 65) {
+          const d = Math.max(0, Number.isFinite(dist) ? dist : range);
+          const ratio = Math.min(1, d / range);
+          const fade = (start, end) => {
+            const t = Math.max(0, Math.min(1, (d - start) / (end - start)));
+            return 1 - t * t * (3 - 2 * t);
+          };
+          return {
+            ratio,
+            attenuation: 1 / (1 + Math.pow(d / (range * 0.37), 1.78)),
+            airCutHz: 650 + 17350 / (1 + Math.pow(d / 19, 1.9)),
+            crack: fade(26, 42),
+            sub: fade(33, 48)
+          };
+        }
+
         playGunshot(category, dist = 0, weaponId = '') {
           if (!this._canSpawnVoice(dist === 0)) return;
           const now = this.ctx.currentTime;
-          const distRatio = Math.min(1, dist / 65);
-          const atten = Math.max(0.05, Math.pow(1 - distRatio, 1.35));
+          const distance = this._audioDistance(dist);
+          const distRatio = distance.ratio;
+          const atten = distance.attenuation;
           const prof = this._resolveWeaponProfile(category, weaponId);
           const pitchJitter = 0.965 + Math.random() * 0.07;
 
-          const airCutHz = Math.max(950, 12000 * Math.pow(1 - distRatio, 1.55));
+          const airCutHz = distance.airCutHz;
           const distFilter = this.ctx.createBiquadFilter();
           distFilter.type = 'lowpass';
           distFilter.frequency.value = dist === 0 ? 18000 : airCutHz;
 
           const wetSend = this.ctx.createGain();
-          wetSend.gain.value = (dist === 0 ? 0.55 : 0.45 + distRatio * 0.95) * prof.reverbSend;
+          wetSend.gain.value = (0.52 + distRatio * 0.46) * prof.reverbSend;
 
           distFilter.connect(this.dryBus);
           distFilter.connect(wetSend);
           wetSend.connect(this.reverbNode);
 
+          // Shared routing must outlive every connected layer, not just the body.
+          let remaining = 1 + (dist < 42 ? 1 : 0) + (dist < 48 ? 1 : 0);
+          const releaseRoute = () => {
+            if (--remaining === 0) {
+              try { distFilter.disconnect(); } catch (e) {}
+              try { wetSend.disconnect(); } catch (e) {}
+            }
+          };
           if (dist < 42) {
             const crackSrc = this.ctx.createBufferSource();
             crackSrc.buffer = this.noiseBuffers.crack;
@@ -1784,16 +1843,16 @@
             crackFlt.frequency.value = prof.crackFreq * pitchJitter;
             crackFlt.Q.value = prof.crackQ;
             const crackGain = this.ctx.createGain();
-            const cg = prof.crackGain * atten * (1 - distRatio * 0.55);
-            crackGain.gain.setValueAtTime(Math.max(0.001, cg), now);
-            crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.042);
+            const cg = prof.crackGain * atten * distance.crack;
+            crackGain.gain.setValueAtTime(Math.max(0.00001, cg), now);
+            crackGain.gain.exponentialRampToValueAtTime(Math.max(0.000001, Math.min(0.001, cg * 0.02)), now + 0.042);
 
             crackSrc.connect(crackFlt);
             crackFlt.connect(crackGain);
             crackGain.connect(distFilter);
             crackSrc.start(now);
             crackSrc.stop(now + 0.05);
-            this._autoCleanup(crackSrc, [crackSrc, crackFlt, crackGain]);
+            this._autoCleanup(crackSrc, [crackSrc, crackFlt, crackGain], dist === 0, releaseRoute);
           }
 
           const bodySrc = this.ctx.createBufferSource();
@@ -1814,7 +1873,7 @@
           bodyGain.connect(distFilter);
           bodySrc.start(now);
           bodySrc.stop(now + prof.bodyDur + 0.02);
-          this._autoCleanup(bodySrc, [bodySrc, bodyFlt, bodyGain, distFilter, wetSend]);
+          this._autoCleanup(bodySrc, [bodySrc, bodyFlt, bodyGain], dist === 0, releaseRoute);
 
           if (dist < 48) {
             const osc = this.ctx.createOscillator();
@@ -1823,14 +1882,15 @@
             osc.frequency.exponentialRampToValueAtTime(prof.subEnd, now + prof.subDur);
 
             const oscGain = this.ctx.createGain();
-            oscGain.gain.setValueAtTime(Math.max(0.001, prof.subGain * atten), now);
-            oscGain.gain.exponentialRampToValueAtTime(0.001, now + prof.subDur + 0.01);
+            const subLevel = prof.subGain * atten * distance.sub;
+            oscGain.gain.setValueAtTime(Math.max(0.00001, subLevel), now);
+            oscGain.gain.exponentialRampToValueAtTime(Math.max(0.000001, Math.min(0.001, subLevel * 0.02)), now + prof.subDur + 0.01);
 
             osc.connect(oscGain);
             oscGain.connect(distFilter);
             osc.start(now);
             osc.stop(now + prof.subDur + 0.02);
-            this._autoCleanup(osc, [osc, oscGain]);
+            this._autoCleanup(osc, [osc, oscGain], dist === 0, releaseRoute);
           }
 
           if (dist === 0) {
@@ -1854,8 +1914,9 @@
         playExplosion(dist = 0) {
           if (!this._canSpawnVoice(true)) return;
           const now = this.ctx.currentTime;
-          const distRatio = Math.min(1, dist / 75);
-          const atten = Math.max(0.08, Math.pow(1 - distRatio, 1.3));
+          const distance = this._audioDistance(dist, 75);
+          const distRatio = distance.ratio;
+          const atten = distance.attenuation;
 
           const wetSend = this.ctx.createGain();
           wetSend.gain.value = 1.45;
@@ -1902,8 +1963,8 @@
 
           if (isKill) {
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(1250, now);
-            osc.frequency.setValueAtTime(1760, now + 0.042);
+            osc.frequency.setValueAtTime(1050, now);
+            osc.frequency.setValueAtTime(1520, now + 0.042);
             g.gain.setValueAtTime(0.32, now);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
             osc.connect(g);
@@ -1913,8 +1974,8 @@
             this._autoCleanup(osc, [osc, g]);
           } else if (isHeadshot) {
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(2250, now);
-            osc.frequency.exponentialRampToValueAtTime(1420, now + 0.085);
+            osc.frequency.setValueAtTime(1920, now);
+            osc.frequency.exponentialRampToValueAtTime(1180, now + 0.085);
             g.gain.setValueAtTime(0.32, now);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
             osc.connect(g);
@@ -1924,8 +1985,8 @@
             this._autoCleanup(osc, [osc, g]);
           } else {
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(1480, now);
-            osc.frequency.exponentialRampToValueAtTime(840, now + 0.045);
+            osc.frequency.setValueAtTime(1250, now);
+            osc.frequency.exponentialRampToValueAtTime(720, now + 0.045);
             g.gain.setValueAtTime(0.22, now);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
             osc.connect(g);
@@ -1970,11 +2031,11 @@
           scrape.buffer = this.noiseBuffers.white;
           const scrapeFlt = this.ctx.createBiquadFilter();
           scrapeFlt.type = 'bandpass';
-          scrapeFlt.frequency.value = stage === 'out' ? 2400 : stage === 'in' ? 1900 : 3200;
-          scrapeFlt.Q.value = 3.2;
+          scrapeFlt.frequency.value = stage === 'out' ? 2050 : stage === 'in' ? 1520 : 2850;
+          scrapeFlt.Q.value = 2.1;
           const scrapeGain = this.ctx.createGain();
           const sDur = stage === 'bolt' ? 0.045 : 0.075;
-          scrapeGain.gain.setValueAtTime(0.14, now);
+          scrapeGain.gain.setValueAtTime(0.12, now);
           scrapeGain.gain.exponentialRampToValueAtTime(0.001, now + sDur);
           scrape.connect(scrapeFlt);
           scrapeFlt.connect(scrapeGain);
@@ -2073,7 +2134,7 @@
         playDroneBeep(mode = 'spot', dist = 0) {
           if (!this._canSpawnVoice(dist === 0)) return;
           const now = this.ctx.currentTime;
-          const atten = Math.max(0.08, 1 - Math.min(1, dist / 35));
+          const atten = this._audioDistance(dist, 35).attenuation;
           const osc = this.ctx.createOscillator();
           const g = this.ctx.createGain();
           osc.type = mode === 'armed' ? 'sawtooth' : 'sine';
@@ -2105,7 +2166,7 @@
             osc.start(now);
             osc.stop(now + 0.10);
           }
-          this._autoCleanup(osc, [osc, g]);
+          this._autoCleanup(osc, [osc, g], dist === 0);
         }
 
         startDroneHum() {
@@ -2117,7 +2178,7 @@
           osc.type = 'triangle';
           osc.frequency.setValueAtTime(138, now);
           flt.type = 'bandpass';
-          flt.frequency.setValueAtTime(280, now);
+          flt.frequency.setValueAtTime(310, now);
           flt.Q.value = 1.6;
           g.gain.setValueAtTime(0.001, now);
           g.gain.linearRampToValueAtTime(0.055, now + 0.12);
@@ -2132,7 +2193,7 @@
         updateDroneHum(speedRatio = 0, isArmed = false) {
           if (!this.ctx || !this.droneHumNodes) return;
           const now = this.ctx.currentTime;
-          const targetFreq = (isArmed ? 195 : 138) + speedRatio * 68;
+          const targetFreq = (isArmed ? 195 : 138) + speedRatio * 58;
           this.droneHumNodes.osc.frequency.setTargetAtTime(targetFreq, now, 0.06);
           this.droneHumNodes.g.gain.setTargetAtTime(isArmed ? 0.075 : 0.052, now, 0.06);
         }
@@ -2160,14 +2221,14 @@
           }
 
           const pitchVar = 0.90 + Math.random() * 0.20;
-          const volMult = crouch ? 0.42 : (sprint ? 1.25 : 0.85);
+          const volMult = crouch ? 0.39 : (sprint ? 1.16 : 0.82);
 
           const src = this.ctx.createBufferSource();
           src.buffer = this.noiseBuffers.pink;
           const flt = this.ctx.createBiquadFilter();
           flt.type = surf === 'metal' ? 'bandpass' : 'lowpass';
-          flt.frequency.value = (surf === 'metal' ? 780 : 360) * pitchVar;
-          if (surf === 'metal') flt.Q.value = 3.8;
+          flt.frequency.value = (surf === 'metal' ? 980 : 510) * pitchVar;
+          if (surf === 'metal') flt.Q.value = 2.6;
 
           const g = this.ctx.createGain();
           g.gain.setValueAtTime(0.14 * volMult, now);
@@ -2179,7 +2240,7 @@
           if (this.isIndoor) g.connect(this.reverbNode);
           src.start(now);
           src.stop(now + 0.085);
-          this._autoCleanup(src, [src, flt, g]);
+          this._autoCleanup(src, [src, flt, g], false);
 
           if (surf === 'metal') {
             const ring = this.ctx.createOscillator();
@@ -2187,13 +2248,13 @@
             ring.frequency.setValueAtTime(240 * pitchVar, now);
             ring.frequency.exponentialRampToValueAtTime(145 * pitchVar, now + 0.065);
             const rg = this.ctx.createGain();
-            rg.gain.setValueAtTime(0.08 * volMult, now);
+            rg.gain.setValueAtTime(0.055 * volMult, now);
             rg.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
             ring.connect(rg);
             rg.connect(this.dryBus);
             ring.start(now);
             ring.stop(now + 0.075);
-            this._autoCleanup(ring, [ring, rg]);
+            this._autoCleanup(ring, [ring, rg], false);
           }
         }
       }
