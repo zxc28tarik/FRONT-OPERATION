@@ -1,0 +1,29 @@
+name: V328 Performance first-half acceptance
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'scripts/browser-v328-performance.mjs'
+      - '.github/workflows/v328-performance.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  performance-webgl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.55.0 three@0.128.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/browser-v328-performance.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v328-performance
+          path: test-artifacts/front-operation-h328/
