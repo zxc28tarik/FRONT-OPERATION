@@ -32,11 +32,11 @@ const hook=`
               materials:materials.map(m=>m?{type:m.type,side:m.side,opacity:m.opacity,transparent:m.transparent,alphaTest:m.alphaTest,depthWrite:m.depthWrite}:null),
               textures:materials.map(m=>[fingerprint(m?.map),fingerprint(m?.bumpMap)])};
           });
-          const mats=new Set(),textures=new Set();
+          const mats=new Set(),textures=new Set(),interior={};
           for(const o of mapEnvironmentMeshes)for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m){
-            mats.add(m);for(const t of [m.map,m.bumpMap,m.alphaMap,m.normalMap])if(t)textures.add(t);
+            mats.add(m);if(m.name?.startsWith('FO_E306:'))interior[m.name]=(interior[m.name]||0)+1;for(const t of [m.map,m.bumpMap,m.alphaMap,m.normalMap])if(t)textures.add(t);
           }
-          return {mode,mesh,colliders:JSON.stringify(mapColliders),ramps:JSON.stringify(mapRamps),nodes:JSON.stringify(NAV_NODES),edges:JSON.stringify(NAV_EDGES),adj:JSON.stringify(NAV_ADJ),objects:FO_MAPS[mode].objects.length,materials:mats.size,textures:textures.size,rngDraws:foEQAdraws};
+          return {mode,mesh,colliders:JSON.stringify(mapColliders),ramps:JSON.stringify(mapRamps),nodes:JSON.stringify(NAV_NODES),edges:JSON.stringify(NAV_EDGES),adj:JSON.stringify(NAV_ADJ),objects:FO_MAPS[mode].objects.length,materials:mats.size,textures:textures.size,interior,rngDraws:foEQAdraws};
         },
         draw(mode,pose){
           selectFoMap(mode);
@@ -78,7 +78,7 @@ try{
    const r=await page.evaluate(({mode,pose})=>window.__foE306QA.draw(mode,pose),{mode,pose});
    const img=Buffer.from(r.image.split(',')[1],'base64');
    fs.writeFileSync(path.join(out,version+'-'+mode+'-'+name+'.png'),img);
-   delete r.image;shots[mode+'-'+name]=r;
+   delete r.image;shots[mode+'-'+name]={...r,imageHash:(await import('node:crypto')).createHash('sha256').update(img).digest('hex')};
   }
   data[version]={inv,shots};await page.close();
  }
@@ -95,8 +95,11 @@ try{
    const expected=mode==='deathmatch'?2:3;
    assert.equal(b.textures-a.textures,expected,mode+' texture allocation');
    assert.equal(b.materials-a.materials,expected,mode+' material allocation');
+   assert.equal(Object.keys(b.interior).length,expected,mode+' interior finish coverage');
+   assert(Object.values(b.interior).every(n=>n>0));
+   assert(Object.keys(data.before.shots).filter(k=>k.startsWith(mode+'-')).some(k=>data.before.shots[k].imageHash!==data.after.shots[k].imageHash),mode+' render did not change');
   }
-  report.maps[mode]={meshes:a.mesh.length,objects:a.objects,colliders:JSON.parse(a.colliders).length,ramps:JSON.parse(a.ramps).length,nodes:JSON.parse(a.nodes).length,edges:JSON.parse(a.edges).length,rngDraws:a.rngDraws,materialsBefore:a.materials,materialsAfter:b.materials,texturesBefore:a.textures,texturesAfter:b.textures,changedMeshes:changed};
+  report.maps[mode]={meshes:a.mesh.length,objects:a.objects,colliders:JSON.parse(a.colliders).length,ramps:JSON.parse(a.ramps).length,nodes:JSON.parse(a.nodes).length,edges:JSON.parse(a.edges).length,rngDraws:a.rngDraws,materialsBefore:a.materials,materialsAfter:b.materials,texturesBefore:a.textures,texturesAfter:b.textures,changedMeshes:changed,interior:b.interior};
  }
  for(const [name,a] of Object.entries(data.before.shots)){
   const b=data.after.shots[name];assert(a.calls>0&&a.triangles>0);
