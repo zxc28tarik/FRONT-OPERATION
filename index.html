@@ -9531,6 +9531,9 @@
         document.getElementById('fo-score-map-name').textContent=rescue?'CEZAEVİ • 6v6 • TEK CAN':bomb?'TERSANE • 6v6 • TEK CAN':'MARIEN • 6v6 • HEDEF 50';
         document.getElementById('fo-score-rule').textContent=bomb||rescue?'TEK CAN':'HEDEF: 50';
         document.getElementById('fo-bomb-status').classList.toggle('hidden',!bomb&&!rescue);
+      // FO_G324_BEGIN start
+        foG324RefreshStart(matchState,foBomb,document);
+      // FO_G324_END start
         const hint=document.getElementById('fo-death-hint');
         hint.innerHTML=bomb||rescue?'Bu maçta yeniden doğuş yok. Takımının sonucunu bekle.':'Sınıf değiştirmek için <span class="mono font-bold text-amber-300">[1-5]</span> veya <span class="mono font-bold text-amber-300">[B]</span> tuşuna bas';
       }
@@ -13531,6 +13534,12 @@ return {createExperimentalRig,createAdaptiveRigController};
         titleEl.textContent = 'MAÇ TAMAMLANDI';
         subEl.textContent = `Senin skorun: ${player.kills} eleme / ${player.deaths} ölüm • Yeni maç için sınıfını seç.`;
         subEl.classList.remove('hidden');
+      // FO_G324_BEGIN result
+        const presentation=foG324ResultPresentation(matchState,winnerTeam,foBomb,foRescue,player,MATCH_TARGET_SCORE);
+        titleEl.textContent=presentation.title;resTxt.textContent=presentation.result;subEl.textContent=presentation.summary;
+        foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
+        foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document);
+      // FO_G324_END result
         btn.textContent = 'YENİ MAÇ BAŞLAT';
         document.getElementById('menu-overlay').classList.remove('hidden');
       }
@@ -18462,6 +18471,84 @@ return {createExperimentalRig,createAdaptiveRigController};
       }
 
       // FO_G320_END helper
+      // FO_G324_BEGIN helper
+      // V321–V324: read-only rescue, spectator and match summary presentation.
+      function foG324RescuePresentation(state,rescue,rules,actor){
+        const captives=rescue.captives||[],total=captives.length||2;
+        let saved=0,carrying=0,knownCarried=0,known=0,ownPickup=null;
+        for(const p of captives){
+          if(p.saved){saved++;continue;}
+          if(p.carrier==='player')carrying++;
+          if(p.discovered){known++;if(p.carrier)knownCarried++;}
+          if(p.actor==='player')ownPickup=p;
+        }
+        let action,color='#b9c5ca';
+        if(state.ended){action=saved===total?'GÖREV TAMAM':'TUR BİTTİ';}
+        else if(!actor.alive){action='TAKIMINI İZLE';}
+        else if(carrying){action='TAHLİYEYE DÖN';color='#a9c4b3';}
+        else if(ownPickup){
+          const pct=Math.max(0,Math.min(100,Math.floor((Number.isFinite(ownPickup.progress)?ownPickup.progress:0)/rules.holdSeconds*100)));
+          action='KURTARMA %'+pct;color='#d8c39d';
+        }else if(knownCarried){action='TAKIM TAHLİYEDE';color='#a9c4b3';}
+        else if(known){action='ESİRİN YANINDA DUR';}
+        else action='ESİRLERİ BUL';
+        // No hidden room, coordinates, carrier identity or undiscovered enemy data.
+        return {label:'ESİR '+saved+'/'+total+' · '+action,color,
+          hint:state.ended?(rescue.reason||action):action,saved,total};
+      }
+      function foG324Clock(seconds,ceil=false){
+        const n=Math.max(0,(ceil?Math.ceil:Math.floor)(Number.isFinite(seconds)?seconds:0));
+        return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+      }
+      function foG324ResultPresentation(state,winner,bomb,rescue,actor,target){
+        const name=winner==='blue'?'DERBARAN KAZANDI':winner==='red'?'N.I.U. KAZANDI':'BERABERE';
+        const score=state.scoreBlue+' – '+state.scoreRed;
+        const mode=state.mode;
+        let reason,modeName;
+        if(mode==='bomb'){modeName='BOMBA';reason=bomb.reason||'Tur tamamlandı';}
+        else if(mode==='rescue'){modeName='KURTARMA';reason=rescue.reason||'Tur tamamlandı';}
+        else{modeName='ÖLÜM MAÇI';reason=Math.max(state.scoreBlue,state.scoreRed)>=target?'Hedefe ulaşıldı':'Maç süresi doldu';}
+        return {title:modeName+' TAMAMLANDI',result:name+' · '+reason,
+          summary:'Derbaran – N.I.U. eleme: '+score+' · Sen: '+actor.kills+' eleme / '+actor.deaths+' ölüm',
+          score,modeName};
+      }
+      function foG324SyncModePresentation(state,rescue,rules,actor,spectator,doc){
+        const status=doc.getElementById('fo-bomb-status'),timer=doc.getElementById('match-timer');
+        if(!status||!timer)return;
+        if(state.mode==='rescue'){
+          const p=foG324RescuePresentation(state,rescue,rules,actor);
+          status.classList.toggle('hidden',false);
+          foG320Write(status,'textContent',p.label);foG320Write(status,'title',p.hint);
+          foG320Write(status.style,'color',p.color);
+          status.dataset.foG324Owned='1';
+          foG320Write(timer.style,'color','');foG320Write(timer,'title','Kurtarma süresi');
+          foG320Write(timer,'textContent',foG324Clock(state.timeRemaining));
+        }else if(status.dataset.foG324Owned==='1'){
+          // G320 has already written the new mode's status and timer style.
+          delete status.dataset.foG324Owned;
+        }
+        if(state.mode!=='rescue')return;
+        const watching=state.started&&!state.ended&&!actor.alive;
+        const hud=doc.getElementById('hud'),hint=doc.getElementById('fo-spectator-hud')?.lastElementChild;
+        if(hud)for(const el of [hud.querySelector('.fo-status-panel'),doc.getElementById('slot-bar'),hud.querySelector('.fo-ammo-panel')])if(el){
+          // Same ownership token as G320; no double restore on mode change.
+          if(watching&&el.dataset.foG320Hidden!=='1'){el.dataset.foG320Hidden='1';el.dataset.foG320Prior=el.style.visibility;el.style.visibility='hidden';}
+          else if(!watching&&el.dataset.foG320Hidden==='1'){el.style.visibility=el.dataset.foG320Prior||'';delete el.dataset.foG320Hidden;delete el.dataset.foG320Prior;}
+        }
+        if(hint&&watching){
+          foG320Write(hint,'textContent',spectator.mode==='free'?'[C] Takım takibi · WASD / Space / Ctrl · Shift: hızlı':'[C] Serbest kamera · [Sol/Sağ tık] Önceki / sonraki');
+          hint.dataset.foG320Hint='1';
+        }else if(hint?.dataset.foG320Hint==='1'){hint.textContent=foG320DefaultSpectatorHint;delete hint.dataset.foG320Hint;}
+      }
+      function foG324RefreshStart(state,bomb,doc){
+        const planted=state.mode==='bomb'&&bomb.phase==='planted';
+        const t=doc.getElementById('match-timer');
+        if(t){t.textContent=foG324Clock(planted?bomb.seconds:state.timeRemaining,planted);t.style.color=planted?(bomb.seconds<=10?'#e2b3a2':'#d8c39d'):'';}
+        const rule=doc.getElementById('fo-score-rule');
+        if(rule)rule.title=state.mode==='deathmatch'?'50 eleme hedefi':state.mode==='bomb'?'Bomba görevi · tek can':'Kurtarma görevi · tek can';
+      }
+
+      // FO_G324_END helper
       function updateHUD() {
         document.getElementById('hp-value').textContent = player.hp;
         const hpBar = document.getElementById('hp-bar');
@@ -18558,6 +18645,9 @@ return {createExperimentalRig,createAdaptiveRigController};
       // FO_G320_BEGIN hud
         foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
       // FO_G320_END hud
+      // FO_G324_BEGIN hud
+        foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document);
+      // FO_G324_END hud
         let zoneText = 'ORTA MEYDAN (MID)';
         if (player.pos.z > 38) zoneText = 'DERBARAN ÜSSÜ (GÜNEY)';
         else if (player.pos.z < -38) zoneText = 'N.I.U. ÜSSÜ (KUZEY)';
@@ -19535,6 +19625,9 @@ return {createExperimentalRig,createAdaptiveRigController};
           // Sync after simulation's objective text and timer updates, before drawing.
           if(matchState.mode==='bomb')foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
       // FO_G320_END frame
+      // FO_G324_BEGIN frame
+          if(matchState.mode==='rescue')foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document);
+      // FO_G324_END frame
           if(hudSyncTimer>=.12){hudSyncTimer%=.12;updateHUD();renderRadar();}
         }
 
