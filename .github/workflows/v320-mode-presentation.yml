@@ -1,0 +1,29 @@
+name: V320 Mode presentation acceptance
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'scripts/browser-v320-mode-presentation.mjs'
+      - '.github/workflows/v320-mode-presentation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mode-presentation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.55.0 three@0.128.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/browser-v320-mode-presentation.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v320-mode-presentation
+          path: test-artifacts/front-operation-g320/
