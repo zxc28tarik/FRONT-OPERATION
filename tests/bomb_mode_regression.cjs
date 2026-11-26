@@ -49,9 +49,12 @@ const mapStart=html.indexOf('      const FO_TERSANE_X=');
 const mapEnd=html.indexOf('      function selectFoMap(mode)',mapStart);
 const routes=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh',
  'scene','mapEnvironmentMeshes','createCorridorSign','installFoGraph','dustParticles',
+ 'foE306FinishSet','foE306InteriorMaterial','foE306UseInterior',
  html.slice(mapStart,mapEnd)+'\nbuildDepot17Map();return FO_TERSANE_ROUTES;')(
  fakeThree,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return fakeMesh()},
- ()=>fakeMesh(),{children:[]},[],()=>{},(nodes,edges)=>{liveGraph={nodes,edges}},null);
+ ()=>fakeMesh(),{children:[]},[],()=>{},(nodes,edges)=>{liveGraph={nodes,edges}},null,
+ // This adapter has no canvas/materials; actual finish functions are covered by the paired WebGL suite.
+ set=>set,base=>base,()=>0);
 const walk=(x,z)=>!solids.some(c=>1.6>c.y-c.h/2+.05&&0<c.y+c.h/2-.25&&
  x+.42>c.x-c.w/2&&x-.42<c.x+c.w/2&&z+.42>c.z-c.d/2&&z-.42<c.z+c.d/2);
 const links=liveGraph.nodes.map(()=>[]);
