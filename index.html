@@ -18920,6 +18920,92 @@ return {createExperimentalRig,createAdaptiveRigController};
        return {count,dt:count>0?span/count:0,debt:Math.max(0,total-span)};
       }
 
+      // V289/V290/V293/V294/V295: render-only local pose layer. No simulation
+      // writes, no new geometry and no change to the established rig factory.
+      const FO_C295_VISUAL_PROFILES=Object.freeze({
+        assault:Object.freeze({walk:1,run:1,turn:1,kit:.78,fall:1}),
+        medic:Object.freeze({walk:1.04,run:1.03,turn:1.05,kit:1,fall:.94}),
+        engineer:Object.freeze({walk:.96,run:.96,turn:.92,kit:.80,fall:1.03}),
+        sniper:Object.freeze({walk:.92,run:.94,turn:.86,kit:.64,fall:.90}),
+        heavy:Object.freeze({walk:.78,run:.82,turn:.72,kit:.52,fall:.80})
+      });
+      function foC295Clamp(v,lo=0,hi=1){return Math.max(lo,Math.min(hi,Number.isFinite(v)?v:0));}
+      function foC295Ease(v){const x=foC295Clamp(v);return x*x*(3-2*x);}
+      function foC295Pose(phase,speed,forward,side,crouch,turn,leftPlant,rightPlant,role,carry,death,detail){
+        const p=FO_C295_VISUAL_PROFILES[role]||FO_C295_VISUAL_PROFILES.assault;
+        const s=foC295Clamp(speed,0,7),f=foC295Clamp(forward),c=foC295Clamp(crouch),a=Math.sin(phase||0),b=Math.cos(phase||0);
+        const fade=foC295Clamp(detail)*(1-c*.72),d=foC295Clamp(death),remain=(1-d)*(1-d);
+        const move=foC295Ease((s-.4)/.65),run=foC295Ease((s-2.35)/2.4);
+        // V289: continuous stride growth and heel/toe roll through the walking range.
+        const walk=move*(1-run)*(.018+.038*foC295Ease((s-.65)/1.75))*p.walk*f;
+        // V290: faster swing and a distinct recovery phase at running speed.
+        const sprint=move*run*(.025+.040*foC295Ease((s-3.0)/3.4))*p.run*f;
+        const swingL=foC295Clamp(-a),swingR=foC295Clamp(a);
+        const freeL=1-.72*foC295Clamp(leftPlant),freeR=1-.72*foC295Clamp(rightPlant);
+        const hipL=(a*walk+a*sprint+.014*run*b*f)*freeL;
+        const hipR=(-a*walk-a*sprint-.014*run*b*f)*freeR;
+        const kneeL=(swingL*(walk*.8+sprint*1.20))*freeL;
+        const kneeR=(swingR*(walk*.8+sprint*1.20))*freeR;
+        // V293: supporting foot opens during turns; vest and equipment follow
+        // the existing visual turn signal without moving the upperBody/weapon.
+        const t=foC295Clamp(turn,-1,1)*p.turn;
+        const turnStep=t*(.015+.020*(1-move)),lean=-t*.019-foC295Clamp(side,-1,1)*move*.009;
+        const kit=foC295Clamp(carry),settle=16*d*d*(1-d)*(1-d);
+        // V294: decay the last locomotion correction through the existing fall;
+        // a restrained secondary knee/boot and load-settle arc, zero at ends.
+        const fall=settle*p.fall;
+        const k=fade*remain;
+        return {leftHip:hipL*k-fall*.018*fade,rightHip:hipR*k-fall*.010*fade,
+          leftKnee:kneeL*k+fall*.055*fade,rightKnee:kneeR*k+fall*.038*fade,
+          leftSide:Math.min(0,turnStep)*k,rightSide:Math.max(0,turnStep)*k,
+          leftFoot:-(hipL+kneeL)*k*.60+fall*.018*fade,rightFoot:-(hipR+kneeR)*k*.60-fall*.018*fade,
+          torso:lean*k,kitPitch:(b*move*.018+kit*.018)*p.kit*k+fall*.028*fade,
+          kitRoll:(lean*.65+a*move*.012)*p.kit*k-fall*.022*fade};
+      }
+      function foC295Detail(distance,level){
+        return level>=2?0:1-foC295Ease((distance-20)/20);
+      }
+      const foC295RigCache=new WeakMap(),foC295Restore=[];
+      function foC295Rig(model){
+        let cached=foC295RigCache.get(model);if(cached)return cached;
+        const ankle=k=>k?.children?.find(n=>n.name==='v132_ankle');
+        // Only independent decorative body meshes; never head, hands, weapon or root.
+        const torso=model.upperBody?.children?.filter(n=>n.name==='v105_role_vest'||n.userData?.v139Carrier)||[];
+        const kit=model.upperBody?.children?.filter(n=>n.userData?.v149Pack||['pouch','admin'].includes(n.userData?.v176Equipment))||[];
+        cached={leftFoot:ankle(model.leftKnee),rightFoot:ankle(model.rightKnee),torso,kit};
+        foC295RigCache.set(model,cached);return cached;
+      }
+      function foC295Apply(node,dx,dz){
+        if(!node?.rotation||(!dx&&!dz))return;
+        const r=node.rotation;foC295Restore.push(r,r.x,r.z);r.x+=dx;r.z+=dz;
+      }
+      function beginFoC295Render(actors,view){
+        const scale=Math.max(.5,Math.min(8,Math.tan(74*Math.PI/360)/Math.tan(Math.max(10,Math.min(120,view.fov||74))*Math.PI/360)*(view.zoom||1)));
+        for(const actor of actors){
+          const model=actor.mesh;
+          if(!model?.root?.visible||(!actor.alive&&!actor.dying)||actor.experimentalRigController)continue;
+          const dist=Math.hypot(actor.pos.x-view.position.x,actor.pos.y-view.position.y,actor.pos.z-view.position.z)/scale;
+          const detail=foC295Detail(dist,model.visualDetailLevel||0);
+          if(detail<=0)continue;
+          const plant=actor.visualFootPlants||{},dir=actor.visualDirection||{};
+          const pose=foC295Pose(actor.visualGaitPhase??actor.animPhase??0,actor.visualTransition?.speed??actor.locomotionSpeed??0,
+            dir.forward??0,dir.side??0,actor.crouchAmt,plant.turn,plant.left,plant.right,actor.classId,actor.visualCarry,
+            actor.dying?1-actor.deathAnimTimer/.65:0,detail);
+          const rig=foC295Rig(model);
+          foC295Apply(model.leftHip,pose.leftHip,pose.leftSide);foC295Apply(model.rightHip,pose.rightHip,pose.rightSide);
+          foC295Apply(model.leftKnee,pose.leftKnee,0);foC295Apply(model.rightKnee,pose.rightKnee,0);
+          foC295Apply(rig.leftFoot,pose.leftFoot,0);foC295Apply(rig.rightFoot,pose.rightFoot,0);
+          for(const n of rig.torso)foC295Apply(n,0,pose.torso);
+          for(const n of rig.kit)foC295Apply(n,pose.kitPitch,pose.kitRoll);
+        }
+      }
+      function restoreFoC295Render(){
+        for(let i=foC295Restore.length-3;i>=0;i-=3){
+          const r=foC295Restore[i];r.x=foC295Restore[i+1];r.z=foC295Restore[i+2];
+        }
+        foC295Restore.length=0;
+      }
+
       function animate(now) {
         requestAnimationFrame(animate);
         const rawDt = (now - lastFrameTime) / 1000;
@@ -18963,8 +19049,10 @@ return {createExperimentalRig,createAdaptiveRigController};
           if(matchState.started&&!matchState.ended&&!gamePaused&&!droneSystem.isPlayerControlling())
             beginV287RenderPose(vmRefs,player,renderDt,!!v271PlayerFlash?.visible);
           else if(vmRefs.v287Pose)vmRefs.v287Pose.sprint=0;
+          if(matchState.started)beginFoC295Render(bots,camera);
           renderer.render(scene, camera);
         }finally{
+          restoreFoC295Render();
           restoreV287RenderPose(vmRefs);
         }
       }
