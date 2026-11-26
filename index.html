@@ -13316,6 +13316,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         if (player.hp <= 0) {
           player.alive = false;
+          clearGameplayInputs();
           player.deaths++;
           player.ads = false;
           player.scopeStage = 0;
@@ -14613,6 +14614,12 @@ return {createExperimentalRig,createAdaptiveRigController};
         camera.position.copy(foSpectator.pos);camera.rotation.set(pitch,yaw,0);
         name.textContent='SERBEST KAMERA';
       }
+      function foResetLifeState(p){
+       for(const k of ['respawnTimer','fireCooldown','reloadTimer','reloadDuration','scopeStage','recoilResetTimer','sprintStopTimer','slideKick','knifeSwingTimer','rollTimer','rollDir','bobTimer','stepTimer','smoothMoveIntensity','recoilKickZ','recoilRotX','recoilVelPitch','recoilVelYaw','recoilRecoveryPitch','recoilRecoveryYaw','recoilRecoveryDelayTimer','consecutiveShots','fovKickCurrent','vmOffsetZ','vmOffsetY','vmRotX','vmRotY','vmRotZ','vmVelZ','vmVelY','vmVelRotX','vmVelRotY','vmVelRotZ','boltAnimTimer','switchAnim'])p[k]=0;
+       for(const k of ['crouching','sprinting','wasSprinting','ads','reloading'])p[k]=false;
+       p.grounded=true;p.spreadCurrent=.005;p.reloadStageTriggered={mid:false,end:false};
+      }
+
       function respawnPlayer() {
         if(document.body.classList.contains('fo-spectating'))stopFoSpectator();
         droneSystem.onOperatorInterrupted('player');
@@ -14627,7 +14634,15 @@ return {createExperimentalRig,createAdaptiveRigController};
         player.reloading = false;
         player.ads = false;
         player.scopeStage = 0;
-        player.rollTimer = 0;
+        foResetLifeState(player);
+        clearGameplayInputs();
+        clearV271PlayerFlash();
+        resetV278DamageFlash();
+        clearTimeout(damageDirTimeout);
+        document.getElementById('damage-dir').style.opacity='0';
+        camera.position.set(player.pos.x,player.pos.y+1.62,player.pos.z);
+        camera.rotation.set(0,0,0);
+        camera.fov=74;camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
         initPlayerLoadout(player.classId);
         document.getElementById('respawn-overlay').classList.add('hidden');
         document.getElementById('reload-indicator').classList.add('hidden');
@@ -18220,12 +18235,22 @@ return {createExperimentalRig,createAdaptiveRigController};
       let scoreboardReturnToPause = false;
       let mapSwitchPending = false;
       let suppressUnlockPauseUntil = 0;
+      function foGameplayInputAllowed(state,paused,menuHidden,scoreHidden){
+       return state.started&&!state.ended&&!paused&&menuHidden&&scoreHidden;
+      }
+      function gameplayInputAllowed(){
+        return foGameplayInputAllowed(matchState,gamePaused,
+          document.getElementById('menu-overlay').classList.contains('hidden'),
+          document.getElementById('scoreboard-overlay').classList.contains('hidden'));
+      }
+      function clearGameplayInputs(){
+        Object.keys(keys).forEach(key=>{keys[key]=false;});
+        mouseDownLeft=false;mouseDownRight=false;isDraggingLook=false;
+        resetTouchControls();
+      }
       function resetPausedInputs() {
         foTimeDebt=0;lastFrameTime=performance.now();
-        Object.keys(keys).forEach((key) => { keys[key] = false; });
-        mouseDownLeft = false;
-        mouseDownRight = false;
-        isDraggingLook = false;
+        clearGameplayInputs();
       }
       function updatePauseSummary() {
         document.getElementById('fo-pause-map-name').textContent='FRONT OPERATION · '+foMapName(matchState.mode);
@@ -18457,7 +18482,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
       canvas.addEventListener('click', () => {
         sound.init();
-        if (matchState.started && !matchState.ended && !gamePaused && document.getElementById('menu-overlay').classList.contains('hidden')) {
+        if (gameplayInputAllowed()) {
           if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
             try { canvas.requestPointerLock(); } catch (e) {}
           }
@@ -18492,6 +18517,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           if (matchState.started && !matchState.ended && menuHidden && !e.repeat) {
             if (gamePaused) openPauseScoreboard();
             else {
+              clearGameplayInputs();
               updateScoreboardUI();
               document.getElementById('scoreboard-overlay').classList.remove('hidden');
             }
@@ -18512,6 +18538,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           return;
         }
 
+        if(scoreboardVisible){keys[e.code]=false;return;}
         if (e.code === 'KeyB' && matchState.started && !matchState.ended && !e.repeat) {
           if(foSingleLife()){keys[e.code]=false;return;}
           if (menuHidden) openClassMenu();
@@ -18583,12 +18610,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         if (e.code === 'Tab') closeScoreboard();
       });
 
-      window.addEventListener('blur', () => {
-        Object.keys(keys).forEach((k) => { keys[k] = false; });
-        mouseDownLeft = false;
-        mouseDownRight = false;
-        isDraggingLook = false;
-      });
+      window.addEventListener('blur',clearGameplayInputs);
+      document.addEventListener('visibilitychange',()=>{if(document.hidden)clearGameplayInputs();});
 
       document.addEventListener('pointerlockchange', () => {
         if (document.pointerLockElement !== canvas) {
@@ -18612,8 +18635,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       let prevDragY = 0;
 
       window.addEventListener('mousedown', (e) => {
-        if (!matchState.started || matchState.ended || gamePaused ||
-            !document.getElementById('menu-overlay').classList.contains('hidden')) return;
+        if(!gameplayInputAllowed()||(e.target!==canvas&&document.pointerLockElement!==canvas))return;
         sound.init();
         if(isFoSpectating()){
           if(foSpectator.mode==='follow'&&(e.button===0||e.button===2))
@@ -18665,6 +18687,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       window.addEventListener('contextmenu', (e) => e.preventDefault());
 
       window.addEventListener('mousemove', (e) => {
+        if(!gameplayInputAllowed())return;
         if(isFoSpectating()){
           if(gamePaused||foSpectator.mode!=='free')return;
           let dx=0,dy=0;
@@ -18706,7 +18729,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       });
 
       window.addEventListener('wheel', (e) => {
-        if (!player.alive || !matchState.started || droneSystem.isPlayerControlling()) return;
+        if (!gameplayInputAllowed() || !player.alive || droneSystem.isPlayerControlling()) return;
         const order = CLASSES[player.classId].slots[4] ? [1, 2, 3, 4] : [1, 2, 3];
         const idx = order.indexOf(player.slot);
         const nextIdx = (idx + (e.deltaY > 0 ? 1 : -1) + order.length) % order.length;
@@ -18721,15 +18744,26 @@ return {createExperimentalRig,createAdaptiveRigController};
       let lookTouchId = null;
       let lastLookTouchX = 0;
       let lastLookTouchY = 0;
+      let fireTouchId=null,upTouchId=null,downTouchId=null;
+      function foChangedTouchHas(event,id){
+       return id!==null&&Array.from(event.changedTouches||[]).some(t=>t.identifier===id);
+      }
+      function foTouchAltitude(up,down){return (up!==null?1:0)-(down!==null?1:0);}
+      function resetTouchControls(){
+        moveTouchId=null;lookTouchId=null;fireTouchId=null;upTouchId=null;downTouchId=null;
+        lastLookTouchX=0;lastLookTouchY=0;touchDroneAlt=0;
+        touchMoveVec.x=0;touchMoveVec.y=0;touchKnob.style.transform='translate(0px, 0px)';
+      }
 
       touchZone.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        const t = e.changedTouches[0];
-        moveTouchId = t.identifier;
+        if(!gameplayInputAllowed()||moveTouchId!==null)return;
+        const t=e.changedTouches[0];if(t)moveTouchId=t.identifier;
       }, { passive: false });
 
       touchZone.addEventListener('touchmove', (e) => {
         e.preventDefault();
+        if(!gameplayInputAllowed())return;
         for (let i = 0; i < e.changedTouches.length; i++) {
           const t = e.changedTouches[i];
           if (t.identifier === moveTouchId) {
@@ -18765,9 +18799,10 @@ return {createExperimentalRig,createAdaptiveRigController};
       touchZone.addEventListener('touchcancel', resetTouchMove);
 
       canvas.addEventListener('touchstart', (e) => {
+        if(!gameplayInputAllowed())return;
         sound.init();
         const t = e.changedTouches[0];
-        if (lookTouchId === null) {
+        if (t&&lookTouchId === null) {
           lookTouchId = t.identifier;
           lastLookTouchX = t.clientX;
           lastLookTouchY = t.clientY;
@@ -18775,6 +18810,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       }, { passive: true });
 
       canvas.addEventListener('touchmove', (e) => {
+        if(!gameplayInputAllowed())return;
         for (let i = 0; i < e.changedTouches.length; i++) {
           const t = e.changedTouches[i];
           if (t.identifier === lookTouchId && player.alive) {
@@ -18796,20 +18832,22 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
       }, { passive: true });
 
-      canvas.addEventListener('touchend', (e) => {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          if (e.changedTouches[i].identifier === lookTouchId) lookTouchId = null;
-        }
-      });
+      const resetTouchLook=e=>{if(foChangedTouchHas(e,lookTouchId))lookTouchId=null;};
+      canvas.addEventListener('touchend',resetTouchLook);
+      canvas.addEventListener('touchcancel',resetTouchLook);
 
-      document.getElementById('btn-touch-fire').addEventListener('touchstart', (e) => {
+      const touchFire=document.getElementById('btn-touch-fire');
+      touchFire.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        sound.init();
-        mouseDownLeft = true;
-        playerPrimaryAction();
-      });
-      document.getElementById('btn-touch-fire').addEventListener('touchend', () => { mouseDownLeft = false; });
+        if(!gameplayInputAllowed()||!player.alive||fireTouchId!==null)return;
+        const t=e.changedTouches[0];if(!t)return;
+        fireTouchId=t.identifier;sound.init();mouseDownLeft=true;playerPrimaryAction();
+      },{passive:false});
+      const resetTouchFire=e=>{if(foChangedTouchHas(e,fireTouchId)){fireTouchId=null;mouseDownLeft=false;}};
+      touchFire.addEventListener('touchend',resetTouchFire);
+      touchFire.addEventListener('touchcancel',resetTouchFire);
       document.getElementById('btn-touch-ads').addEventListener('click', () => {
+        if(!gameplayInputAllowed()||!player.alive)return;
         if (droneSystem.isPlayerControlling()) {
           droneSystem.handlePlayerRightClick();
           return;
@@ -18825,24 +18863,37 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
       });
       document.getElementById('btn-touch-reload').addEventListener('click', () => {
+        if(!gameplayInputAllowed()||!player.alive)return;
         if (droneSystem.isPlayerControlling()) droneSystem.handlePlayerRecall();
         else startReload();
       });
-      document.getElementById('btn-touch-roll').addEventListener('click', () => triggerCombatRoll(1));
+      document.getElementById('btn-touch-roll').addEventListener('click', () => {if(gameplayInputAllowed()&&player.alive)triggerCombatRoll(1);});
       document.getElementById('btn-touch-jump').addEventListener('click', () => {
+        if(!gameplayInputAllowed()||!player.alive)return;
         if (droneSystem.isPlayerControlling()) return;
         if (player.grounded) { player.vel.y = 7.4; player.grounded = false; }
       });
-      document.getElementById('btn-touch-class').addEventListener('click', () => {
-        if(foSingleLife()&&matchState.started&&!matchState.ended)return;
-        droneSystem.onOperatorInterrupted('player');
-        document.getElementById('menu-overlay').classList.remove('hidden');
-      });
-      document.getElementById('btn-touch-drone-up').addEventListener('touchstart', (e) => { e.preventDefault(); touchDroneAlt = 1; });
-      document.getElementById('btn-touch-drone-up').addEventListener('touchend', () => { touchDroneAlt = 0; });
-      document.getElementById('btn-touch-drone-down').addEventListener('touchstart', (e) => { e.preventDefault(); touchDroneAlt = -1; });
-      document.getElementById('btn-touch-drone-down').addEventListener('touchend', () => { touchDroneAlt = 0; });
+      document.getElementById('btn-touch-class').addEventListener('click',openClassMenu);
+      for(const direction of ['up','down']){
+        const button=document.getElementById('btn-touch-drone-'+direction);
+        button.addEventListener('touchstart',e=>{
+          e.preventDefault();
+          if(!gameplayInputAllowed()||!player.alive||!droneSystem.isPlayerControlling())return;
+          const t=e.changedTouches[0];if(!t)return;
+          if(direction==='up'&&upTouchId===null)upTouchId=t.identifier;
+          if(direction==='down'&&downTouchId===null)downTouchId=t.identifier;
+          touchDroneAlt=foTouchAltitude(upTouchId,downTouchId);
+        },{passive:false});
+        const release=e=>{
+          if(direction==='up'&&foChangedTouchHas(e,upTouchId))upTouchId=null;
+          if(direction==='down'&&foChangedTouchHas(e,downTouchId))downTouchId=null;
+          touchDroneAlt=foTouchAltitude(upTouchId,downTouchId);
+        };
+        button.addEventListener('touchend',release);
+        button.addEventListener('touchcancel',release);
+      }
       document.getElementById('btn-touch-drone-spot').addEventListener('click', () => {
+        if(!gameplayInputAllowed()||!player.alive)return;
         if (droneSystem.isPlayerControlling()) droneSystem.handlePlayerSpotKey();
       });
 
