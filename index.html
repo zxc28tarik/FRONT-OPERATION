@@ -13865,6 +13865,16 @@ return {createExperimentalRig,createAdaptiveRigController};
         glock18c:  {tile:5,form:'split',  length:.078,width:.056,planes:2,cap:.034,hot:.90,green:113,blue:28,opacity:.87,life:.037,light:.78,roll:.20,fade:1.22},
         carlgustaf:{tile:6,form:'bloom',  length:.195,width:.148,planes:3,cap:.095,hot:.96,green:104,blue:22,opacity:.90,life:.060,light:1.75,roll:.08,fade:.95}
       });
+      // FO_V339_BEGIN profiles
+      // Preserve the user's V338 flash changes; no viewmodel size adjustments.
+      Object.assign(V273_FLASH_PROFILES.mrad,{length:.204,width:.058,cap:.039,green:154,blue:66,opacity:.90,life:.049,light:1.48,roll:.09,fade:1.26});
+      Object.assign(V273_FLASH_PROFILES.minimi,{length:.190,width:.116,planes:3,cap:.075,hot:.94,green:101,blue:20,opacity:.91,life:.052,light:1.48,roll:.20,fade:1.02});
+      Object.assign(V273_FLASH_PROFILES.p320,{length:.074,width:.054,cap:.036,hot:.86,green:138,blue:38,opacity:.89,life:.036,light:.76,roll:.10,fade:1.30});
+      Object.assign(V273_FLASH_PROFILES.glock18c,{length:.086,width:.061,cap:.036,hot:.92,green:118,blue:30,opacity:.89,life:.038,light:.82,roll:.18,fade:1.18});
+      // The player's flash must survive until one renderer submission, even when several simulation steps occur first.
+      let v339FlashPending=false;
+      function foV339AcknowledgePlayerFlash(){v339FlashPending=false;}
+      // FO_V339_END profiles
       let V273_MUZZLE_ASSETS=null;
       let v271PlayerFlash=null,v271FlashLeft=0,v271FlashSequence=0;
       const v271LightPosition=new THREE.Vector3();
@@ -13939,6 +13949,9 @@ return {createExperimentalRig,createAdaptiveRigController};
         V273_MUZZLE_ASSETS={map,geometries,material};return V273_MUZZLE_ASSETS;
       }
       function clearV271PlayerFlash(){
+        // FO_V339_BEGIN reset
+        v339FlashPending=false;
+        // FO_V339_END reset
         v271FlashLeft=0;
         if(v271PlayerFlash){
           v271PlayerFlash.visible=false;
@@ -13956,18 +13969,31 @@ return {createExperimentalRig,createAdaptiveRigController};
         if(v271PlayerFlash.parent!==vmRefs.muzzlePoint)vmRefs.muzzlePoint.add(v271PlayerFlash);
         v271PlayerFlash.userData.profile=p;
         v271PlayerFlash.rotation.set(0,Math.PI,((++v271FlashSequence%7)-3)*p.roll);
+        // FO_V339_BEGIN trigger
+        v339FlashPending=true;
+        // FO_V339_END trigger
         v271FlashLeft=p.life;v271PlayerFlash.visible=true;
         updateV273PlayerFlash(0);
       }
       function updateV273PlayerFlash(dt){
         if(!v271PlayerFlash||v271FlashLeft<=0)return;
         if(!matchState.started||matchState.ended||!player.alive){clearV271PlayerFlash();return;}
+        // FO_V339_BEGIN age
+        if(v339FlashPending)dt=0;
+        // FO_V339_END age
         v271FlashLeft=Math.max(0,v271FlashLeft-dt);
         if(v271FlashLeft<=0){clearV271PlayerFlash();return;}
         const p=v271PlayerFlash.userData.profile,t=v271FlashLeft/p.life;
         const spread=.63+.37*t,reach=.52+.48*t;
         v271PlayerFlash.scale.set(spread,spread,reach);
         v271PlayerFlash.material.opacity=p.opacity*Math.min(1,Math.pow(t,p.fade)*2.5);
+        // FO_V339_BEGIN ads
+        // Only the player's Minimi ADS flash is narrowed. Keep the bright core off the sight line.
+        if(p===V273_FLASH_PROFILES.minimi&&player.ads){
+          v271PlayerFlash.scale.set(spread*.68,spread*.68,reach);
+          v271PlayerFlash.material.opacity*=.84;
+        }
+        // FO_V339_END ads
         vmRefs.muzzlePoint.getWorldPosition(v271LightPosition);
         viewmodelGroup.worldToLocal(v271LightPosition);
         muzzleLight.position.copy(v271LightPosition);
@@ -19833,6 +19859,9 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         // V287: isolate presentation transforms from simulation and all aim queries.
         try{
+          // FO_V339_BEGIN pre-render
+          if(!active||matchState.ended||gamePaused||!player.alive)clearV271PlayerFlash();
+          // FO_V339_END pre-render
           if(matchState.started&&!matchState.ended&&!gamePaused&&!droneSystem.isPlayerControlling())
             beginV287RenderPose(vmRefs,player,renderDt,!!v271PlayerFlash?.visible);
           else if(vmRefs.v287Pose)vmRefs.v287Pose.sprint=0;
@@ -19841,6 +19870,9 @@ return {createExperimentalRig,createAdaptiveRigController};
           if(matchState.started)foF316BeginEquipmentRender(player,vmRefs,activeMedkits,droneSystem);
       // FO_F316_END render
           renderer.render(scene, camera);
+        // FO_V339_BEGIN render-ack
+          foV339AcknowledgePlayerFlash();
+        // FO_V339_END render-ack
         }finally{
       // FO_F316_BEGIN restore
           foF316RestoreEquipmentRender();

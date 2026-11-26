@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {chromium} from 'playwright';
 const out=path.resolve('test-artifacts/front-operation-h332');fs.mkdirSync(out,{recursive:true});
 const before=execFileSync('git',['show','0a57c088db63d5ca44224e3225d092429ea4c92d:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
-const after=fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'');
+const after=fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_V339_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V339_END \1\n/gm,'').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'');
 const originals=JSON.parse(fs.readFileSync('scripts/h332-original-blocks.json','utf8'));
 const tag=/      \/\/ FO_H332_BEGIN ([^\n]+)\n[\s\S]*?      \/\/ FO_H332_END \1\n/g;
 const seen=new Set();assert.equal(after.replace(/    \/\* FO_I335_BEGIN responsive-ui \*\/\n[\s\S]*?    \/\* FO_I335_END responsive-ui \*\/\n/g,'').replace(tag,(_,id)=>{assert(Object.hasOwn(originals,id));assert(!seen.has(id));seen.add(id);return originals[id];}),before,'exact V328 source restore');

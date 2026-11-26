@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import * as THREE from 'three';
 import {chromium} from 'playwright';
-const current=fs.readFileSync('index.html','utf8');
+const current=fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_V339_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V339_END \1\n/gm,'');
 const old=execFileSync('git',['show','5095283f77d665d0d2783b5516f7507d03baaf83:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const tag=/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm;
 assert.equal([...current.matchAll(tag)].length,5);
