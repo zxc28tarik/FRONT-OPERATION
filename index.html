@@ -1754,6 +1754,11 @@
           // Dry, noise-led punch instead of a prolonged synthetic bass sweep.
           Object.assign(styles.mrad,{crackFreq:2450,crackQ:.65,crackGain:.98,bodyFreq:760,bodyQ:.58,bodyGain:1.32,subStart:112,subEnd:48,subGain:.46,mechGain:.035,reverbSend:.58,bodyEarly:.24,bodyEarlyGain:.075,subEarly:.15,subEarlyGain:.08});
           // FO_V340_END mrad-profile
+          // FO_V342_BEGIN audio-profiles
+          // Fictional game sound design: short MP7 snap and broad Carl Gustaf pressure burst.
+          Object.assign(styles.mp7,{crackFreq:3650,crackQ:.78,crackGain:.79,bodyFreq:1850,bodyQ:.72,bodyGain:.94,subStart:180,subEnd:95,subGain:.36,subEarly:.30,subEarlyGain:.18,bodyEarly:.34,bodyEarlyGain:.23,mechFreq:2900,mechGain:.105,reverbSend:.36});
+          Object.assign(styles.carlgustaf,{crackFreq:1600,crackQ:.55,crackGain:1.05,bodyFreq:690,bodyQ:.48,bodyGain:2.05,subStart:88,subEnd:43,subGain:.58,subEarly:.20,subEarlyGain:.075,bodyEarly:.36,bodyEarlyGain:.21,mechFreq:980,mechGain:.075,reverbSend:.95});
+          // FO_V342_END audio-profiles
           return Object.assign(base, Object.prototype.hasOwnProperty.call(styles, weaponId) ? styles[weaponId] : {});
         }
 
@@ -1939,6 +1944,21 @@
           }
 
           if (dist === 0) {
+            // FO_V342_BEGIN mechanical-noise
+            if((weaponId==='mp7'||weaponId==='carlgustaf')&&this.noiseBuffers.white){
+              const source=this.ctx.createBufferSource(),filter=this.ctx.createBiquadFilter(),gain=this.ctx.createGain();
+              const start=now+prof.mechDelay;
+              source.buffer=this.noiseBuffers.white;
+              filter.type='bandpass';filter.frequency.value=prof.mechFreq*pitchJitter;filter.Q.value=.65;
+              gain.gain.setValueAtTime(.00001,start);
+              gain.gain.linearRampToValueAtTime(prof.mechGain,start+.0015);
+              gain.gain.exponentialRampToValueAtTime(.00001,start+.023);
+              source.connect(filter);filter.connect(gain);gain.connect(this.dryBus);
+              source.start(start,weaponId==='mp7'?.36:.64);source.stop(start+.036);
+              this._autoCleanup(source,[source,filter,gain]);
+              return;
+            }
+            // FO_V342_END mechanical-noise
             const mechOsc = this.ctx.createOscillator();
             mechOsc.type = 'square';
             mechOsc.frequency.setValueAtTime(prof.mechFreq * pitchJitter, now + prof.mechDelay);
@@ -4994,6 +5014,19 @@
           new THREE.CylinderGeometry(0.0135, 0.0135, 0.042, 18, 1, true),
           WEAPON_MATS.gunmetal
         );
+        // FO_V342_BEGIN mp7-housing
+        // A closed annular housing with continuous inner wall, bevels and both end rims.
+        // Keep the original mesh, material, reticle and lens; isolate the replacement geometry UUID.
+        const savedRandom=Math.random;
+        let housingSeed=0x3420f19d;
+        try{
+          Math.random=()=>((housingSeed=(Math.imul(housingSeed,1664525)+1013904223)>>>0)/4294967296);
+          const outline=[[.0148,-.023],[.0160,-.0215],[.0153,-.017],[.0148,-.016],[.0148,.016],[.0153,.017],[.0160,.0215],[.0148,.023],[.0128,.023],[.0125,.021],[.0125,-.021],[.0128,-.023],[.0148,-.023]];
+          const housing=new THREE.LatheGeometry(outline.map(p=>new THREE.Vector2(...p)),24);
+          housing.userData.v342OpticHousing=true;
+          housing.uuid=tube.geometry.uuid; tube.geometry.dispose();tube.geometry=housing;
+        }finally{Math.random=savedRandom;}
+        // FO_V342_END mp7-housing
         tube.rotation.x = Math.PI / 2;
         tube.position.set(0, 0.019, 0);
         g.add(tube);

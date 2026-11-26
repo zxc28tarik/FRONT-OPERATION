@@ -11,7 +11,7 @@ const base=execFileSync('git',['show','2d60406b372ccf666c87cd6b0fe15132f6ad7e47:
 const current=fs.readFileSync('index.html','utf8');
 const h332=execFileSync('git',['show','cbf2c31ca8f3b7a6237e9433e8b41fe0fee35856:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const i335Css=/    \/\* FO_I335_BEGIN responsive-ui \*\/\n[\s\S]*?    \/\* FO_I335_END responsive-ui \*\/\n/g;
-assert.equal(current.replace(/^ *\/\/ FO_V341_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V341_END \1\n/gm,'').replace(/^ *\/\/ FO_V340_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V340_END \1\n/gm,'').replace(/^ *\/\/ FO_V339_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V339_END \1\n/gm,'').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'').replace(i335Css,''),h332,'I only changes tagged CSS; all production JS and menu markup unchanged');
+assert.equal(current.replace(/^ *\/\/ FO_V342_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V342_END \1\n/gm,'').replace(/^ *\/\/ FO_V341_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V341_END \1\n/gm,'').replace(/^ *\/\/ FO_V340_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V340_END \1\n/gm,'').replace(/^ *\/\/ FO_V339_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V339_END \1\n/gm,'').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'').replace(i335Css,''),h332,'I only changes tagged CSS; all production JS and menu markup unchanged');
 assert.equal([...current.matchAll(i335Css)].length,1,'one bounded CSS change');
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const anchor='      window.onload = function () {';
