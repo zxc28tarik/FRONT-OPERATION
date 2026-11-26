@@ -57,11 +57,18 @@ const hook=`
           }
           renderer.render(scene,cam);renderer.getContext().finish();
           const times=[],submit=[];
+          const mapSet=new Set(mapEnvironmentMeshes),originalUpdate=THREE.Object3D.prototype.updateMatrix;
+          let localMatrixCalls=0;
+          try{
+            THREE.Object3D.prototype.updateMatrix=function(){if(mapSet.has(this))localMatrixCalls++;return originalUpdate.call(this);};
+            renderer.render(scene,cam);renderer.getContext().finish();
+          }finally{THREE.Object3D.prototype.updateMatrix=originalUpdate;}
+          // Timing is measured separately, without the instrumentation overhead.
           for(let i=0;i<3;i++){
             const t=performance.now();renderer.render(scene,cam);submit.push(performance.now()-t);renderer.getContext().finish();times.push(performance.now()-t);
           }
           return {calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,
-            times,submit,levels:foHQAmodels.slice(0,count).map(m=>m.visualDetailLevel),image:canvas.toDataURL('image/png'),rng:foHQAdraws};
+            times,submit,localMatrixCalls,levels:foHQAmodels.slice(0,count).map(m=>m.visualDetailLevel),image:canvas.toDataURL('image/png'),rng:foHQAdraws};
         },
         lod(){
           const m=foHQAmodels[0],rows=[];
@@ -122,6 +129,7 @@ try{
   for(const v of ['calls','triangles','textures','imageHash','rng'])assert.equal(b[v],a[v],k+' '+v);
   assert.deepEqual(b.levels,a.levels,k+' LOD');
   assert(b.geometries<=a.geometries,k+' uploaded geometry count');
+  assert(b.localMatrixCalls<a.localMatrixCalls,k+' actual static local matrix work reduced');
   const median=x=>[...x].sort((a,b)=>a-b)[1];
   report.bench[k]={before:a,after:b,medianBeforeMs:median(a.times),medianAfterMs:median(b.times),submitBeforeMs:median(a.submit),submitAfterMs:median(b.submit)};
  }
