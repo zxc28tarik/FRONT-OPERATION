@@ -3131,7 +3131,8 @@
           tex=source.clone();mat=base.clone();
         }finally{Math.random=oldRandom;}
         tex.image=image;foE306PaintSurface(tex,style);
-        mat.map=tex;mat.needsUpdate=true;return mat;
+        if(style==='depot-interior-floor')tex.repeat.set(2,3);
+        mat.name='FO_E306:'+style;mat.map=tex;mat.needsUpdate=true;return mat;
       }
       function foE306UseInterior(meshes,base,replacement,accept){
         let count=0;
