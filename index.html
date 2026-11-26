@@ -18385,6 +18385,83 @@ return {createExperimentalRig,createAdaptiveRigController};
       }
 
       // FO_F316_END helper
+      // FO_G320_BEGIN helper
+      // V317–V320: mode-specific presentation, never an objective state transition.
+      function foG320DeathmatchPresentation(state,target,team){
+        const own=team==='red'?state.scoreRed:state.scoreBlue,other=team==='red'?state.scoreBlue:state.scoreRed;
+        const diff=own-other,remaining=Math.max(0,target-own);
+        const lead=diff>0?'ÖNDE +'+diff:diff<0?'GERİDE '+Math.abs(diff):'BERABERE';
+        const label=state.ended?'MAÇ BİTTİ':remaining<=5&&remaining>0?lead+' · '+remaining+' KALDI':lead;
+        return {label,remaining,color:diff>0?'#a9c4b3':diff<0?'#d1b6a0':'#b9c5ca',
+          hint:'Takımının hedefe kalan elemesi: '+remaining+' / '+target};
+      }
+      function foG320BombPresentation(bomb,rules,blue,red){
+        const alive=blue+'–'+red+' CANLI';
+        if(bomb.phase==='ended')return {label:alive+' · TUR BİTTİ',hint:bomb.reason||'Tur bitti',color:'#b9c5ca',planted:false,seconds:null};
+        const planted=bomb.phase==='planted',site=bomb.site?.id||'',actionSite=bomb.actionSite||'';
+        const limit=planted?rules.defuseSeconds:rules.plantSeconds;
+        const pct=Math.max(0,Math.min(100,Math.floor((Number.isFinite(bomb.progress)?bomb.progress:0)/limit*100)));
+        const secs=planted?Math.max(0,Math.ceil(bomb.seconds)):null;
+        const action=planted?(bomb.actor?'ÇÖZME %'+pct:'BOMBA '+site):bomb.actor?'KURMA '+actionSite+' %'+pct:'A / B · BÖLGEDE DUR';
+        const label=alive+' · '+action;
+        const hint=planted?'Bomba '+site+' · '+secs+' sn kaldı'+(bomb.actor?' · Çözme %'+pct:''):bomb.actor?'Bomba '+actionSite+' kuruluyor: %'+pct:'A veya B bölgesine gir ve dur';
+        return {label,hint,planted,seconds:secs,color:planted&&secs<=10?'#e2b3a2':planted?'#d8c39d':'#b9c5ca'};
+      }
+      const foG320DefaultSpectatorHint='[C] Serbest / Takım · [Sol/Sağ tık] Önceki / Sonraki · WASD / Space / Ctrl';
+      function foG320Write(el,key,value){
+        if(el&&el[key]!==value)el[key]=value;
+      }
+      function foG320SyncModePresentation(state,bomb,rules,target,actor,teamBots,spectator,doc){
+        const status=doc.getElementById('fo-bomb-status'),timer=doc.getElementById('match-timer');
+        if(!status||!timer)return;
+        const mode=state.mode,owned=mode==='deathmatch'||mode==='bomb';
+        if(owned){
+          let p;
+          if(mode==='deathmatch')p=foG320DeathmatchPresentation(state,target,actor.team);
+          else{
+            let blue=actor.alive?1:0,red=0;
+            for(const b of teamBots)if(b.alive){if(b.team==='blue')blue++;else if(b.team==='red')red++;}
+            p=foG320BombPresentation(bomb,rules,blue,red);
+          }
+          const show=state.started||mode==='bomb';
+          status.classList.toggle('hidden',!show);
+          foG320Write(status,'textContent',show?p.label:'');
+          foG320Write(status,'title',p.hint);
+          foG320Write(status.style,'color',p.color);
+          foG320Write(status.dataset,'foG320Owned','1');
+          foG320Write(status.dataset,'foG320Last',show?p.label:'');
+          foG320Write(timer.style,'color',p.planted?p.color:'');
+          foG320Write(timer,'title',p.planted?'Bombanın kalan süresi':'Maçın kalan süresi');
+          if(p.planted){
+            const t=p.seconds;
+            foG320Write(timer,'textContent',String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'));
+          }
+        }else if(status.dataset.foG320Owned==='1'){
+          // Leave rescue's own live text alone; clear only our stale text/styles.
+          if(status.textContent===status.dataset.foG320Last)status.textContent='';
+          status.style.color='';status.title='';timer.style.color='';timer.title='';
+          delete status.dataset.foG320Owned;delete status.dataset.foG320Last;
+        }
+        const watching=mode==='bomb'&&state.started&&!state.ended&&!actor.alive;
+        const hud=doc.getElementById('hud'),spectatorHud=doc.getElementById('fo-spectator-hud');
+        const hint=spectatorHud?.lastElementChild;
+        if(hud){
+          const panels=[hud.querySelector('.fo-status-panel'),doc.getElementById('slot-bar'),hud.querySelector('.fo-ammo-panel')];
+          // Avoid showing the eliminated player's stale ammo/health while watching.
+          for(const el of panels)if(el){
+            if(watching&&el.dataset.foG320Hidden!=='1'){el.dataset.foG320Hidden='1';el.dataset.foG320Prior=el.style.visibility;el.style.visibility='hidden';}
+            else if(!watching&&el.dataset.foG320Hidden==='1'){el.style.visibility=el.dataset.foG320Prior||'';delete el.dataset.foG320Hidden;delete el.dataset.foG320Prior;}
+          }
+        }
+        if(hint&&watching){
+          const text=spectator.mode==='free'?'[C] Takım takibi · WASD / Space / Ctrl · Shift: hızlı':'[C] Serbest kamera · [Sol/Sağ tık] Önceki / sonraki';
+          foG320Write(hint,'textContent',text);hint.dataset.foG320Hint='1';
+        }else if(hint?.dataset.foG320Hint==='1'){
+          hint.textContent=foG320DefaultSpectatorHint;delete hint.dataset.foG320Hint;
+        }
+      }
+
+      // FO_G320_END helper
       function updateHUD() {
         document.getElementById('hp-value').textContent = player.hp;
         const hpBar = document.getElementById('hp-bar');
@@ -18478,6 +18555,9 @@ return {createExperimentalRig,createAdaptiveRigController};
       // FO_F316_BEGIN hud
         foF316ApplyHud(player,CLASSES,WEAPONS,droneSystem,document);
       // FO_F316_END hud
+      // FO_G320_BEGIN hud
+        foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
+      // FO_G320_END hud
         let zoneText = 'ORTA MEYDAN (MID)';
         if (player.pos.z > 38) zoneText = 'DERBARAN ÜSSÜ (GÜNEY)';
         else if (player.pos.z < -38) zoneText = 'N.I.U. ÜSSÜ (KUZEY)';
@@ -19451,6 +19531,10 @@ return {createExperimentalRig,createAdaptiveRigController};
           const displayedTime=matchState.mode==='bomb'&&foBomb.phase==='planted'?foBomb.seconds:matchState.timeRemaining;
           const mins=Math.floor(displayedTime/60),secs=Math.floor(displayedTime%60);
           document.getElementById('match-timer').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      // FO_G320_BEGIN frame
+          // Sync after simulation's objective text and timer updates, before drawing.
+          if(matchState.mode==='bomb')foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
+      // FO_G320_END frame
           if(hudSyncTimer>=.12){hudSyncTimer%=.12;updateHUD();renderRadar();}
         }
 
