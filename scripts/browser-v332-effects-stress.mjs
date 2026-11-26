@@ -27,7 +27,7 @@ const hook=`
           const lists=[activeTracers,activeParticles,activeImpactMarks,activeShellCasings,activeGrenades,activeRockets,activeMedkits,activeClaymores];
           const state=()=>lists.map(list=>list.map(e=>({life:e.life,fuse:e.fuse,healTick:e.healTick,armTimer:e.armTimer,team:e.team,
             pos:e.pos?.toArray(),vel:e.vel?.toArray(),rotVel:e.rotVel?.toArray(),start:e.start?.toArray(),end:e.end?.toArray(),dir:e.dir?.toArray(),
-            mesh:e.mesh.position.toArray(),scale:e.mesh.scale.toArray(),rotation:e.mesh.quaternion.toArray(),
+            mesh:e.mesh.position.toArray(),scale:e.mesh.scale.toArray(),rotation:e.mesh.quaternion.toArray(),ringScale:e.ring?.scale.toArray(),
             material:e.mesh.material?.color?.getHex(),opacity:e.mesh.material?.opacity,mark:e.mesh.userData?.v277Mark,impact:e.mesh.userData?.v277Impact})));
           const snap=()=>JSON.stringify(state());
           let h=2166136261;
@@ -40,6 +40,12 @@ const hook=`
             finally{renderer.renderBufferDirect=f;}
             return {calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,shadow,total,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,image:canvas.toDataURL('image/png')};
           };
+          // Identical synthetic clock for wall-clock driven cosmetic medkit pulse.
+          // Only QA changes: production performance.now() remains untouched.
+          let qaClock=1000;
+          const previousClock=Object.getOwnPropertyDescriptor(performance,'now');
+          Object.defineProperty(performance,'now',{configurable:true,value:()=>qaClock});
+          try {
           for(let cycle=0;cycle<12;cycle++){
             const mode=modes[cycle%3];clearAllMatchEntities();selectFoMap(mode);
             camera.position.set(0,2.2,30);camera.lookAt(0,1.5,19);
@@ -49,6 +55,7 @@ const hook=`
             for(let n=0;n<45;n++){spawnTracer(pos,end,n%2?'sniper':'rifle');spawnShellCasing(pos,quat,'rifle');spawnImpactMark(pos,normal,n%2===0);}
             let max=[0,0,0,0];let activeRender;
             for(let tick=0;tick<1000;tick++){
+              qaClock=1000+(cycle*1000+tick)*50;
               if(tick%10===0){spawnTracer(pos,end,tick%20?'rifle':'sniper');spawnShellCasing(pos,quat,'rifle');spawnImpactFX(pos,normal,tick%20===0,10);spawnCharacterHitFX(pos,tick%20===0,10);}
               if(tick%100===0){deployMedkit(pos,'blue');deployClaymore(pos,0,'QA','blue');throwGrenade(pos.clone(),dir,'QA','blue');fireRocket(pos.clone(),dir,'QA','blue');}
               updateEntitiesAndFX(.05);
@@ -62,6 +69,7 @@ const hook=`
             rows.push({cycle,mode,max,cleared,hash:h>>>0,preClearHash:(()=>{let x=2166136261;for(let i=0;i<preClear.length;i++)x=Math.imul(x^preClear.charCodeAt(i),16777619);return x>>>0;})(),rng:qaDraws,active:activeRender,empty,pool:pool()});
           }
           return {rows,images,simulatedSeconds:600,pool:pool(),rng:qaDraws};
+          } finally { if(previousClock)Object.defineProperty(performance,'now',previousClock);else delete performance.now; }
         }
       };
 `;
@@ -88,6 +96,7 @@ try{
   for(const {name,image} of r.images){const png=Buffer.from(image.split(',')[1],'base64');r.imageHashes[name]=createHash('sha256').update(png).digest('hex');fs.writeFileSync(path.join(out,version+'-'+name+'.png'),png);}
   delete r.images;data[version]=r;await page.close();
  }
+ fs.writeFileSync(path.join(out,'h332-diagnostic.json'),JSON.stringify({data,errors},null,2));
  const a=data.before,b=data.after;
  assert.equal(a.simulatedSeconds,600);assert.equal(b.simulatedSeconds,600);
  assert.equal(a.rng,b.rng,'RNG sequence');
