@@ -8,9 +8,10 @@ const out=path.resolve('test-artifacts/front-operation-e306');fs.mkdirSync(out,{
 const before=execFileSync('git',['show','1329fcb17e42cf790ecd4c066a03087ffb280d9a:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const after=execFileSync('git',['show','5b3c815c9497ab57ecc5b3bd115e4310a89670d1:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const fTag=/      \/\/ FO_F316_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_F316_END [^\n]+\n/g;
+const h328Tag=/      \/\/ FO_H328_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_H328_END [^\n]+\n/g;
 const g324Tag=/      \/\/ FO_G324_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_G324_END [^\n]+\n/g;
 const gTag=/      \/\/ FO_G320_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_G320_END [^\n]+\n/g;
-const current=fs.readFileSync('index.html','utf8').replace(g324Tag,'').replace(gTag,'').replace(fTag,'');
+const current=fs.readFileSync('index.html','utf8').replace(h328Tag,'').replace(g324Tag,'').replace(gTag,'').replace(fTag,'');
 const nextTag=/      \/\/ FO_E311_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_E311_END [^\n]+\n/g;
 assert.equal(current.replace(nextTag,''),after,'V306 historical source preserved under V311 additions');
 const tag=/      \/\/ FO_E306_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_E306_END [^\n]+\n/g;
