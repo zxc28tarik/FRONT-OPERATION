@@ -12,12 +12,22 @@ const current=fs.readFileSync('index.html','utf8');
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const anchor='      window.onload = function () {';
 const modes=['deathmatch','bomb','rescue'],classes=['assault','medic','engineer','sniper','heavy'];
-const report={baseline:'V273',candidateSha:hash(current),baselineSha:hash(base),ui:[],bench:{},errors:[],limitations:['render-only 5/15 model cohorts, not 5/15 AI matches','native match roster is 11 bots','SwiftShader timing is not hardware FPS','QA freezes RAF for controlled UI tests']};
+const report={baseline:'V273',candidateSha:hash(current),baselineSha:hash(base),ui:[],bench:{},aiCohorts:[],errors:[],limitations:['render-only 5/15 model cohorts, not 5/15 AI matches','native match roster is 11 bots','SwiftShader timing is not hardware FPS','QA freezes RAF for controlled UI tests','5/15 actual AI cohorts use test-only roster-size fixture and 10 seconds controlled simulation; not full-length matches']};
 const hook='\
       let qaIModels=null,qaISeed=335;\
       window.__foI335={\
         state(){return {mode:matchState.mode,started:matchState.started,ended:matchState.ended,paused:gamePaused,roster:bots.length,classId:player.classId,hp:player.hp,sp:player.sp,scoreBlue:matchState.scoreBlue,scoreRed:matchState.scoreRed,time:matchState.timeRemaining,aspect:camera.aspect};},\
         ready(){return !!FO_MAPS.deathmatch&&bots.length>0;},\
+        render(){renderer.render(scene,camera);renderer.getContext().finish();},\
+        runCohort(){\
+          const first=bots.map(b=>({id:b.id,x:b.pos.x,y:b.pos.y,z:b.pos.z}));const started=botAiClockSec;const roster=bots.length;let steps=0;\
+          for(let tick=0;tick<200&&!matchState.ended;tick++){\
+            const dt=.05;matchState.timeRemaining=Math.max(0,matchState.timeRemaining-dt);updatePlayer(dt);droneSystem.update(dt);updateBots(dt);updateEntitiesAndFX(dt);updateFoBomb(dt,dt);updateFoRescue(dt);steps++;\
+            if(tick%20===0){updateHUD();renderer.render(scene,camera);renderer.getContext().finish();}\
+          }\
+          const last=bots.map(b=>({id:b.id,x:b.pos.x,y:b.pos.y,z:b.pos.z,hp:b.hp,kills:b.kills,deaths:b.deaths,difficulty:b.difficulty}));\
+          return {mode:matchState.mode,roster,steps,simulated:botAiClockSec-started,ended:matchState.ended,first,last,scoreBlue:matchState.scoreBlue,scoreRed:matchState.scoreRed};\
+        },\
         prepare(){qaIModels=bots.map(b=>b.mesh);for(let i=qaIModels.length;i<15;i++)qaIModels.push(createEnhancedBotSoldierMesh(i%2?"red":"blue",CLASS_ORDER[i%5],i%3));for(const m of qaIModels)scene.remove(m.root);viewmodelGroup.visible=false;},\
         benchmark(mode,count){\
           selectFoMap(mode);const z=mode==="bomb"?29:38;const cam=new THREE.PerspectiveCamera(74,canvas.width/canvas.height,.03,280);cam.position.set(0,1.65,z);cam.lookAt(0,1.65,-15);\
@@ -28,25 +38,38 @@ const hook='\
         }\
       };\
 ';
-function inject(s){
- assert(s.includes(anchor));return s.replace('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js','/three.min.js')
+function inject(s,count=0){
+ assert(s.includes(anchor));
+ if(count){
+  assert([5,15].includes(count));
+  const start=s.indexOf('      function initBots()'),end=s.indexOf('\n      function ',start+1);
+  assert(start>=0&&end>start);let body=s.slice(start,end);
+  const blue='for (let i = 0; i < 5; i++)',red='for (let i = 0; i < 6; i++)';
+  assert(body.includes(blue)&&body.includes(red));
+  const nBlue=Math.floor(count/2),nRed=count-nBlue;
+  body=body.replace(blue,'for (let i = 0; i < '+nBlue+'; i++)').replace(red,'for (let i = 0; i < '+nRed+'; i++)')
+   .replace('name: BOT_NAMES_BLUE[i],','name: BOT_NAMES_BLUE[i] || ("QA_BLUE_"+i),')
+   .replace('name: BOT_NAMES_RED[i],','name: BOT_NAMES_RED[i] || ("QA_RED_"+i),');
+  s=s.slice(0,start)+body+s.slice(end);
+ }
+ return s.replace('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js','/three.min.js')
  .replace(anchor,hook+'\n'+anchor+'\n        canvas.requestPointerLock=()=>{};Math.random=()=>((qaISeed=(Math.imul(qaISeed,1664525)+1013904223)>>>0)/4294967296);');
 }
 const server=createServer((req,res)=>{
  if(req.url==='/three.min.js'){res.writeHead(200,{'content-type':'text/javascript'});res.end(fs.readFileSync('node_modules/three/build/three.min.js'));return;}
- res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(inject(req.url==='/before'?base:current));
+ res.writeHead(200,{'content-type':'text/html; charset=utf-8'});const url=new URL(req.url,'http://127.0.0.1');res.end(inject(url.pathname==='/before'?base:current,Number(url.searchParams.get('count')||0)));
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader']});
 const errors=report.errors;
-async function open(version,viewport,hasTouch=false){
+async function open(version,viewport,hasTouch=false,count=0){
  const page=await browser.newPage({viewport,deviceScaleFactor:1,hasTouch});
  page.on('pageerror',e=>errors.push(version+': '+String(e)));
  await page.addInitScript(()=>{window.requestAnimationFrame=()=>1;});
- await page.goto('http://127.0.0.1:'+server.address().port+'/'+version,{waitUntil:'load',timeout:80000});
- await page.waitForFunction(()=>window.__foI335?.ready());
+ await page.goto('http://127.0.0.1:'+server.address().port+'/'+version+(count?'?count='+count:''),{waitUntil:'load',timeout:80000});
+ await page.waitForFunction(()=>window.__foI335?.ready(),null,{polling:100});
  // Do not replace Tailwind with an empty stub; require actual utility styles.
- await page.waitForFunction(()=>getComputedStyle(document.getElementById('menu-overlay')).position==='fixed',{},{timeout:15000});
+ await page.waitForFunction(()=>getComputedStyle(document.getElementById('menu-overlay')).position==='fixed',null,{timeout:15000,polling:100});
  return page;
 }
 const state=p=>p.evaluate(()=>window.__foI335.state());
@@ -73,12 +96,14 @@ try{
     assert.equal(await page.locator('.class-card[aria-selected="true"]').getAttribute('data-class'),'assault');
     await page.locator('#fo-game-mode').selectOption(mode);
     const menuBounds=await bounds(page,['#menu-overlay .fo-menu-panel','#fo-game-mode','#class-grid','#btn-deploy']);
+    await page.evaluate(()=>window.__foI335.render());
     await page.screenshot({path:path.join(out,prefix+'-menu.png')});
     await page.locator('#btn-deploy').click();
     const deployed=await state(page);assert.equal(deployed.mode,mode);assert(deployed.started&&!deployed.ended);assert.equal(deployed.roster,11);assert.equal(deployed.classId,'assault');
     assert(await page.locator('#menu-overlay').isHidden());
     const hudBounds=await bounds(page,['#radar-canvas','.fo-scoreboard','.fo-status-panel','#slot-bar','.fo-ammo-panel']);
     for(const id of ['hp-value','sp-value','ammo-mag','ammo-reserve','match-timer','score-blue','score-red'])assert((await page.locator('#'+id).innerText()).trim().length>0,id);
+    await page.evaluate(()=>window.__foI335.render());
     await page.screenshot({path:path.join(out,prefix+'-hud.png')});
     await page.keyboard.press('Escape');
     assert(await page.locator('#pause-overlay').isVisible(),'pause visible');
@@ -91,10 +116,26 @@ try{
     assert.deepEqual(await state(page),beforeCancel,'cancel preserves match');
     await page.locator('#btn-pause-resume').click();assert(!(await state(page)).paused);
     await page.setViewportSize({width:viewport.width+32,height:viewport.height+16});
-    await page.waitForFunction(()=>Math.abs(window.__foI335.state().aspect-innerWidth/innerHeight)<1e-9);
+    await page.waitForFunction(()=>Math.abs(window.__foI335.state().aspect-innerWidth/innerHeight)<1e-9,null,{polling:100});
     report.ui.push({viewport,mode,deployed,menuBounds,hudBounds,cancelPreserved:true,resized:true});
    }finally{await page.close();}
   }
+ }
+ // I335: test-only variable-size actual AI cohorts, original decision code untouched.
+ for(const mode of modes)for(const count of [5,15]){
+  const page=await open('after',{width:800,height:500},false,count);
+  try{
+   await page.locator('#fo-game-mode').selectOption(mode);await page.locator('#btn-deploy').click();
+   const row=await page.evaluate(()=>window.__foI335.runCohort());
+   report.aiCohorts.push({count,...row});
+   assert.equal(row.roster,count);assert.equal(row.last.length,count);assert.equal(row.mode,mode);
+   assert(new Set(row.last.map(x=>x.id)).size===count,'unique test actor IDs');
+   assert(row.steps>0&&(row.steps===200||row.ended),'10 seconds or legitimate match end');
+   assert(Math.abs(row.simulated-row.steps*.05)<1e-7,'actual AI clock advanced');
+   assert(row.last.every(b=>[b.x,b.y,b.z,b.hp,b.kills,b.deaths].every(Number.isFinite)),'finite real actor state');
+   assert(row.last.some((b,i)=>b.x!==row.first[i].x||b.y!==row.first[i].y||b.z!==row.first[i].z),'actual bot movement');
+   await page.screenshot({path:path.join(out,'ai-'+mode+'-'+count+'.png')});
+  }finally{await page.close();}
  }
  // I335: matched V273/current visual cohorts, no invented AI roster.
  for(const version of ['before','after']){
@@ -110,8 +151,8 @@ try{
    }
   }finally{await page.close();}
  }
- assert.equal(report.ui.length,9);assert.equal(Object.keys(report.bench.before).length,9);assert.equal(Object.keys(report.bench.after).length,9);assert.deepEqual(errors,[]);
- console.log('I335 preflight PASS; visual cohorts are not live AI matches or hardware FPS.');
+ assert.equal(report.ui.length,9);assert.equal(report.aiCohorts.length,6);assert.equal(Object.keys(report.bench.before).length,9);assert.equal(Object.keys(report.bench.after).length,9);assert.deepEqual(errors,[]);
+ console.log('I335 preflight PASS; short actual AI cohorts and separate render-only comparisons; not full matches or hardware FPS.');
 }finally{
  fs.writeFileSync(path.join(out,'i335-preflight.json'),JSON.stringify(report,null,2));await browser.close();await new Promise(r=>server.close(r));
 }
