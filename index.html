@@ -605,6 +605,27 @@
       #pause-overlay .fo-pause-panel { padding:20px; }
       #scoreboard-overlay > .hud-glass { padding:14px; }
     }
+    /* FO_I335_BEGIN responsive-ui */
+    /* Preserve approved design; compact only when vertical space is scarce. */
+    #pause-overlay .fo-pause-panel {
+      max-height: calc(100vh - 32px);
+      max-height: calc(100dvh - 32px);
+      overflow-y: auto;
+    }
+    @media (max-height: 520px) {
+      #pause-overlay .fo-pause-panel { padding: 12px 16px; gap: 5px; }
+      #pause-title { font-size: 20px; margin: 0; }
+      #pause-overlay .fo-pause-panel > p { margin: 0 0 2px; }
+      #pause-overlay .fo-pause-score { padding: 5px 8px; margin-bottom: 3px; }
+      #pause-overlay .fo-pause-score b { font-size: 18px; }
+      #pause-overlay button { min-height: 36px; padding: 6px 12px; }
+    }
+    #hud .fo-ammo-panel > div:last-child { flex-wrap: wrap; }
+    #hud #ammo-mag, #hud #ammo-reserve, #hud #hud-weapon-name {
+      min-width: 0; max-width: 100%; overflow-wrap: anywhere;
+    }
+    #hud #hud-class-badge { flex-shrink: 0; }
+    /* FO_I335_END responsive-ui */
   </style>
 </head>
 <body>

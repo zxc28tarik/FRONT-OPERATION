@@ -10,7 +10,7 @@ const before=execFileSync('git',['show','0a57c088db63d5ca44224e3225d092429ea4c92
 const after=fs.readFileSync('index.html','utf8');
 const originals=JSON.parse(fs.readFileSync('scripts/h332-original-blocks.json','utf8'));
 const tag=/      \/\/ FO_H332_BEGIN ([^\n]+)\n[\s\S]*?      \/\/ FO_H332_END \1\n/g;
-const seen=new Set();assert.equal(after.replace(tag,(_,id)=>{assert(Object.hasOwn(originals,id));assert(!seen.has(id));seen.add(id);return originals[id];}),before,'exact V328 source restore');
+const seen=new Set();assert.equal(after.replace(/    \/\* FO_I335_BEGIN responsive-ui \*\/\n[\s\S]*?    \/\* FO_I335_END responsive-ui \*\/\n/g,'').replace(tag,(_,id)=>{assert(Object.hasOwn(originals,id));assert(!seen.has(id));seen.add(id);return originals[id];}),before,'exact V328 source restore');
 assert.equal(seen.size,Object.keys(originals).length);
 const anchor='      window.onload = function () {';
 const hook=`

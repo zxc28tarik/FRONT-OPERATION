@@ -18,6 +18,11 @@ jobs:
       - run: npm install --no-save --no-package-lock playwright@1.55.0 three@0.128.0
       - run: npx playwright install --with-deps chromium
       - run: node scripts/browser-v335-final-preflight.mjs
+      - name: Copy exact candidate HTML for download
+        if: always()
+        run: |
+          mkdir -p test-artifacts/front-operation-i335
+          cp index.html test-artifacts/front-operation-i335/FRONT-OPERATION-V335-candidate.html
       - uses: actions/upload-artifact@v4
         if: always()
         with:

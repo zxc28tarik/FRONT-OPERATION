@@ -9,6 +9,10 @@ import {chromium} from 'playwright';
 const out=path.resolve('test-artifacts/front-operation-i335');fs.mkdirSync(out,{recursive:true});
 const base=execFileSync('git',['show','2d60406b372ccf666c87cd6b0fe15132f6ad7e47:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const current=fs.readFileSync('index.html','utf8');
+const h332=execFileSync('git',['show','cbf2c31ca8f3b7a6237e9433e8b41fe0fee35856:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
+const i335Css=/    \/\* FO_I335_BEGIN responsive-ui \*\/\n[\s\S]*?    \/\* FO_I335_END responsive-ui \*\/\n/g;
+assert.equal(current.replace(i335Css,''),h332,'I only changes tagged CSS; all production JS and menu markup unchanged');
+assert.equal([...current.matchAll(i335Css)].length,1,'one bounded CSS change');
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const anchor='      window.onload = function () {';
 const modes=['deathmatch','bomb','rescue'],classes=['assault','medic','engineer','sniper','heavy'];
@@ -107,7 +111,7 @@ try{
     await page.screenshot({path:path.join(out,prefix+'-hud.png')});
     await page.keyboard.press('Escape');
     assert(await page.locator('#pause-overlay').isVisible(),'pause visible');
-    await bounds(page,['#pause-overlay .fo-pause-panel','#btn-pause-resume','#btn-pause-map']);
+    const pauseBounds=await bounds(page,['#pause-overlay .fo-pause-panel','#btn-pause-resume','#btn-pause-map']);
     await page.locator('#btn-pause-score').click();assert(await page.locator('#scoreboard-overlay').isVisible());
     await page.locator('#btn-score-close').click();assert(await page.locator('#pause-overlay').isVisible());
     const beforeCancel=await state(page);
@@ -117,7 +121,7 @@ try{
     await page.locator('#btn-pause-resume').click();assert(!(await state(page)).paused);
     await page.setViewportSize({width:viewport.width+32,height:viewport.height+16});
     await page.waitForFunction(()=>Math.abs(window.__foI335.state().aspect-innerWidth/innerHeight)<1e-9,null,{polling:100});
-    report.ui.push({viewport,mode,deployed,menuBounds,hudBounds,cancelPreserved:true,resized:true});
+    report.ui.push({viewport,mode,deployed,menuBounds,hudBounds,pauseBounds,cancelPreserved:true,resized:true});
    }finally{await page.close();}
   }
  }
