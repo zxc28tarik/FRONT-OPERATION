@@ -13538,7 +13538,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         const presentation=foG324ResultPresentation(matchState,winnerTeam,foBomb,foRescue,player,MATCH_TARGET_SCORE);
         titleEl.textContent=presentation.title;resTxt.textContent=presentation.result;subEl.textContent=presentation.summary;
         foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
-        foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document);
+        foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document,foBomb);
       // FO_G324_END result
         btn.textContent = 'YENİ MAÇ BAŞLAT';
         document.getElementById('menu-overlay').classList.remove('hidden');
@@ -18512,7 +18512,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           summary:'Derbaran – N.I.U. eleme: '+score+' · Sen: '+actor.kills+' eleme / '+actor.deaths+' ölüm',
           score,modeName};
       }
-      function foG324SyncModePresentation(state,rescue,rules,actor,spectator,doc){
+      function foG324SyncModePresentation(state,rescue,rules,actor,spectator,doc,bomb){
         const status=doc.getElementById('fo-bomb-status'),timer=doc.getElementById('match-timer');
         if(!status||!timer)return;
         if(state.mode==='rescue'){
@@ -18526,6 +18526,13 @@ return {createExperimentalRig,createAdaptiveRigController};
         }else if(status.dataset.foG324Owned==='1'){
           // G320 has already written the new mode's status and timer style.
           delete status.dataset.foG324Owned;
+        }
+        if(state.mode==='bomb'&&state.ended&&state.started){
+          // Once the planted phase ends, preserve the actual objective clock
+          // rather than falling back to the earlier round countdown.
+          const hadPlant=!!bomb?.site;
+          foG320Write(timer,'textContent',foG324Clock(hadPlant?bomb.seconds:state.timeRemaining,hadPlant));
+          foG320Write(timer,'title',hadPlant?'Bomba süresi (tur sonu)':'Maç süresi (tur sonu)');
         }
         if(state.mode!=='rescue')return;
         const watching=state.started&&!state.ended&&!actor.alive;
@@ -18646,7 +18653,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
       // FO_G320_END hud
       // FO_G324_BEGIN hud
-        foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document);
+        foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document,foBomb);
       // FO_G324_END hud
         let zoneText = 'ORTA MEYDAN (MID)';
         if (player.pos.z > 38) zoneText = 'DERBARAN ÜSSÜ (GÜNEY)';
@@ -19626,7 +19633,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           if(matchState.mode==='bomb')foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
       // FO_G320_END frame
       // FO_G324_BEGIN frame
-          if(matchState.mode==='rescue')foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document);
+          if(matchState.mode==='rescue'||(matchState.mode==='bomb'&&matchState.ended))foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document,foBomb);
       // FO_G324_END frame
           if(hudSyncTimer>=.12){hudSyncTimer%=.12;updateHUD();renderRadar();}
         }
