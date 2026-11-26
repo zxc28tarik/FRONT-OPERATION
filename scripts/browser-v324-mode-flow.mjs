@@ -36,12 +36,12 @@ window.__foG324QA={
   const panels=[document.querySelector('#hud .fo-status-panel'),document.getElementById('slot-bar'),document.querySelector('#hud .fo-ammo-panel')];
   const old=panels.map(e=>e.style.visibility),oldHint=hint.textContent;
   const sync=()=>{foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document,foBomb);};
-  const snapshot=()=>JSON.stringify({matchState,foBomb,foRescue,alive:player.alive,kills:player.kills,deaths:player.deaths,mode:foSpectator.mode,target:foSpectator.targetId});
+  const snapshot=()=>JSON.stringify({matchState,foBomb:{...foBomb,site:foBomb.site?.id||null},foRescue,alive:player.alive,kills:player.kills,deaths:player.deaths,mode:foSpectator.mode,target:foSpectator.targetId});
   const read=name=>({name,label:status.textContent,timer:timer.textContent,hint:hint.textContent,panels:panels.map(e=>e.style.visibility),old,oldHint,
-   result:document.getElementById('match-result-text').textContent,summary:document.getElementById('menu-subtitle').textContent,title:document.getElementById('menu-title').textContent,mode:matchState.mode,ended:matchState.ended});
+   result:document.getElementById('match-result-text').textContent,summary:document.getElementById('menu-subtitle').textContent,title:document.getElementById('menu-title').textContent,mode:matchState.mode,map:foActiveMap,ended:matchState.ended});
   const record=name=>{const before=snapshot();sync();const row=read(name);row.unchanged=before===snapshot();rows.push(row);};
   const start=(mode,seconds)=>{Object.assign(matchState,{mode,started:true,ended:false,scoreBlue:0,scoreRed:0,timeRemaining:seconds});
-   player.alive=true;stopFoSpectator();resetFoBomb();resetFoRescue(()=>.5);refreshFoModeUi();record(mode+'-start');};
+   player.alive=true;stopFoSpectator();resetFoBomb();resetFoRescue(()=>.5);selectFoMap(mode);if(mode==='rescue')syncFoRescueMarkers();refreshFoModeUi();record(mode+'-start');};
   start('deathmatch',600);matchState.scoreBlue=49;matchState.scoreRed=40;record('dm-near');registerTeamKill('blue');rows.push(read('dm-win'));
   start('bomb',150);const site=FO_BOMB_SITES[0];
   stepFoBomb(foBomb,FO_BOMB_RULES.plantSeconds,150,6,6,{id:'player',site});
@@ -85,7 +85,7 @@ try{
   await page.goto('http://127.0.0.1:'+server.address().port+'/',{waitUntil:'load',timeout:80000});
   await page.waitForFunction(()=>window.__foG324QA?.ready());
   const rows=await page.evaluate(()=>window.__foG324QA.test()),r=n=>rows.find(x=>x.name===n);
-  assert(rows.filter(x=>x.unchanged!==undefined).every(x=>x.unchanged),'presentation mutation');
+  assert(rows.filter(x=>x.unchanged!==undefined).every(x=>x.unchanged),'presentation mutation');assert(rows.every(x=>x.map===x.mode),'actual active map');
   assert.equal(r('deathmatch-start').timer,'10:00');assert.match(r('dm-near').label,/1 KALDI/);assert(r('dm-win').ended);
   assert.match(r('dm-win').result,/DERBARAN KAZANDI.*Hedefe ulaşıldı/);
   assert.equal(r('bomb-start').timer,'02:30');assert.equal(r('bomb-planted').timer,'00:35');
