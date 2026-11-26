@@ -1,0 +1,10 @@
+# Kritik hata 01 / 04–06 düzeltme kaydı
+
+Temel 45f8cd20b76c2ee6c90c0a3c19920d2f36dd75c6; oyun kodu c2263c0b02e6897432abab28ca2a724dea92ace6. Kullanıcı talimatıyla mevcut V292 dalı / PR #68 kullanıldı. Yeni dal yok.
+
+- 01: Aktif görünür maçta gerçek geçen süre, en fazla .05 s simülasyon adımlarına bölünür. Bir render karesinde en fazla 10 alt adım/.5 s işlenir; kalan süre bir sonraki kareye borç olarak aktarılır, atılmaz. Maç, bomba, fizik, oyuncu, drone, bot ve VFX aynı alt adımda ilerler. Duraklatma/görünürlük geçişinde borç iptal edilir, arka plan zamanı simüle edilmez. Sürekli aşırı düşük FPS'de (.5 s/kare kapasitesi aşılırsa) simülasyon gerçek zamanın gerisinde kalabilir; bu performans garantisi değildir. Bot AI karar ve parametreleri değişmedi; düşük FPS'deki çağrı sayısı doğal olarak artar, sonuçlar eski yavaşlayan simülasyonla birebir aynı olmak zorunda değildir.
+- 04: Roket için önceki/sonraki poz arasında en yakın katı yüzey teması, yer ve harita sınırı bulunur. Patlama yüzeyin giriş tarafında .005 birim güvenli ofsetle oluşur. Namlu başlangıç ofseti de kontrol edilir. Doğrudan hedef temas önceliği, hasar ve yarıçapı yeniden tasarlanmadı.
+- 05: Kovan aşağı inerken gerçek kat döşemelerinin üst yüzeyi ve rampalar sorgulanır. Zemin altı nesne bir üst kata sıçratılmaz. Bu yalnız görsel kovan fiziğidir; duvar yatay teması bu madde kapsamında değiştirilmedi.
+- 06: Oyuncu ve bot medkit iyileşmesi mevcut 2.5 yarıçap ve +10 HP kuralıyla birlikte katı engel kontrolüne bağlanır; duvar/döşeme iyileştirmeyi engeller. Botun medkit seçimi/kararı değiştirilmedi; ortak ekipman sonucu değişir.
+
+Doğrudan güncel kaynak üzerinde 2891/2891 yeni regresyon ve önceki 63/63 kontrol (1000 sahte kaynak döngüsü dahil) başarılı. Önceki paket GitHub CI 45723503435 başarılı. Yeni CI kapsamı tests/critical_01_04_06_regression.cjs ile genişletildi; güncel CI ve gerçek WebGL/FPS henüz doğrulanmadı. Inline JS parse başarılı; updateBots/updatePlayer fonksiyonları birebir aynı; Math.random çağrı sayısı 87 olarak sabit. Yeni kodun dışındaki kaynak, düzenleme tersine çevrilerek birebir doğrulandı. Ana dal değişmedi; 7–10 numaralı hatalar değiştirilmedi.
