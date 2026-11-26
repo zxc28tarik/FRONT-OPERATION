@@ -12825,11 +12825,45 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
         }
       }
+      // FO_V344_BEGIN soldier-release
+      // Match-reset ownership: keep cached and still-visible assets, release retired private GPU resources.
+      function foV344SoldierResources(root, resources){
+        if(!root)return;
+        root.traverse(node=>{
+          if(node.geometry)resources.add(node.geometry);
+          if(node.material)for(const m of (Array.isArray(node.material)?node.material:[node.material]))if(m)resources.add(m);
+        });
+      }
+      function foV344ReleaseRetiredSoldiers(roots,liveScene){
+        const shared=new Set(),seen=new Set(),retired=new Set();
+        const visit=value=>{
+          if(!value||typeof value!=='object'||seen.has(value))return;
+          seen.add(value);
+          if(value.isBufferGeometry||value.isGeometry||value.isMaterial||value.isTexture){shared.add(value);return;}
+          if(value instanceof Map){for(const [key,item] of value){visit(key);visit(item);}return;}
+          if(value instanceof Set||Array.isArray(value)){for(const item of value)visit(item);return;}
+          const proto=Object.getPrototypeOf(value);
+          if(proto===Object.prototype||proto===null)for(const item of Object.values(value))visit(item);
+        };
+        visit(SOLDIER_SHARED);visit(SOLDIER_V11_DETAIL_GEOMETRIES);visit(V273_MUZZLE_ASSETS);
+        foV344SoldierResources(liveScene,shared);
+        for(const root of roots)foV344SoldierResources(root,retired);
+        let released=0;
+        for(const resource of retired)if(!shared.has(resource)&&typeof resource.dispose==='function'){
+          resource.dispose();released++;
+        }
+        return released;
+      }
+      // FO_V344_END soldier-release
       function initBots() {
         resetTeamIntel();
         resetBotNoiseEvents();
         resetBotMetrics();
         bots.forEach((b) => {b.experimentalRigController?.reset();b.experimentalRig?.dispose();scene.remove(b.mesh.root);});
+        // FO_V344_BEGIN reset-hook
+        // Experimental rig teardown and scene removal have already restored original meshes.
+        foV344ReleaseRetiredSoldiers(bots.map(b=>b.mesh.root),scene);
+        // FO_V344_END reset-hook
         bots.length = 0;
         // A fresh match starts a fresh per-five/per-fifteen spawn cycle.
         botLifeSequence = 0;
@@ -13913,6 +13947,14 @@ return {createExperimentalRig,createAdaptiveRigController};
           document.getElementById('respawn-overlay').classList.remove('hidden');
           if(foSingleLife())startFoSpectator();
 
+          // FO_V344_BEGIN self-death
+          // Self-inflicted explosive damage counts as a death, never an enemy kill.
+          if(isBlast&&attackerName===player.name){
+            clearDeadTargetMemory('player');
+            addKillfeedEntry(player.name,player.team,player.name,player.team,weaponLabel,false);
+            return;
+          }
+          // FO_V344_END self-death
           const killerBot = bots.find((b) => b.name === attackerName);
           if (killerBot) {
             killerBot.kills++;
