@@ -102,6 +102,9 @@ jobs:
       - name: Current V292 crouch pose
         if: ${{ !cancelled() }}
         run: node scripts/browser-v292-crouch-transition.mjs
+      - name: Current C295 all class and team render poses
+        if: ${{ !cancelled() }}
+        run: node scripts/browser-v295-render-pose.mjs
       - name: Preserve current animation evidence
         if: always()
         uses: actions/upload-artifact@v4
