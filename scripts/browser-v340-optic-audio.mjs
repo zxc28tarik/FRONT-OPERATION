@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import * as THREE from 'three';
 import {chromium} from 'playwright';
 const before=execFileSync('git',['show','3603b9e830f9a97603cab41a94cba2af6121e969:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
-const after=fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_V342_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V342_END \1\n/gm,'').replace(/^ *\/\/ FO_V341_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V341_END \1\n/gm,'');
+const after=fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_V343_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V343_END \1\n/gm,'').replace(/^ *\/\/ FO_V342_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V342_END \1\n/gm,'').replace(/^ *\/\/ FO_V341_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V341_END \1\n/gm,'');
 const tag=/^ *\/\/ FO_V340_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V340_END \1\n/gm;
 assert.equal([...after.matchAll(tag)].length,4);
 assert.equal(after.replace(tag,''),before);

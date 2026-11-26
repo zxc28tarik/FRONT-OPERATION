@@ -1976,6 +1976,25 @@
           }
         }
 
+        // FO_V343_BEGIN drone-audio
+        // Drone-specific presentation; same two voice lifetimes as the legacy explosion.
+        playV343DroneExplosion(dist=0){
+          if(!this._canSpawnVoice(true))return;
+          const now=this.ctx.currentTime,d=this._audioDistance(dist,75),a=d.attenuation;
+          for(const [name,hz,q,level,early,tail,stop,wet] of [['pink',840,.58,3.5,.095,.52,1,1.05],['white',2550,.62,1.8,.018,.10,.75,.42]]){
+            const src=this.ctx.createBufferSource(),f=this.ctx.createBiquadFilter(),g=this.ctx.createGain(),w=this.ctx.createGain();
+            src.buffer=this.noiseBuffers[name];f.type='lowpass';f.Q.value=q;
+            f.frequency.setValueAtTime(Math.max(350,hz*(1-d.ratio*.65)),now);
+            f.frequency.exponentialRampToValueAtTime(name==='pink'?105:230,now+tail);
+            g.gain.setValueAtTime(Math.max(.0001,level*a),now);
+            g.gain.exponentialRampToValueAtTime(Math.max(.0001,level*a*.22),now+early);
+            g.gain.exponentialRampToValueAtTime(.0001,now+tail);
+            w.gain.value=wet;src.connect(f);f.connect(g);g.connect(this.dryBus);g.connect(w);w.connect(this.reverbNode);
+            src.start(now);src.stop(now+stop);this._autoCleanup(src,[src,f,g,w]);
+          }
+        }
+
+        // FO_V343_END drone-audio
         playExplosion(dist = 0) {
           if (!this._canSpawnVoice(true)) return;
           const now = this.ctx.currentTime;
@@ -9166,6 +9185,11 @@
           ?'BOMBA '+foBomb.site.id+' '+Math.ceil(foBomb.seconds)+' sn'
           :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%':'A / B • BÖLGEDE DUR');
         if(active&&foBomb.actor)status.textContent+=' • ÇÖZÜLÜYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.defuseSeconds*100))+'%';
+        // FO_V343_BEGIN c4-visual
+        if(result?.reason==='Bomba patladı'&&foBomb.site){
+          foV343SpawnBlast(new THREE.Vector3(foBomb.site.x,.25,foBomb.site.z),'C4');
+        }
+        // FO_V343_END c4-visual
         if(result){foBomb.phase='ended';foBomb.reason=result.reason;endMatch(result.winner);}
       }
       // V11: bomb-specific mission roles; combat perception and difficulty
@@ -14505,7 +14529,70 @@ return {createExperimentalRig,createAdaptiveRigController};
        for(const mat of new Set(entity.ownedMaterials||[]))if(typeof mat?.dispose==='function')mat.dispose();
       }
 
+      // FO_V343_BEGIN blast-pool
+      // Presentation-only bounded pool. No match RNG, physics, damage or AI queries.
+      const foV343Blasts=[];
+      let foV343Maps=null;
+      function foV343MakeMap(smoke){
+        const n=64,data=new Uint8Array(n*n*4);
+        for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+          const u=(x+.5)/n*2-1,v=(y+.5)/n*2-1,r=Math.hypot(u,v),angle=Math.atan2(v,u);
+          const edge=Math.max(0,1-r*(1+.12*Math.sin(angle*5)+.07*Math.cos(angle*9)));
+          const grain=.82+.18*Math.sin(x*.73+y*.91)*Math.cos(x*.35-y*.41);
+          const h=Math.exp(-r*r*7),i=(y*n+x)*4;
+          data[i]=smoke?105:255;data[i+1]=smoke?100:Math.round(90+165*h);data[i+2]=smoke?94:Math.round(22+220*h);
+          data[i+3]=Math.round(255*Math.min(1,(smoke?1.1:1.8)*edge**(smoke?2:1.6)*grain));
+        }
+        const tex=new THREE.DataTexture(data,n,n,THREE.RGBAFormat);tex.minFilter=tex.magFilter=THREE.LinearFilter;tex.needsUpdate=true;return tex;
+      }
+      function foV343CreateSlot(){
+        const saved=Math.random;let seed=0x343bd8a1+foV343Blasts.length;
+        try{
+          Math.random=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+          if(!foV343Maps)foV343Maps=[foV343MakeMap(false),foV343MakeMap(true)];
+          const root=new THREE.Group(),sprites=[];
+          for(let i=0;i<6;i++){
+            const mat=new THREE.SpriteMaterial({map:foV343Maps[i<2?0:1],transparent:true,depthWrite:false,depthTest:true,opacity:0,blending:i<2?THREE.AdditiveBlending:THREE.NormalBlending,toneMapped:false});
+            const sprite=new THREE.Sprite(mat);root.add(sprite);sprites.push(sprite);
+          }
+          const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(18*3),3));
+          const sparks=new THREE.Points(geo,new THREE.PointsMaterial({color:0xffc36b,size:.055,transparent:true,opacity:0,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending}));
+          sparks.frustumCulled=false;root.add(sparks);root.visible=false;
+          const slot={root,sprites,sparks,age:0,size:1,active:false,fresh:false};foV343Blasts.push(slot);return slot;
+        }finally{Math.random=saved;}
+      }
+      function foV343SpawnBlast(pos,label){
+        let slot=foV343Blasts.find(s=>!s.active);
+        if(!slot)slot=foV343Blasts.length<4?foV343CreateSlot():foV343Blasts.reduce((a,b)=>a.age>=b.age?a:b);
+        slot.age=0;slot.fresh=true;slot.active=true;slot.size=label==='C4'?1.55:label==='KAMIKAZE DRONE'?.68:label==='CLAYMORE'?.85:1;
+        slot.root.position.copy(pos);slot.root.visible=true;scene.add(slot.root);
+      }
+      function foV343RenderBlasts(dt){
+        for(const s of foV343Blasts){
+          if(!s.active)continue;
+          if(s.fresh)s.fresh=false;else s.age+=Math.max(0,dt);
+          const t=s.age,k=s.size;
+          if(t>=1.05){s.active=false;s.root.visible=false;scene.remove(s.root);continue;}
+          const distance=s.root.position.distanceTo(camera.position),near=Math.min(1,Math.max(.12,distance/2.2));
+          for(let i=0;i<6;i++){
+            const p=s.sprites[i],fire=i<2,angle=i*2.399963;
+            const scale=k*(fire?(i===0?.75:1.5)+t*4.8:.55+t*1.8);
+            p.scale.set(scale,scale,1);p.position.set(Math.cos(angle)*t*.8*k,(fire?.12:.20+t*.85)*k,Math.sin(angle)*t*.8*k);
+            p.material.opacity=near*(fire?(i===0?.92:.48)*Math.max(0,1-t/(i===0?.13:.25)):.30*Math.min(1,.15+t*7)*Math.max(0,1-t/1.05));
+            p.visible=p.material.opacity>.001;
+          }
+          const a=s.sparks.geometry.attributes.position;
+          for(let i=0;i<18;i++){const angle=i*2.399963,reach=(1.2+(i%5)*.27)*t*k;a.setXYZ(i,Math.cos(angle)*reach,Math.max(.02,(1.5+(i%4)*.5)*t-2.6*t*t)*k,Math.sin(angle)*reach);}
+          a.needsUpdate=true;s.sparks.material.opacity=near*.85*Math.max(0,1-t/.43);s.sparks.visible=t<.43;
+        }
+      }
+      function foV343ClearBlasts(){for(const s of foV343Blasts){s.active=false;s.root.visible=false;scene.remove(s.root);}}
+
+      // FO_V343_END blast-pool
       function clearAllMatchEntities() {
+        // FO_V343_BEGIN blast-clear
+        foV343ClearBlasts();
+        // FO_V343_END blast-clear
         resetV278DamageFlash();
         [activeGrenades, activeRockets, activeMedkits, activeClaymores, activeTracers, activeParticles, activeImpactMarks, activeShellCasings].forEach((list) => {
           for (let i = list.length - 1; i >= 0; i--) {
@@ -14746,7 +14833,14 @@ return {createExperimentalRig,createAdaptiveRigController};
       // FO_H332_BEGIN explosion
       function triggerExplosion(pos, radius, maxDamage, ownerName, team, weaponLabel, allowSelfDamage = true) {
         const distToPlayer = pos.distanceTo(player.pos);
+        // FO_V343_BEGIN explosion-dispatch
+        if(weaponLabel==='KAMIKAZE DRONE'&&typeof sound.playV343DroneExplosion==='function')sound.playV343DroneExplosion(distToPlayer);
+        else
+        // FO_V343_END explosion-dispatch
         sound.playExplosion(distToPlayer);
+        // FO_V343_BEGIN blast-spawn
+        foV343SpawnBlast(pos,weaponLabel);
+        // FO_V343_END blast-spawn
         emitBotNoise(team, pos, 'explosion', ownerName);
 
         for (let i = 0; i < 16 && activeParticles.length < VFX_CAPS.maxParticles; i++) {
@@ -19951,6 +20045,9 @@ return {createExperimentalRig,createAdaptiveRigController};
       // FO_F316_BEGIN render
           if(matchState.started)foF316BeginEquipmentRender(player,vmRefs,activeMedkits,droneSystem);
       // FO_F316_END render
+          // FO_V343_BEGIN blast-render
+          if(!document.hidden)foV343RenderBlasts(gamePaused?0:renderDt);
+          // FO_V343_END blast-render
           renderer.render(scene, camera);
         // FO_V339_BEGIN render-ack
           foV339AcknowledgePlayerFlash();
