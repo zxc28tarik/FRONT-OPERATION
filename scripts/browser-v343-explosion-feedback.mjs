@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import * as THREE from 'three';
 import {chromium} from 'playwright';
 const old=execFileSync('git',['show','c43dc06b7a90a9d393a327cb7da9f1c609a558a5:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
-const current=fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_V344_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V344_END \1\n/gm,'');
+const current=fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm,'').replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(').replace(/^ *\/\/ FO_V344_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V344_END \1\n/gm,'');
 const tag=/^ *\/\/ FO_V343_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V343_END \1\n/gm;
 assert.equal([...current.matchAll(tag)].length,7);
 assert.equal(current.replace(tag,''),old);

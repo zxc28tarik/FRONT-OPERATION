@@ -16,7 +16,9 @@ function metrics(matches){
  medianFirstShotSec:median(a.flatMap(x=>x.latency)),medianLaneToShotSec:median(a.flatMap(x=>x.laneLatency)),
  gateFractions:Object.fromEntries(Object.entries(gate).map(([k,v])=>[k,ratio(v,visible)]))};
 }
-const report={reference:'V344',blob:'969432fb88c61b824ee6836df40006a64cdd3065',completed:rows.filter(r=>r.status==='PASS').length,expected:15,modes:{},failures:rows.filter(r=>r.status!=='PASS').map(r=>({mode:r.mode,seed:r.seed,error:r.error}))};
+const reference=process.env.BOT01_REFERENCE||'V344';const expectedBlob=process.env.BOT01_EXPECTED_BLOB||'969432fb88c61b824ee6836df40006a64cdd3065';
+for(const r of rows)if(r.status==='PASS')assert.equal(r.blob,expectedBlob,'match source identity');
+const report={reference,blob:expectedBlob,completed:rows.filter(r=>r.status==='PASS').length,expected:15,modes:{},failures:rows.filter(r=>r.status!=='PASS').map(r=>({mode:r.mode,seed:r.seed,error:r.error}))};
 for(const mode of modes){const r=rows.filter(x=>x.mode===mode&&x.status==='PASS');report.modes[mode]={...metrics(r),checkpoint60:metrics(r.map(x=>x.checkpoint)),outcomes:r.map(x=>({seed:x.seed,elapsed:x.elapsed,winner:x.winner,score:[x.scoreBlue,x.scoreRed],plantedAt:x.plantedAt,firstPickupAt:x.firstPickupAt,firstSavedAt:x.firstSavedAt,objective:x.objective})),byClass:Object.fromEntries(['assault','medic','engineer','sniper','heavy'].map(c=>[c,metrics(r.map(x=>({...x,actors:x.actors.filter(a=>a.classId===c),stats:{actors:Object.fromEntries(Object.entries(x.stats.actors).filter(([id])=>x.actors.some(a=>a.id===id&&a.classId===c)))}})))]))};}
 fs.mkdirSync('test-artifacts/bot01',{recursive:true});fs.writeFileSync('test-artifacts/bot01/summary.json',JSON.stringify(report,null,2));
 console.log('BOT01_SUMMARY '+JSON.stringify(report));if(report.completed!==15)process.exitCode=1;

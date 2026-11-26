@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {chromium} from 'playwright';
 const old=execFileSync('git',['show','441dbdd74d7173906e3671a3d242cf2c6b36a8dd:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
-const current=fs.readFileSync('index.html','utf8');
+const current=fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm,'').replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(');
 const tag=/^ *\/\/ FO_V344_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V344_END \1\n/gm;
 assert.equal([...current.matchAll(tag)].length,3);assert.equal(current.replace(tag,''),old);
 const release=current.match(/\/\/ FO_V344_BEGIN soldier-release\n([\s\S]*?)\n *\/\/ FO_V344_END soldier-release/)[1];

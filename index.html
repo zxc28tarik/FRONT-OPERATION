@@ -15923,11 +15923,19 @@ return {createExperimentalRig,createAdaptiveRigController};
 
       // Patient affinity prevents rapid medic destination switches.
       function selectBotMedicPatient(bot) {
+        // FO_BOT02_BEGIN medic-cooldown
+        // The autonomous medkit continues healing without the medic waiting nearby.
+        if(matchState.mode==='deathmatch'&&bot.abilityCooldown>0)return null;
+        // FO_BOT02_END medic-cooldown
         let best = null, bestScore = Infinity;
         const consider = (ally, id) => {
           if (!ally.alive || ally.team !== bot.team || ally.hp >= 75 || id === bot.id) return;
           const distance = bot.pos.distanceTo(ally.pos);
           if (distance >= 20) return;
+          // FO_BOT02_BEGIN medic-covered
+          if(matchState.mode==='deathmatch'&&activeMedkits.some(mk=>mk.team===bot.team&&
+            mk.life>Math.max(0,mk.healTick)&&foMedkitReachable(mk.pos,ally.pos,mapColliders)))return;
+          // FO_BOT02_END medic-covered
           const assigned=bots.filter(b=>b.alive&&b.team===bot.team&&b.id!==bot.id&&b.classId==='medic'&&b.supportAllyId===id&&!b.visibleEnemy).length;
           const score = distance - Math.min(65, 75 - ally.hp) * 0.09
             - (id === bot.supportAllyId ? 4.5 : 0)+assigned*(ally.hp<25?3:11);
@@ -16909,6 +16917,18 @@ return {createExperimentalRig,createAdaptiveRigController};
         }else old.lastSeen=now;
         return bot.contactOpportunity;
       }
+      // FO_BOT02_BEGIN heavy-helper
+      // BOT02: retain one real contact briefly through a blocked muzzle lane.
+      // This is movement intent only; actual fire still requires the real lane.
+      function foBot02ContactCommit(bot,enemy,now,direct,previousTarget,hasAmmo,mode){
+        if(mode!=='deathmatch'||bot.classId!=='heavy')return direct;
+        const c=bot.contactOpportunity;
+        if(!c||!enemy||c.id!==enemy.id)return direct;
+        if(direct){c.lastClearAt=now;return true;}
+        if(previousTarget!==enemy.id||!hasAmmo||bot.hp<52){c.lastClearAt=null;return false;}
+        return Number.isFinite(c.lastClearAt)&&now>=c.lastClearAt&&now-c.lastClearAt<=.65;
+      }
+      // FO_BOT02_END heavy-helper
       function botShouldHoldContact(bot,enemy,now,clearLane,wounded,tooClose){
         const contact=bot.contactOpportunity;
         if(!enemy||!contact||contact.id!==enemy.id||wounded||tooClose||bot.coverNode>=0||
@@ -17372,8 +17392,12 @@ return {createExperimentalRig,createAdaptiveRigController};
             const initialFireLane=isBotFireLaneClear(bot,bestEnemy.eye);
             const activeAmmo=botAmmoSlot(bot,botWeaponId);
             const standToFire=botCanStandForContact(bot,bestEnemy,initialFireLane,isBotFireLaneClear);
-            const directCombat=botMustContinueContact(bestEnemy,initialFireLane||standToFire,
+            let directCombat=botMustContinueContact(bestEnemy,initialFireLane||standToFire,
               !!activeAmmo&&(activeAmmo.mag>0||activeAmmo.reserve>0));
+            // FO_BOT02_BEGIN heavy-commit
+            directCombat=foBot02ContactCommit(bot,bestEnemy,nowSec,directCombat,previousTarget,
+              !!activeAmmo&&(activeAmmo.mag>0||activeAmmo.reserve>0),matchState.mode);
+            // FO_BOT02_END heavy-commit
             const isWounded = !directCombat && bot.hp < woundedThreshold;
             const isSniperTooClose = !directCombat && bot.classId === 'sniper' && distToEnemy < 11.5;
             const pressure=botObservedPressure(bot,bestEnemy,distToEnemy);
@@ -17827,6 +17851,13 @@ return {createExperimentalRig,createAdaptiveRigController};
 
                 const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;
                 const nextPatientId = injuredAlly ? injuredAlly.id : null;
+                // FO_BOT02_BEGIN medic-route
+                // Do not keep following an abandoned patient's route as a patrol route.
+                if(matchState.mode==='deathmatch'&&bot.classId==='medic'&&!injuredAlly&&bot.supportAllyId&&
+                   bot.supportGoalNode>=0&&bot.path?.[bot.path.length-1]===bot.supportGoalNode&&NAV_NODES[bot.goalNode]){
+                  bot.path=findPathAStar(findNearestNavNode(bot.pos,true),bot.goalNode,bot.blockedNode);bot.pathIndex=0;
+                }
+                // FO_BOT02_END medic-route
                 if (bot.supportAllyId !== nextPatientId) {
                   bot.supportGoalNode = -1;
                 }

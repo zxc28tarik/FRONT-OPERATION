@@ -1,8 +1,8 @@
 # FRONT OPERATION — Zorunlu proje çalışma kuralları
 
-Proje sahibi talimatı (25 Kasım 2026): **Bot zekâsı ve davranışlarına, kullanıcı açıkça izin verene kadar kesinlikle dokunma.** Devam, nokta, başla veya optimizasyon isteği izin değildir. Önceki AI planı askıdadır; otomatik başlangıç yoktur.
+Proje sahibi 26 Kasım 2026'da açıkça "Botları geliştirmeye izin veriyorum." dedi. **BOT-KISS planı (BOT01–07) kapsamındaki bot geliştirmeleri artık yetkilidir.** Önceki AI kilidi yalnız bu onaylı plan kapsamında kaldırılmıştır; plan dışı denge/AI değişiklikleri izinli değildir.
 
-- AI kararları, algı, nişan/isabet, hedef seçimi, takım davranışı, nav, siper, görev mantığı, zorluk, silah tercihi, hareket komutları ve ilgili zamanlayıcı/RNG/denge değerlerini değiştirme. Dolaylı AI davranış değişiklikleri de yasaktır. Bot görsel animasyonu/efekti yalnız sunum olarak değişebilir. Hata varsa raporla, izinsiz düzeltme yapma.
+- BOT-KISS sırasına uy: az düşün, kararlı ve agresif hareket, harita/sınıf/göreve uygun davranış, gereksiz kararları azalt. V344 sabit referans, aynı koşullu A/B karşılaştırması. Gerçek LOS/dost ateş hattı, fizik, mühimmat, hasar/RPM, 0.34 s orta nişan oturma hızı, zorluk dağılımı ve görev kuralları korunur. Plan dışı değişiklik yapma. Gerileyen aday kabul edilmez.
 - Her görevde [docs/DEVELOPMENT_ROADMAP_TR.md](docs/DEVELOPMENT_ROADMAP_TR.md) dosyasını oku, sıradaki tamamlanmamış aşamadan ilerle, sırayı keyfi değiştirme. Aşamaların durumunu ve test kanıtını belgeleyip kaydet.
 - Onaylı karakter/silah/harita, kontrol, menü ve HUD bileşenlerini koru. KISS menü/HUD; yüksek kaliteli fakat düşük maliyetli görseller. Oyun mekaniği, denge ve AI üzerinde plan dışı değişiklik yok.
 - Kod tamamlandı ile test kabulünü ayır; başarısız testleri saklama veya gevşetme. Gerçek FPS ölçülmeden performans garantisi verme.
