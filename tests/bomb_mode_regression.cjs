@@ -50,7 +50,7 @@ const mapEnd=html.indexOf('      function selectFoMap(mode)',mapStart);
 const routes=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh',
  'scene','mapEnvironmentMeshes','createCorridorSign','installFoGraph','dustParticles',
  'foE306FinishSet','foE306InteriorMaterial','foE306UseInterior',
- html.slice(mapStart,mapEnd)+'\nbuildDepot17Map();return FO_TERSANE_ROUTES;')(
+ 'const foE311ShareBumps=()=>{},foE311PrisonFinish=()=>{},foE311PrisonInterior=()=>{};\n'+html.slice(mapStart,mapEnd)+'\nbuildDepot17Map();return FO_TERSANE_ROUTES;')(
  fakeThree,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return fakeMesh()},
  ()=>fakeMesh(),{children:[]},[],()=>{},(nodes,edges)=>{liveGraph={nodes,edges}},null,
  // This adapter has no canvas/materials; actual finish functions are covered by the paired WebGL suite.
