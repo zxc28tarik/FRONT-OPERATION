@@ -2051,6 +2051,39 @@
             { t: 0.24, f1: 880,  f2: 1320, dur: 0.050, g: 0.22 },
             { t: 0.31, f1: 2450, f2: 1680, dur: 0.036, g: 0.24 }
           ];
+          // FO_V341_BEGIN bolt-noise
+          // Use existing noise buffers for dry metal clicks and short sliding sounds.
+          // Preserve the four original event starts, stops, and voice admissions.
+          if (this.noiseBuffers.white && this.noiseBuffers.pink) {
+            const finish = [
+              {buffer:'white', hz:2700, q:.60, gain:.105, attack:.001, hold:.003, release:.012, offset:.12},
+              {buffer:'pink', hz:1550, q:.65, gain:.16, attack:.007, hold:.018, release:.045, offset:.31},
+              {buffer:'white', hz:1250, q:.50, gain:.085, attack:.004, hold:.011, release:.031, offset:.52},
+              {buffer:'white', hz:2200, q:.63, gain:.155, attack:.001, hold:.004, release:.016, offset:.71}
+            ];
+            steps.forEach((step, i) => {
+              const f = finish[i], start = now + step.t;
+              const source = this.ctx.createBufferSource();
+              source.buffer = this.noiseBuffers[f.buffer];
+              const filter = this.ctx.createBiquadFilter();
+              filter.type = 'bandpass';
+              filter.frequency.value = f.hz;
+              filter.Q.value = f.q;
+              const gain = this.ctx.createGain();
+              gain.gain.setValueAtTime(.00001, start);
+              gain.gain.linearRampToValueAtTime(f.gain, start + f.attack);
+              gain.gain.setValueAtTime(f.gain * .78, start + f.hold);
+              gain.gain.exponentialRampToValueAtTime(.00001, start + f.release);
+              source.connect(filter);
+              filter.connect(gain);
+              gain.connect(this.dryBus);
+              source.start(start, f.offset);
+              source.stop(start + step.dur + .01);
+              this._autoCleanup(source, [source, filter, gain]);
+            });
+            return;
+          }
+          // FO_V341_END bolt-noise
           steps.forEach((s) => {
             const osc = this.ctx.createOscillator();
             osc.type = 'square';
