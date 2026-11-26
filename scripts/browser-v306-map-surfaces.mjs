@@ -8,8 +8,9 @@ const out=path.resolve('test-artifacts/front-operation-e306');fs.mkdirSync(out,{
 const before=execFileSync('git',['show','1329fcb17e42cf790ecd4c066a03087ffb280d9a:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const after=execFileSync('git',['show','5b3c815c9497ab57ecc5b3bd115e4310a89670d1:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const fTag=/      \/\/ FO_F316_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_F316_END [^\n]+\n/g;
-const h332Tag=/      \/\/ FO_H332_BEGIN [^\n]+\n      \/\/ FO_H332_OLD ([^\n]+)\n[\s\S]*?      \/\/ FO_H332_END [^\n]+\n/g;
-const stripH332=h=>h.replace(h332Tag,(_,original)=>JSON.parse(original));
+const h332Tag=/      \/\/ FO_H332_BEGIN ([^\n]+)\n[\s\S]*?      \/\/ FO_H332_END \1\n/g;
+const h332Originals=JSON.parse(fs.readFileSync('scripts/h332-original-blocks.json','utf8'));
+const stripH332=h=>h.replace(h332Tag,(_,id)=>{if(!Object.hasOwn(h332Originals,id))throw Error('Unknown H332 block '+id);return h332Originals[id];});
 const h328Tag=/      \/\/ FO_H328_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_H328_END [^\n]+\n/g;
 const g324Tag=/      \/\/ FO_G324_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_G324_END [^\n]+\n/g;
 const gTag=/      \/\/ FO_G320_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_G320_END [^\n]+\n/g;
