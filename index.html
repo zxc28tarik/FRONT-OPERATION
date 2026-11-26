@@ -3120,9 +3120,18 @@
         const image=document.createElement('canvas');
         image.width=source.image.width;image.height=source.image.height;
         image.getContext('2d').drawImage(source.image,0,0);
-        const tex=source.clone();tex.image=image;foE306PaintSurface(tex,style);
-        const mat=base.clone();mat.map=tex;mat.needsUpdate=true;
-        return mat;
+        // Three r128 generates UUIDs with Math.random inside clone constructors.
+        // Keep these synchronous, visual-only draws off the simulation RNG stream.
+        const oldRandom=Math.random;
+        let seed=0xE306;
+        for(let i=0;i<style.length;i++)seed=Math.imul(seed^style.charCodeAt(i),16777619)>>>0;
+        let tex,mat;
+        try{
+          Math.random=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+          tex=source.clone();mat=base.clone();
+        }finally{Math.random=oldRandom;}
+        tex.image=image;foE306PaintSurface(tex,style);
+        mat.map=tex;mat.needsUpdate=true;return mat;
       }
       function foE306UseInterior(meshes,base,replacement,accept){
         let count=0;
