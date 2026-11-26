@@ -223,3 +223,5 @@ jobs:
         run: node tests/critical_01_03_regression.cjs
       - name: Validate critical 01/04/05/06 frame catch-up and physical contacts
         run: node tests/critical_01_04_06_regression.cjs
+      - name: Validate critical 07–10 scoreboard, life state and mobile inputs
+        run: node tests/critical_07_10_regression.cjs
