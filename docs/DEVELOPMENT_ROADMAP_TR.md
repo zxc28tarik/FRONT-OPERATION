@@ -118,3 +118,7 @@ V291: kullanıcının açık C4 talimatı ile ayrı aday dalda kodlandı. 28.800
 ### C5 aday dalı durum güncellemesi
 
 C4 düzeltilmiş inline CI run 45712232088 başarılı (V103 dahil). C4 WebGL ve V287/C1–C3 kabulü henüz doğrulanmadı. V292 aday dalında yerel bacak geçiş eğrileri kodlandı; 947.520 sayısal kontrol ve 118.080 prototip eşitliği başarılı. C5 gerçek WebGL/FPS kabulü açık. Ana dal değişmedi.
+
+### Kullanıcı talimatıyla 10 hata düzeltme ara paketi
+
+01–10 kod düzeyinde ele alındı; ayrı yeni dal açılmadı. 01–06 GitHub statik CI 45725551897 başarılı. 07–10 doğrudan kaynak/DOM adaptörü 101/101 kontrol başarılı; güncel CI ve gerçek WebGL/mobil/FPS kabulü açık. Ayrıntılar docs/CRITICAL_01_03_FIX_TR.md, docs/CRITICAL_01_04_06_FIX_TR.md ve docs/CRITICAL_07_10_FIX_TR.md. Ana dal birleştirmesi yok. AI kilidi korunuyor; ortak fizik/zaman değişikliklerinin doğal oyun sonuçlarına etkisi belgelendi. Önceki C kabul eksikleri açık.
