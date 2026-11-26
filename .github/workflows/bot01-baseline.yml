@@ -1,0 +1,62 @@
+name: BOT01 V344 native match baseline
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'scripts/browser-bot01-baseline.mjs'
+      - 'scripts/summarize-bot01-baseline.mjs'
+      - '.github/workflows/bot01-baseline.yml'
+  workflow_dispatch:
+jobs:
+  native-match:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'art/v292-crouch-transition'
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        mode: [deathmatch, bomb, rescue]
+        seed: [471001, 471002, 471003, 831017, 831031]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.55.0 three@0.128.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/browser-bot01-baseline.mjs
+        env:
+          BOT01_MODE: ${{ matrix.mode }}
+          BOT01_SEED: ${{ matrix.seed }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bot01-${{ matrix.mode }}-${{ matrix.seed }}
+          path: test-artifacts/bot01/
+          if-no-files-found: error
+  summarize:
+    if: always() && (github.event_name == 'workflow_dispatch' || github.head_ref == 'art/v292-crouch-transition')
+    needs: native-match
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bot01-*
+          merge-multiple: true
+          path: test-artifacts/bot01/
+      - run: node scripts/summarize-bot01-baseline.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bot01-summary
+          path: test-artifacts/bot01/
