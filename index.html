@@ -3922,7 +3922,70 @@
       // graph are captured on startup and restored without reconstruction.
       const FO_MAPS = {};
       let foActiveMap = 'deathmatch';
+      // FO_H328_BEGIN helper
+      // V326–V328: immutable map geometry reuse; do not change construction RNG,
+      // object identity, material, raycast flags, draw order or gameplay colliders.
+      const foH328GeometryCache=new Map(),foH328MapStats=new Map();
+      function foH328GeometryKey(g){
+        if(!g||!['BoxGeometry','PlaneGeometry','CylinderGeometry','CircleGeometry','SphereGeometry','RingGeometry','OctahedronGeometry'].includes(g.type)||
+          !g.parameters||g.isInstancedBufferGeometry||Object.keys(g.morphAttributes||{}).length||g.userData&&Object.keys(g.userData).length)return null;
+        // Factory parameters alone are insufficient: modified vertices or UVs
+        // are rejected by the byte comparison below.
+        return g.type+':'+JSON.stringify(g.parameters)+':'+JSON.stringify(g.groups)+':'+JSON.stringify(g.drawRange);
+      }
+      function foH328SameAttribute(a,b){
+        if(a===b)return true;
+        if(!a||!b||a.isInterleavedBufferAttribute||b.isInterleavedBufferAttribute||a.itemSize!==b.itemSize||
+          a.normalized!==b.normalized||a.count!==b.count||a.array.constructor!==b.array.constructor||a.array.byteLength!==b.array.byteLength)return false;
+        const x=new Uint8Array(a.array.buffer,a.array.byteOffset,a.array.byteLength),y=new Uint8Array(b.array.buffer,b.array.byteOffset,b.array.byteLength);
+        for(let i=0;i<x.length;i++)if(x[i]!==y[i])return false;
+        return true;
+      }
+      function foH328SameGeometry(a,b){
+        if(foH328GeometryKey(a)!==foH328GeometryKey(b)||!foH328SameAttribute(a.index,b.index))return false;
+        const keys=Object.keys(a.attributes),other=Object.keys(b.attributes);
+        return keys.length===other.length&&keys.every(k=>foH328SameAttribute(a.attributes[k],b.attributes[k]));
+      }
+      function foH328OptimizeMap(meshes,dust,bombSites,rescuePoints,world,mode){
+        const dynamic=new Set([dust,...bombSites.map(s=>s.beacon),...rescuePoints.flatMap(p=>(p.parts||[]).map(q=>q.mesh))]);
+        const before=new Set(meshes.map(m=>m.geometry).filter(Boolean)),replacement=new Map(),discard=new Set();
+        let frozen=0,reused=0;
+        for(const m of meshes){
+          if(!m.isMesh||m.parent!==world||dynamic.has(m))continue;
+          const original=m.geometry,key=foH328GeometryKey(original);
+          if(key){
+            if(!replacement.has(original)){
+              let pool=foH328GeometryCache.get(key);
+              if(!pool){pool=[];foH328GeometryCache.set(key,pool);}
+              const known=pool.find(g=>foH328SameGeometry(g,original));
+              if(known){replacement.set(original,known);if(known!==original)discard.add(original);}
+              else{pool.push(original);replacement.set(original,original);}
+            }
+            const shared=replacement.get(original);
+            if(shared!==original){m.geometry=shared;reused++;}
+          }
+          // Static local TRS only; world matrix propagation and raycasts remain normal.
+          if(m.matrixAutoUpdate){m.updateMatrix();m.matrixAutoUpdate=false;frozen++;}
+        }
+        // Never dispose a geometry still referenced by a dynamic marker, any
+        // current map mesh or a prior cached arena.
+        const retained=new Set(meshes.map(m=>m.geometry));
+        for(const arena of Object.values(FO_MAPS))for(const m of arena.meshes)retained.add(m.geometry);
+        let disposed=0,bytes=0;
+        for(const geo of discard)if(!retained.has(geo)){
+          const arrays=[geo.index,...Object.values(geo.attributes)].filter(Boolean);
+          bytes+=arrays.reduce((n,a)=>n+a.array.byteLength,0);
+          geo.dispose();disposed++;
+        }
+        const stats={before:before.size,after:new Set(meshes.map(m=>m.geometry).filter(Boolean)).size,reused,frozen,disposed,attributeBytesRemoved:bytes};
+        foH328MapStats.set(mode,stats);return stats;
+      }
+
+      // FO_H328_END helper
       function captureFoMap(before) {
+      // FO_H328_BEGIN capture
+        foH328OptimizeMap(mapEnvironmentMeshes,dustParticles,FO_BOMB_SITES,FO_RESCUE_POINTS,scene,foActiveMap);
+      // FO_H328_END capture
         return {objects:scene.children.filter(m=>!before.has(m)),
           meshes:mapEnvironmentMeshes.slice(),colliders:mapColliders.slice(),
           ramps:mapRamps.slice(),dust:dustParticles,
@@ -19571,6 +19634,10 @@ return {createExperimentalRig,createAdaptiveRigController};
         for(const actor of actors){
           const model=actor.mesh;
           if(!model?.root?.visible||(!actor.alive&&!actor.dying)||actor.experimentalRigController)continue;
+      // FO_H328_BEGIN far-pose
+          // Existing far LOD always produces zero secondary pose contribution.
+          if((model.visualDetailLevel||0)>=2)continue;
+      // FO_H328_END far-pose
           const dist=Math.hypot(actor.pos.x-view.position.x,actor.pos.y-view.position.y,actor.pos.z-view.position.z)/scale;
           const detail=foC295Detail(dist,model.visualDetailLevel||0);
           if(detail<=0)continue;
