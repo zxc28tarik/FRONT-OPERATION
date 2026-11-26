@@ -1750,6 +1750,10 @@
           Object.assign(styles.p320,{crackFreq:2850,crackQ:.92,crackGain:.77,bodyFreq:1120,bodyQ:.84,bodyGain:.83,subStart:174,subEnd:64,subGain:.37,mechFreq:2100,mechGain:.085,reverbSend:.40,bodyEarly:.28,bodyEarlyGain:.35});
           Object.assign(styles.glock18c,{crackFreq:5300,crackQ:1.04,crackGain:.95,bodyFreq:2250,bodyQ:.90,bodyGain:.80,subStart:235,subEnd:82,subGain:.30,mechFreq:3650,mechGain:.065,reverbSend:.29,bodyEarly:.23,bodyEarlyGain:.27});
           // FO_V336_END audio-profiles
+          // FO_V340_BEGIN mrad-profile
+          // Dry, noise-led punch instead of a prolonged synthetic bass sweep.
+          Object.assign(styles.mrad,{crackFreq:2450,crackQ:.65,crackGain:.98,bodyFreq:760,bodyQ:.58,bodyGain:1.32,subStart:112,subEnd:48,subGain:.46,mechGain:.035,reverbSend:.58,bodyEarly:.24,bodyEarlyGain:.075,subEarly:.15,subEarlyGain:.08});
+          // FO_V340_END mrad-profile
           return Object.assign(base, Object.prototype.hasOwnProperty.call(styles, weaponId) ? styles[weaponId] : {});
         }
 
@@ -1883,6 +1887,10 @@
           }
 
           const bodySrc = this.ctx.createBufferSource();
+          // FO_V340_BEGIN mrad-noise
+          if(weaponId==='mrad')bodySrc.buffer=this.noiseBuffers.pink;
+          else
+          // FO_V340_END mrad-noise
           // FO_V336_BEGIN audio-transient
           if(weaponId==='mrad')bodySrc.buffer=this.noiseBuffers.white;
           else
@@ -1918,6 +1926,9 @@
             const oscGain = this.ctx.createGain();
             const subLevel = prof.subGain * atten * distance.sub;
             oscGain.gain.setValueAtTime(Math.max(0.00001, subLevel), now);
+            // FO_V340_BEGIN mrad-sub
+            if(prof.subEarly)oscGain.gain.exponentialRampToValueAtTime(Math.max(.000001,subLevel*prof.subEarlyGain),now+prof.subDur*prof.subEarly);
+            // FO_V340_END mrad-sub
             oscGain.gain.exponentialRampToValueAtTime(Math.max(0.000001, Math.min(0.001, subLevel * 0.02)), now + prof.subDur + 0.01);
 
             osc.connect(oscGain);
@@ -5663,6 +5674,11 @@
           root.add(buttplate);
 
           const optic = buildMicroRedDot();
+          // FO_V340_BEGIN mp7-mount
+          // Extend the existing mount to the rail teeth; keep the lens and reticle unchanged.
+          optic.children[0].scale.y=2.85;
+          optic.children[0].position.y=-.0111;
+          // FO_V340_END mp7-mount
           optic.position.set(0, 0.066, -0.015);
           root.add(optic);
 
