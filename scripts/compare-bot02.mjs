@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 const a=JSON.parse(fs.readFileSync('docs/bot-kiss/v344-baseline-summary.json','utf8'));
 const b=JSON.parse(fs.readFileSync('test-artifacts/bot01/summary.json','utf8'));
 assert.equal(a.completed,15);assert.equal(b.completed,15);assert.equal(a.blob,'969432fb88c61b824ee6836df40006a64cdd3065');
-assert.equal(b.blob,'946878ef7331f3c6eef13a49c84ddbb7b718e7f6');
+assert.equal(b.blob,'86b5837a60a1072ed66d45e2c26af428503f627d');
 const checks=[];
 const check=(name,base,value,limit,rule)=>checks.push({name,base,value,limit,rule,pass:Number.isFinite(value)&&(rule==='<='?value<=limit:value>=limit)});
 const x=a.modes.deathmatch,y=b.modes.deathmatch;
