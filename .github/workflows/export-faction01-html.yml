@@ -1,0 +1,34 @@
+name: Export FRONT OPERATION selectable factions HTML
+on:
+  push:
+    branches:
+      - art/fo-faction01-team-weapons-molotov
+    paths:
+      - 'index.html'
+      - '.github/workflows/export-faction01-html.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify and export exact single-file game source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'FO_FACTION01_BEGIN arsenal' index.html
+          grep -q 'FO_FACTION02_BEGIN fire field' index.html
+          grep -q 'fo-faction-picker' index.html
+          grep -q 'FO_MILIS05' index.html
+          mkdir -p export
+          cp index.html export/FRONT_OPERATION_ASKER_MILIS.html
+          cmp index.html export/FRONT_OPERATION_ASKER_MILIS.html
+          sha256sum index.html export/FRONT_OPERATION_ASKER_MILIS.html > export/SHA256.txt
+          git rev-parse HEAD > export/COMMIT.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FRONT_OPERATION_ASKER_MILIS_HTML
+          path: export/
+          retention-days: 30
