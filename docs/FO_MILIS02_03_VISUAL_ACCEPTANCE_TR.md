@@ -40,3 +40,17 @@ V316 sınıf ve ekipman gerçek Chromium regresyonu ayrıca başarılı: https:/
 - 5 sınıfın ek yakın plan yüz görüntüsü CI ile oluşturuldu; sanat yönetimi açısından öznel yakın plan kabulü kullanıcı incelemesini bekliyor.
 - PC ve mobil hedef cihazlarda gerçek maç kare süreleri ve kalite incelemesi.
 - GitHub PR #69 taslak durumda; test sonucu ve kullanıcı kabulü olmadan ana dala birleştirme yapılmaz.
+
+## FO_MILIS04 / FO_MILIS05 — gerçek ekran görüntülerine göre düzeltme
+
+20 gerçek WebGL görüntüsü ve göğüs/başlık yakın planı insanlar tarafından incelendi. İlk V2/V3'teki kıyafet ön panelleri fazla hacimli ve dikdörtgen göründüğü için askeri göğüs zırhını andırıyordu.
+
+- Önceki kalın iki panel kaldırıldı; gövdenin mevcut şekillendirilmiş kıyafeti esas alındı. Ön dikiş, cep şeridi ve etek ucu çok ince geometriyle yapıldı.
+- V248–V252 tespitli omuz kalkanları ve göğüs/omuz kayışları milislerde gizlendi. Doktor sırt çantası, mühendis paketi, heavy taşıma paketi, bot silahı ve rig korunuyor.
+- Askerî kırmızı bel kumaşı milis pantolonu paletine dönüştürüldü; mevcut sağlıkçı ve sınıf donanımı ayrımı korunuyor.
+- Baş sargısı üst kısmı kapatıldı; fazla iri yüz kılı ve kaş parçaları inceltildi.
+- Son V5 rötuşu: kalın parlak kırmızı göğüs IFF işareti gizlendi, kollardaki takım işareti koyu-kırmızıyla sadeleştirildi.
+- Önceki 20 kare arşivi: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46014184249 . V4 temel görsel+gerçek geometri PASS: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46015461721
+- Final V5 ekran görüntüleri ve izole maliyet sayıları için aktif CI koşusu tamamlandıktan sonra bağlantı/sonuç güncellenir.
+
+Yalnızca görsel çizim ve testler değişti. V4 geçtikten sonra V5 için ayrıca CI koşturuldu; mobil/PC gerçek oyun FPS'i henüz ölçülmedi.
