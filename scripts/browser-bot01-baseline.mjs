@@ -20,7 +20,7 @@ const hook=String.raw`
       function bot01Row(b){
         let r=bot01Audit.rows.get(b.id);
         if(!r){r={id:b.id,team:b.team,classId:b.classId,aliveSec:0,movingSec:0,idleSec:0,quietNonMissionIdleSec:0,
-          transitions:0,behaviorSec:{},lookSec:{},gateSec:{},visibleSec:0,laneAmmoSec:0,shots:0,contacts:0,contactsFired:0,
+          transitions:0,transitionPairs:{},behaviorSec:{},lookSec:{},gateSec:{},visibleSec:0,laneAmmoSec:0,shots:0,contacts:0,contactsFired:0,
           contactsWithLane:0,contactsWithLaneFired:0,latency:[],laneLatency:[],lastBehavior:null};bot01Audit.rows.set(b.id,r);}
         return r;
       }
@@ -50,7 +50,7 @@ const hook=String.raw`
           r.aliveSec+=dt;
           const kind=b.behaviorPlan?.kind||'NONE',look=b.lookControl?.owner||'NONE';
           r.behaviorSec[kind]=(r.behaviorSec[kind]||0)+dt;r.lookSec[look]=(r.lookSec[look]||0)+dt;
-          if(r.lastBehavior!==null&&r.lastBehavior!==kind)r.transitions++;
+          if(r.lastBehavior!==null&&r.lastBehavior!==kind){r.transitions++;const key=r.lastBehavior+'>'+kind;r.transitionPairs[key]=(r.transitionPairs[key]||0)+1;}
           r.lastBehavior=kind;
           const moving=Math.hypot(b.moveVelX||0,b.moveVelZ||0)>.75;
           if(moving)r.movingSec+=dt;else {r.idleSec+=dt;
