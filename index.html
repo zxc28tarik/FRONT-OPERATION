@@ -995,6 +995,16 @@
           <option value="rescue">Esir Kurtarma • Cezaevi</option>
         </select>
       </label>
+      <!-- FO_FACTION01 team choice appears for each new match, not mid-round. -->
+      <fieldset id="fo-faction-picker" aria-label="Takım seç" style="display:flex;gap:8px;border:0;padding:0;margin:10px 0 9px;">
+        <legend style="color:#aebcbe;font-size:11px;font-weight:700;margin-bottom:5px;">TAKIMINI SEÇ</legend>
+        <label id="fo-faction-blue-label" style="flex:1;cursor:pointer;background:#213747;border:1px solid #6b9bb1;color:#dbeaf3;border-radius:7px;padding:9px 12px;font-size:12px;font-weight:800;text-align:center;">
+          <input id="fo-faction-blue" type="radio" name="fo-faction" value="blue" checked style="accent-color:#80bdde;"> ASKER
+        </label>
+        <label id="fo-faction-red-label" style="flex:1;cursor:pointer;background:#2b2927;border:1px solid #4e4944;color:#d4c3b0;border-radius:7px;padding:9px 12px;font-size:12px;font-weight:800;text-align:center;">
+          <input id="fo-faction-red" type="radio" name="fo-faction" value="red" style="accent-color:#dca17d;"> MİLİS
+        </label>
+      </fieldset>
       <p id="menu-subtitle" class="fo-menu-status hidden">Sınıfını seç, çatışmaya katıl.</p>
       <div id="match-result-badge" class="hidden fo-match-result">
         <span>MAÇ SONUCU</span>
@@ -1510,6 +1520,41 @@
           }
         }
       };
+
+      // FO_FACTION01_BEGIN arsenal: red-team counterparts; existing blue weapons intact.
+      const FO_FACTION_WEAPON_LIST=[
+        ['akm','hk416','AKM','AKM',{damage:30,rpm:625,spreadBase:.0065,spreadAds:.0017}],
+        ['uzi','mp7','Uzi','UZI',{damage:22,rpm:785,magSize:32,reserveMax:128,spreadBase:.009,spreadAds:.003,reloadTime:1.83}],
+        ['svd','mrad','SVD Dragunov','SVD',{damage:72,rpm:105,magSize:10,reserveMax:40,reloadTime:2.3,auto:false,spreadAds:.00032}],
+        ['pkm','minimi','PKM','PKM',{damage:27,rpm:655,magSize:100,reserveMax:200,reloadTime:5.1}],
+        ['tt33','p320','TT-33','TT-33',{damage:28,rpm:320,magSize:8,reserveMax:56,reloadTime:1.6}],
+        ['rpg7','carlgustaf','RPG-7','RPG-7',{damage:120,rpm:38,magSize:1,reserveMax:2,reloadTime:2.75}],
+        ['molotov','m67','Molotof Kokteyli','MOLOTOF',{damage:13,magSize:2,rpm:72}]
+      ];
+      const FO_FACTION_WEAPON_BASE=Object.create(null);
+      for(const [id,base,name,slotName,stats] of FO_FACTION_WEAPON_LIST){
+        FO_FACTION_WEAPON_BASE[id]=base;
+        const template=WEAPONS[base];
+        WEAPONS[id]={...template,...stats,id,name,slotName,
+          ...(template.recoilProfile?{recoilProfile:{...template.recoilProfile}}:{})};
+      }
+      const FO_MILIS_LOADOUTS=Object.freeze({
+        assault:Object.freeze({1:'akm',2:'tt33',3:'knife',4:'molotov'}),
+        medic:Object.freeze({1:'uzi',2:'tt33',3:'knife',4:'medkit'}),
+        engineer:Object.freeze({1:'uzi',2:'tt33',3:'knife',4:'drone'}),
+        sniper:Object.freeze({1:'svd',2:'tt33',3:'knife',4:null}),
+        heavy:Object.freeze({1:'pkm',2:'tt33',3:'knife',4:'rpg7'})
+      });
+      function foFactionSlots(team,classId){
+        return team==='red'?FO_MILIS_LOADOUTS[classId]:CLASSES[classId]?.slots;
+      }
+      function foFactionWeapon(team,baseId){
+        if(team!=='red'||!baseId)return baseId;
+        const table={hk416:'akm',mp7:'uzi',mrad:'svd',minimi:'pkm',p320:'tt33',
+          glock18c:'tt33',carlgustaf:'rpg7',m67:'molotov'};
+        return table[baseId]||baseId;
+      }
+      // FO_FACTION01_END arsenal
 
       const CLASSES = {
         assault: {
@@ -11394,7 +11439,7 @@
       // 10. BOT AI 2.0 — 50-NODE A* NAVIGATION, TACTICAL STATES & SQUADS
       // =========================================================================
       const bots = [];
-      const BOT_NAMES_BLUE = ['Kaya_TR', 'Bora_06', 'AlpArslan', 'Mertcan', 'Tuna_CQC'];
+      const BOT_NAMES_BLUE = ['Kaya_TR', 'Bora_06', 'AlpArslan', 'Mertcan', 'Tuna_CQC', 'Yildiz_CQC'];
       const BOT_NAMES_RED = ['Valkyrie', 'Kobra_X', 'Shadow99', 'Ghost_TR', 'Scorpion', 'Reaper'];
       const CLASS_ORDER = ['assault', 'medic', 'engineer', 'sniper', 'heavy'];
 
