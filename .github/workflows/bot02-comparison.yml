@@ -1,5 +1,14 @@
 name: BOT02 V345 native match comparison
 on:
+  push:
+    branches: [art/v292-crouch-transition]
+    paths:
+      - 'index.html'
+      - 'scripts/check-bot02.mjs'
+      - 'scripts/compare-bot02.mjs'
+      - 'scripts/browser-bot01-baseline.mjs'
+      - 'scripts/summarize-bot01-baseline.mjs'
+      - '.github/workflows/bot02-comparison.yml'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -12,7 +21,7 @@ on:
   workflow_dispatch:
 jobs:
   native-match:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'art/v292-crouch-transition'
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/art/v292-crouch-transition' || github.head_ref == 'art/v292-crouch-transition'
     strategy:
       fail-fast: false
       max-parallel: 5
@@ -44,7 +53,7 @@ jobs:
           path: test-artifacts/bot01/
           if-no-files-found: error
   summarize:
-    if: always() && (github.event_name == 'workflow_dispatch' || github.head_ref == 'art/v292-crouch-transition')
+    if: always() && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/art/v292-crouch-transition' || github.head_ref == 'art/v292-crouch-transition')
     needs: native-match
     runs-on: ubuntu-24.04
     steps:
