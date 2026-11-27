@@ -9199,8 +9199,11 @@
       }
       function foBombCanInteract(actor,site){
         if(!foBombInside(actor,site))return false;
-        if(actor.player)return !droneSystem.isPlayerControlling()&&!player.reloading&&
+        // FO_INTERACT_F_BEGIN bomb: only a held F key lets the player plant.
+        if(actor.player)return !!keys['KeyF']&&gameplayInputAllowed()&&
+          !droneSystem.isPlayerControlling()&&!player.reloading&&
           !mouseDownLeft&&!player.rollTimer&&Math.hypot(player.vel.x,player.vel.z)<1.3;
+        // FO_INTERACT_F_END bomb
         return !actor.visibleEnemy&&!actor.activeDroneId&&!(actor.unstuckTimer>0)&&
           Math.hypot(actor.moveVelX||0,actor.moveVelZ||0)<1.0&&
           (foBomb.actor===actor.id||foBotPlan.operators.get(site.id)===actor.id);
@@ -9213,7 +9216,9 @@
         const eligible=[];
         for(const a of actors)if(a.team===team)for(const site of sites)
           if(foBombCanInteract(a,site))eligible.push({id:a.id,site});
-        const chosen=eligible.find(e=>e.id===foBomb.actor&&e.site.id===foBomb.actionSite)||eligible[0]||null;
+        // An actively interacting player takes precedence over an AI operator.
+        const chosen=eligible.find(e=>e.id==='player')||
+          eligible.find(e=>e.id===foBomb.actor&&e.site.id===foBomb.actionSite)||eligible[0]||null;
         const blue=actors.filter(a=>a.team==='blue'&&a.alive).length,
           red=actors.filter(a=>a.team==='red'&&a.alive).length;
         const result=stepFoBomb(foBomb,dt,matchState.timeRemaining,blue,red,chosen,clockDt);
@@ -9223,9 +9228,12 @@
           site.beacon.visible=active&&site===foBomb.site;
           if(site.beacon.visible){site.beacon.rotation.y+=dt*2.4;site.beacon.position.y=1.0+Math.sin(foBomb.seconds*3)*.16;}
         }
+        const playerAtPlantZone=player.alive&&!active&&
+          FO_BOMB_SITES.some(site=>foBombInside({alive:true,pos:player.pos},site));
         status.textContent=blue+' / '+red+' CANLI • '+(active
           ?'BOMBA '+foBomb.site.id+' '+Math.ceil(foBomb.seconds)+' sn'
-          :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%':'A / B • BÖLGEDE DUR');
+          :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%'
+          :playerAtPlantZone?'F BASILI TUT • BOMBA KUR':'A / B BÖLGESİNE GİT • F BASILI TUT');
         if(active&&foBomb.actor)status.textContent+=' • ÇÖZÜLÜYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.defuseSeconds*100))+'%';
         // FO_V343_BEGIN c4-visual
         if(result?.reason==='Bomba patladı'&&foBomb.site){
@@ -9691,15 +9699,37 @@
         foRescue.captives=FO_RESCUE_POINTS.map((p,i)=>({id:p.id,x:room.x+(i===0?-2.5:2.5),z:room.z,carrier:null,actor:null,progress:0,saved:false,discovered:false}));
         syncFoRescueMarkers();
       }
-      function syncFoRescueMarkers(){
+      // FO_INTERACT_F_BEGIN escort: keep the civilian visible next to the carrier.
+      function syncFoRescueMarkers(dt=0){
         for(const p of foRescue.captives){
           const marker=FO_RESCUE_POINTS.find(q=>q.id===p.id);
+          let visibleX=p.x,visibleZ=p.z;
+          if(p.carrier&&!p.saved){
+            const actor=foBombActors().find(a=>a.id===p.carrier&&a.alive);
+            const vx=actor?(actor.player?player.vel.x:(actor.moveVelX||0)):0;
+            const vz=actor?(actor.player?player.vel.z:(actor.moveVelZ||0)):0;
+            const v=Math.hypot(vx,vz);
+            if(v>.35)p.followDir={x:vx/v,z:vz/v};
+            const dir=p.followDir||{x:0,z:-1};
+            // Visual-only escort offset: game objectives still use carrier position.
+            const targetX=p.x-dir.x*1.0,targetZ=p.z-dir.z*1.0;
+            if(!Number.isFinite(p.visualX)){p.visualX=p.x;p.visualZ=p.z;}
+            const t=dt>0?Math.min(1,dt*7):1;
+            p.visualX+=(targetX-p.visualX)*t;
+            p.visualZ+=(targetZ-p.visualZ)*t;
+            visibleX=p.visualX;visibleZ=p.visualZ;
+          }else{
+            p.visualX=p.x;p.visualZ=p.z;
+            p.followDir=null;
+          }
           for(const part of marker.parts||[]){
-            part.mesh.visible=!p.saved&&(part.isIndicator||!p.carrier);
-            part.mesh.position.set(p.x+(part.dx||0),part.y,p.z+(part.dz||0));
+            // The rescue icon is hidden while escorted, but the person remains.
+            part.mesh.visible=!p.saved&&(!part.isIndicator||!p.carrier);
+            part.mesh.position.set(visibleX+(part.dx||0),part.y,visibleZ+(part.dz||0));
           }
         }
       }
+      // FO_INTERACT_F_END escort
       function stepFoRescue(state,dt,remaining,actors,canPickup){
         if(state.captives.every(p=>p.saved))return {winner:'blue',reason:'İki esir kurtarıldı'};
         if(!actors.some(a=>a.alive&&a.team==='blue'))return {winner:'red',reason:'Kurtarma ekibi elendi'};
@@ -9718,7 +9748,7 @@
           const candidates=actors.filter(a=>a.alive&&a.team==='blue'&&Math.abs(a.pos.y)<1.5&&
             !state.captives.some(q=>q.carrier===a.id)&&
             Math.hypot(a.pos.x-p.x,a.pos.z-p.z)<=FO_RESCUE_RULES.pickupRadius&&canPickup(a,p));
-          const a=candidates.find(a=>a.id===p.actor)||candidates[0];
+          const a=candidates.find(a=>a.player)||candidates.find(a=>a.id===p.actor)||candidates[0];
           if(!a){p.actor=null;p.progress=0;continue;}
           if(p.actor!==a.id){p.actor=a.id;p.progress=0;}
           p.progress+=dt;
@@ -9737,13 +9767,20 @@
         }
         const result=stepFoRescue(foRescue,dt,matchState.timeRemaining,actors,(a,p)=>{
           if(!hasLineOfSight(new THREE.Vector3(a.pos.x,a.pos.y+1.3,a.pos.z),new THREE.Vector3(p.x,1.1,p.z)))return false;
-          return a.player?!droneSystem.isPlayerControlling()&&!mouseDownLeft&&Math.hypot(player.vel.x,player.vel.z)<1.3:
+          return a.player?!!keys['KeyF']&&gameplayInputAllowed()&&
+            !droneSystem.isPlayerControlling()&&!mouseDownLeft&&Math.hypot(player.vel.x,player.vel.z)<1.3:
             !a.visibleEnemy&&!a.activeDroneId&&Math.hypot(a.moveVelX||0,a.moveVelZ||0)<1;
         });
-        syncFoRescueMarkers();
+        syncFoRescueMarkers(dt);
         const saved=foRescue.captives.filter(p=>p.saved).length;
         const carrying=foRescue.captives.some(p=>p.carrier==='player');
-        document.getElementById('fo-bomb-status').textContent='ESİR '+saved+'/2 • '+(carrying?'TAHLİYE BÖLGESİNE DÖN':foRescue.captives.some(p=>p.actor==='player')?'KURTARILIYOR':'ESİRİN YANINDA DUR');
+        const pickingUp=foRescue.captives.find(p=>p.actor==='player');
+        const closeToCaptive=player.alive&&foRescue.captives.some(p=>!p.saved&&!p.carrier&&
+          Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<=FO_RESCUE_RULES.pickupRadius);
+        document.getElementById('fo-bomb-status').textContent='ESİR '+saved+'/2 • '+
+          (carrying?'ESİR SENİ TAKİP EDİYOR • TAHLİYE BÖLGESİNE DÖN':
+          pickingUp?'F • KURTARILIYOR '+Math.min(100,Math.floor(pickingUp.progress/FO_RESCUE_RULES.holdSeconds*100))+'%':
+          closeToCaptive?'F BASILI TUT • ESİRİ AL':'ESİRİ BUL • YAKLAŞ VE F BASILI TUT');
         if(result){foRescue.reason=result.reason;endMatch(result.winner);}
       }
       function getFoRescueBotOrder(bot,dt){
@@ -19597,7 +19634,9 @@ return {createExperimentalRig,createAdaptiveRigController};
       window.addEventListener('keydown', (e) => {
         const menuHidden = document.getElementById('menu-overlay').classList.contains('hidden');
         if (matchState.started && !matchState.ended && menuHidden) {
-          if (e.code === 'Space' || (droneSystem.isPlayerControlling() && (e.code === 'ControlLeft' || e.code === 'ControlRight'))) {
+          if (e.code === 'Space' ||
+              (e.code === 'KeyF' && (isFoBombMode()||isFoRescueMode())) ||
+              (droneSystem.isPlayerControlling() && (e.code === 'ControlLeft' || e.code === 'ControlRight'))) {
             e.preventDefault();
           }
         }
