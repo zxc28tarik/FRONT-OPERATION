@@ -8778,6 +8778,12 @@
           {cloth:mat(0x746b54),pants:mat(0x4d493d),trim:mat(0x4d4538),
             detail:mat(0x95856d),headwear:mat(0x5b5947)}
         ];
+        // Keep the approved torso vertex-based seam/contact shading on civilian cloth.
+        for(const outfit of outfits){
+          const m=outfit.cloth.clone();
+          m.vertexColors=true;m.needsUpdate=true;
+          m.name='FO_MILIS03_FABRIC';outfit.clothContact=m;
+        }
         const jacketBody=packed([
           piece(box,-.098,.285,.160,.165,.326,.054,-.035),
           piece(box,.098,.285,.160,.165,.326,.054,.035),
@@ -8851,7 +8857,7 @@
             const source=n.material,hex=source.color?.getHex?.(),name=source.name||'';
             const isCloth=n.userData?.v247Tailored||name==='V112 camouflage'||
               (hex!==undefined&&colors.some(c=>similar(hex,c)));
-            if(isCloth)n.material=material;
+            if(isCloth)n.material=n.userData?.v163Contact&&material===O.cloth?O.clothContact:material;
           });
         };
         recolor(model.upperBody,uniform,O.cloth);
