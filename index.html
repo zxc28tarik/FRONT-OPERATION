@@ -8934,7 +8934,7 @@
         ]);
         FO_MILIS02_ASSETS={outfits,jacketBody,jacketTrim,jacketDetail,headwear,eyes,beard,
           faceDark:plain(0x292521),stubble:plain(0x40352d),
-          sleevePatch:plain(0x8d4640)};
+          sleevePatch:plain(0x8d4640),weaponWood:plain(0x62472d)};
         return FO_MILIS02_ASSETS;
       }
       function foApplyMilis02Visual(model,classId,variant){
@@ -9013,6 +9013,23 @@
         model.root.userData.foFaction='milis';
         model.root.userData.foMilisOutfit=style;
         model.root.userData.foMilisHeadwear=v;
+        // FO_FACTION01 weapon silhouettes: alter inherited decorative stock/receiver
+        // without touching muzzle anchor, firing pivot, animation or hitboxes.
+        const gun=model.weaponPivot?.children||[];
+        if(gun.length>=3){
+          const receiver=gun[0],stock=gun[1];
+          if(classId==='medic'||classId==='engineer'){
+            receiver.scale.z*=.73;receiver.scale.y*=1.17;
+            stock.scale.z*=.56;
+            stock.position.z+=.032;
+          }else if(['assault','sniper','heavy'].includes(classId)){
+            stock.material=A.weaponWood;
+            if(classId==='assault')receiver.scale.y*=1.05;
+          }
+        }
+        model.root.userData.foMilisWeapon=foFactionWeapon('red',
+          classId==='assault'?'hk416':classId==='sniper'?'mrad':
+          classId==='heavy'?'minimi':'mp7');
         return model;
       }
       // FO_MILIS02_END
@@ -15182,7 +15199,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         const isMolotov=team==='red';
         const mesh = isMolotov
           ?new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,.18,10),
-            new THREE.MeshStandardMaterial({color:0x52714a,roughness:.4,metalness:0,transparent:true,opacity:.86}))
+            new THREE.MeshStandardMaterial({color:0x52714a,roughness:.4,metalness:0,transparent:true,opacity:.86,depthWrite:false}))
           :new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), WEAPON_MATS.olivePaint);
         if(isMolotov){
           const rag=new THREE.Mesh(new THREE.ConeGeometry(.026,.07,8),WEAPON_MATS.brass);
@@ -15210,6 +15227,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           ownerName,
           team,
           kind:isMolotov?'molotov':'m67',
+          ownedMaterials:isMolotov?[mesh.material]:[],
           age:0,
           fuse:isMolotov?3:2.3
         });
