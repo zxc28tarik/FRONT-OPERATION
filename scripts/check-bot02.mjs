@@ -38,4 +38,3 @@ for(const scenario of ['injured','healthy','dead','enemy','out-of-range']){
  mc++;
 }
 console.log('BOT02 isolated PASS',{heavy:cases,medicBaseline:mc,total:cases+mc});
-console.log('BOT02 isolated PASS',{heavy:cases,medic:mc,route:rc,total:cases+mc+rc});
