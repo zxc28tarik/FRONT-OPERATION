@@ -18021,7 +18021,11 @@ return {createExperimentalRig,createAdaptiveRigController};
                       const members=squadMembers[rallyKey]||[];
                       const leader=members.find(b=>b.id===squadLeaderId[rallyKey]);
                       const slot=leader?chooseBotFormationPoint(bot,leader,members,isPositionWalkable):null;
-                      if(slot){
+                      // FO_BOT02_BEGIN rally-direct-clear
+                      // A moving squad slot behind a solid barrier is not a safe
+                      // direct pursuit target. Use the existing tactical route.
+                      if(slot && isBotDirectWalkingLineClear(bot.pos,slot)){
+                      // FO_BOT02_END rally-direct-clear
                         const formationPoint=new THREE.Vector3(slot.x,slot.y,slot.z);
                         moveTargetPos = selectBotRallyWaypoint(bot, formationPoint);
                         if(!moveTargetPos)moveSpeed=0;

@@ -13,6 +13,7 @@ const originals={'contact-shortcircuit':originalContactDecision,
  'pressure-cache-objective':originalPressureObjective,
  'rally-advance':"                      behaviorHint='SUPPORT';\n                      setBotState(bot, 'SUPPORT_ALLY', 0.8);\n",
  'rally-stuck-fallback':"                  if (!isSquadLeader && rallyPt && bot.classId !== 'sniper' && bot.classId !== 'engineer') {\n",
+ 'rally-direct-clear':"                      if(slot){\n",
  'medic-ready-pursuit':"                const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;\n"};
 const restored=s.replace(tag,(_,name)=>originals[name]??'')
   .replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(');
