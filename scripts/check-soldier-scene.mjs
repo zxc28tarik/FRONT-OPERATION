@@ -61,6 +61,7 @@ class Object3D {
   rotateX() { return this; }
   rotateY() { return this; }
   rotateZ() { return this; }
+  traverse(fn) { fn(this); for (const child of this.children) child.traverse(fn); }
 }
 const THREE = new Proxy({
   Mesh: Object3D,
@@ -69,18 +70,22 @@ const THREE = new Proxy({
   Vector3
 }, { get: (o, k) => o[k] || Object3D });
 
+// Hierarchy mock: packed accessory data is covered by the actual Chromium/WebGL test.
+const militiaStub = "function foMilis02Assets(){const m=()=>new THREE.MeshStandardMaterial({color:0x555555});const outfit=()=>({cloth:m(),pants:m(),trim:m(),detail:m(),headwear:m()});return {outfits:[outfit(),outfit()],jacketBody:{},jacketTrim:{},jacketDetail:{},headwear:[{},{},{}],eyes:{},beard:{},faceDark:m(),stubble:m()};}";
+assert.match(source,/FO_MILIS02_BEGIN[\s\S]*FO_MILIS02_END/,'militia V2 visual section');
+assert.match(extract('foMilis02Assets'),/g\.setAttribute\('position'/,'packed buffer geometry builder');
 const modelCode = `let SOLDIER_SHARED = null;
 let SOLDIER_V11_DETAIL_GEOMETRIES = null;
-let FO_MILIS01_ASSETS = null;
-${extract('foMilis01Assets')}
-${extract('foApplyMilis01Visual')}
+let FO_MILIS02_ASSETS = null;
+${militiaStub}
+${extract('foApplyMilis02Visual')}
 ${extract('getSoldierSharedAssets')}
 ${extract('createLimbMesh')}
 ${extract('createBotSoldierMesh')}
 ${extract('enhanceV25SoldierWithV11Details')}
 ${extract('createEnhancedBotSoldierMesh')}
-({ base: createBotSoldierMesh, enhanced: createEnhancedBotSoldierMesh });`;
-const { base: baseFactory, enhanced: factory } = vm.runInNewContext(modelCode, { THREE });
+({ base: createBotSoldierMesh, enhanced: createEnhancedBotSoldierMesh, visual: foApplyMilis02Visual });`;
+const { base: baseFactory, enhanced: factory, visual: applyMilisVisual } = vm.runInNewContext(modelCode, { THREE });
 assert.equal((source.match(/createEnhancedBotSoldierMesh\(/g) || []).length, 4,
   'all three bot/stand-in creation sites use enhanced V25 rig');
 const required = ['root', 'upperBody', 'head', 'leftHip', 'rightHip',
@@ -95,8 +100,8 @@ for (const team of ['blue', 'red']) {
       // V26/V26B adds production-quality layers on top of V25+V11.
       // Exact deltas protect against removing these approved details.
       ['root', 2],
-      ['upperBody', (role === 'medic' ? 17 : 16) + (team === 'red' ? 1 : 0)],
-      ['head', 12 + (team === 'red' ? 1 : 0)], // V246 group plus optional militia appearance
+      ['upperBody', (role === 'medic' ? 17 : 16) + (team === 'red' ? 3 : 0)],
+      ['head', 12 + (team === 'red' ? 3 : 0)], // V246 group plus optional militia appearance
       ['leftHip', 3],
       ['rightHip', 3],
       ['leftKnee', 3],
@@ -130,9 +135,14 @@ for (const team of ['blue', 'red']) {
     assert.ok(model.head.children.some(n=>n.name==='v105_role_helmet'||n.name==='v246_integrated_helmet'),'role helmet geometry');
     if(team==='red'){
       assert.equal(model.root.userData.foFaction,'milis','red team has civilian militia identity');
-      assert.ok(model.head.children.some(n=>n.name==='fo_milis01_face'),'militia face/headwear attached to approved pivot');
-      assert.ok(model.upperBody.children.some(n=>n.name==='fo_milis01_jacket'),'militia jacket attached to approved torso');
+      assert.ok(model.head.children.some(n=>n.name==='fo_milis02_headwear'),'militia face/headwear attached to approved pivot');
+      assert.ok(model.upperBody.children.some(n=>n.name==='fo_milis02_jacket'),'militia jacket attached to approved torso');
       assert.ok(model.head.children.find(n=>n.name==='v246_integrated_helmet')?.visible===false,'militia helmet hidden');
+      assert.equal(model.root.userData.foMilisOutfit,0,'default red outfit is charcoal jacket');
+      assert.equal(model.root.userData.foMilisHeadwear,0,'default red beanie selection');
+      assert.equal(model.upperBody.children.filter(n=>n.name?.startsWith('fo_milis02_')).length,3,'three packed torso layers');
+      assert.equal(model.head.children.filter(n=>n.name?.startsWith('fo_milis02_')).length,3,'three packed face/headwear layers');
+      assert.ok(model.head.children.filter(n=>n.name?.startsWith('fo_milis02_')).every(n=>n.castShadow===false),'new detail has no extra shadows');
     }
     assert.equal(model.upperBody.children.filter(n=>n.name==='v105_role_vest').length,2,'role vest fit');
     assert.ok(model.head.children.some(n=>n.name==='v106_face'),'fitted face');
@@ -151,6 +161,16 @@ for (const team of ['blue', 'red']) {
   }
 }
 assert.equal(count, 10);
+for(let variant=0;variant<3;variant++){
+  const m=applyMilisVisual(baseFactory('red','assault'),'assault',variant);
+  assert.equal(m.root.userData.foMilisOutfit,variant===1?1:0,'exactly two coherent outfits');
+  assert.equal(m.root.userData.foMilisHeadwear,variant,'three headwear variants');
+  assert.ok(m.head.children.some(n=>n.name==='fo_milis02_headwear'),'headwear anchored to the head');
+  assert.ok(m.upperBody.children.some(n=>n.name==='fo_milis02_jacket'),'jacket anchored to the torso');
+}
+const blue=factory('blue','assault');
+assert.ok(!blue.root.userData?.foFaction,'blue team has no militia override');
+
 
 const getMuzzle = vm.runInNewContext(
   extract('getBotVisibleMuzzlePosition') + ';getBotVisibleMuzzlePosition;',

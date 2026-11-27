@@ -1,0 +1,33 @@
+name: Export FRONT OPERATION Milis V5 single HTML
+on:
+  push:
+    branches:
+      - art/fo-milis02-outfit-refinement
+    paths:
+      - '.github/workflows/export-milis-v5-html.yml'
+      - 'index.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export-single-html:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify and package same playable HTML without modification
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'FO_MILIS05' index.html
+          grep -q 'FO_MILIS04' index.html
+          grep -q '<!DOCTYPE html>' index.html
+          mkdir -p export
+          cp index.html export/FRONT_OPERATION_MILIS_V5.html
+          cmp index.html export/FRONT_OPERATION_MILIS_V5.html
+          sha256sum index.html export/FRONT_OPERATION_MILIS_V5.html > export/SHA256.txt
+          git rev-parse HEAD > export/COMMIT.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FRONT_OPERATION_MILIS_V5_HTML
+          path: export/
+          retention-days: 30

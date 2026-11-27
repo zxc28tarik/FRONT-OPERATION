@@ -30,10 +30,41 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert(hands.every(h=>h.position.toArray().every(Number.isFinite)));assert(mag.position.distanceTo(magRest)>.05);
  m.resetVisualCombatPose();assert(m.weaponPivot.position.distanceTo(rest)<.00001);assert(mag.position.distanceTo(magRest)<.00001);
  let camo=0;m.root.traverse(n=>{if(n.material?.name==='V112 camouflage')camo++;});
- assert(camo>0);
+ if(team==='blue')assert(camo>0,'soldier military camouflage retained');
+ else{
+   assert.equal(camo,0,'civilian militia no longer uses military camouflage');
+   const waist=m.root.children.find(n=>n.userData.v245Pelvis);
+   assert(waist,'militia waist mesh retained');
+   assert.equal(waist.material.color.getHex(),0x383f44,'militia pelvis matches trousers');
+ }
  const head=m.head.children.find(n=>n.name==='v106_face'),other=alt.head.children.find(n=>n.name==='v106_face');
  assert(head.geometry!==other.geometry&&head.material!==other.material);assert(head.geometry===api.enhanced(team,cls,0).head.children.find(n=>n.name==='v106_face').geometry);
  assert.equal(alt.root.userData.visualVariant,1);assert.equal(alt2.root.userData.visualVariant,2);
+ if(team==='red'){
+   assert.equal(m.root.userData.foMilisOutfit,0,'outfit 0 charcoal');
+   assert.equal(alt.root.userData.foMilisOutfit,1,'outfit 1 earth');
+   assert.equal(alt2.root.userData.foMilisOutfit,0,'only two outfit palettes');
+   for(const [i,x] of [m,alt,alt2].entries()){
+     assert.equal(x.root.userData.foMilisHeadwear,i,'headwear variant');
+     assert(x.head.children.some(n=>n.name==='fo_milis02_headwear'&&n.visible),'visible civilian headwear');
+     assert(x.head.children.some(n=>n.name==='v106_face'&&n.visible),'anatomical face exposed');
+     assert(x.upperBody.children.some(n=>n.name==='fo_milis02_jacket'),'jacket attached');
+     assert(x.upperBody.children.filter(n=>n.name.startsWith('fo_milis02_')).every(n=>!n.castShadow),
+       'militia details add no shadow draws');
+     const militaryParts=x.upperBody.children.filter(n=>['v248HarnessFit','v250StrapContour',
+       'v251Harness','v252Harness','v252ShoulderShield','v252HeavyCollar'].some(key=>n.userData[key]));
+     assert(militaryParts.every(n=>!n.visible),'militia tactical harness/shield hidden');
+     const helm=x.head.children.find(n=>n.name==='v246_integrated_helmet');
+     assert(!helm||!helm.visible,'military helmet cannot remain visible');
+   }
+   assert.equal(m.upperBody.children.find(n=>n.name==='fo_milis02_jacket').geometry,
+     alt.upperBody.children.find(n=>n.name==='fo_milis02_jacket').geometry,'static jacket geometry shared');
+   assert.notEqual(m.upperBody.children.find(n=>n.name==='fo_milis02_jacket').material,
+     alt.upperBody.children.find(n=>n.name==='fo_milis02_jacket').material,'two actual textile materials');
+ }else{
+   for(const x of [m,alt,alt2])assert(!x.root.userData.foFaction,'soldier cannot inherit militia appearance');
+ }
+
  const faceGroup=x=>x.head.children.find(n=>n.name==='v99_head');
  assert(faceGroup(m).children.some((n,i)=>n.geometry!==faceGroup(alt).children[i].geometry),'visible face geometry differs');
  assert.equal(faceGroup(m).children[0].geometry,faceGroup(api.enhanced(team,cls,0)).children[0].geometry,'same variant shares face geometry');
@@ -67,7 +98,7 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
    assert(j.high.boundingBox&&j.high.getAttribute('position').count>=375&&j.n.userData.v240TextileBridge);
    if(team==='blue')assert(j.n.material.name==='V112 camouflage','soldier joint camouflage unchanged');
    else{
-     const expected=['hip','knee'].includes(j.kind)?0x373c3f:0x3b4951;
+     const expected=['hip','knee'].includes(j.kind)?0x383f44:0x454c4a;
      assert.equal(j.n.material.color.getHex(),expected,'militia joint matches civilian cloth');
    }
    assert(j.n.quaternion.toArray().every(Number.isFinite));
@@ -89,8 +120,13 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
    // V249 upgrades carrier/pack textile finishes with a shared 64px material
    // micro-map. Original uniform V164 textures must remain 256px and repeat twice.
    const v249=n.userData.v249Finish;
-   assert.equal(mat.bumpMap.image.width,v249&&v249!=='uniform'?64:256);
-   assert.equal(mat.bumpMap.repeat.x,v249&&v249!=='uniform'?3:2);
+   const militiaWeave=team==='red'&&mat.name==='FO_MILIS03_FABRIC';
+   assert.equal(mat.bumpMap.image.width,militiaWeave?64:v249&&v249!=='uniform'?64:256);
+   assert.equal(mat.bumpMap.repeat.x,militiaWeave?3:v249&&v249!=='uniform'?3:2);
+   if(militiaWeave){
+     assert(mat.map.image.width===64&&mat.roughnessMap.image.width===64,'64px shared fabric map trio');
+     assert(mat.bumpScale>0&&mat.bumpScale<=.009,'subtle, physically non-displacing cloth bump');
+   }
  }
  assert.equal(contacts.length,2);
  assert(contacts.every(n=>n.material.vertexColors&&n.geometry.getAttribute('color').array.some(v=>v<.99)));

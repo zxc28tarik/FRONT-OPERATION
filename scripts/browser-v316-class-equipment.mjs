@@ -12,9 +12,30 @@ const stripH332=h=>h.replace(h332Tag,(_,id)=>{if(!Object.hasOwn(h332Originals,id
 const h328Tag=/      \/\/ FO_H328_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_H328_END [^\n]+\n/g;
 const g324Tag=/      \/\/ FO_G324_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_G324_END [^\n]+\n/g;
 const gTag=/      \/\/ FO_G320_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_G320_END [^\n]+\n/g;
-const html=stripH332(fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm,'').replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(').replace(/^ *\/\/ FO_V344_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V344_END \1\n/gm,'').replace(/^ *\/\/ FO_V343_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V343_END \1\n/gm,'').replace(/^ *\/\/ FO_V342_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V342_END \1\n/gm,'').replace(/^ *\/\/ FO_V341_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V341_END \1\n/gm,'').replace(/^ *\/\/ FO_V340_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V340_END \1\n/gm,'').replace(/^ *\/\/ FO_V339_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V339_END \1\n/gm,'').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'').replace(/    \/\* FO_I335_BEGIN responsive-ui \*\/\n[\s\S]*?    \/\* FO_I335_END responsive-ui \*\/\n/g,'')).replace(h328Tag,'').replace(g324Tag,'').replace(gTag,'');
+// The new militia art is a separate strictly visual revision. Restore precisely
+// the previous militia section, then run the unchanged F316 gameplay parity guard.
+// Comparing the reconstructed full HTML to its exact parent also blocks any
+// inadvertent AI, weapon, UI, map or game-state edits.
+const militiaBase=execFileSync('git',['show','088e61317d5de2f8d44cbe772f2c393770a4d61e:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
+const milestoneHtml=fs.readFileSync('index.html','utf8');
+const milisOldStart=militiaBase.indexOf('      // FO_MILIS01_BEGIN');
+const milisOldEnd=militiaBase.indexOf('      function createEnhancedBotSoldierMesh(',milisOldStart);
+const milisNewStart=milestoneHtml.indexOf('      // FO_MILIS02_BEGIN');
+const milisNewEnd=milestoneHtml.indexOf('      function createEnhancedBotSoldierMesh(',milisNewStart);
+assert.ok(milisOldStart>=0&&milisOldEnd>milisOldStart&&milisNewStart>=0&&milisNewEnd>milisNewStart,'militia visual section boundaries');
+const restoredMilitia=milestoneHtml.slice(0,milisNewStart)+
+  militiaBase.slice(milisOldStart,milisOldEnd)+milestoneHtml.slice(milisNewEnd)
+    .replace('foApplyMilis02Visual(model,classId,variant)','foApplyMilis01Visual(model,classId,variant)');
+assert.equal(restoredMilitia,militiaBase,'Milis02 may change only presentation section and factory hook');
+const html=stripH332(restoredMilitia.replace(/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm,'').replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(').replace(/^ *\/\/ FO_V344_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V344_END \1\n/gm,'').replace(/^ *\/\/ FO_V343_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V343_END \1\n/gm,'').replace(/^ *\/\/ FO_V342_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V342_END \1\n/gm,'').replace(/^ *\/\/ FO_V341_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V341_END \1\n/gm,'').replace(/^ *\/\/ FO_V340_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V340_END \1\n/gm,'').replace(/^ *\/\/ FO_V339_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V339_END \1\n/gm,'').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'').replace(/    \/\* FO_I335_BEGIN responsive-ui \*\/\n[\s\S]*?    \/\* FO_I335_END responsive-ui \*\/\n/g,'')).replace(h328Tag,'').replace(g324Tag,'').replace(gTag,'');
 const tag=/      \/\/ FO_F316_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_F316_END [^\n]+\n/g;
-assert.equal(html.replace(tag,''),baseline,'F must not change any non-presentation source');
+const f316SourceParts=(text)=>[...text.matchAll(tag)].map(m=>m[0]);
+assert.ok(f316SourceParts(milestoneHtml).length>=1,'F316 sections remain present');
+assert.deepEqual(f316SourceParts(milestoneHtml),f316SourceParts(militiaBase),
+  'F316 class-equipment render and helper code remains byte-identical to the parent');
+// The full-file byte check above is stricter for this Milis02-only PR than
+// comparing against the obsolete pre-V336 snapshot: no source outside the
+// new militia visual section may differ from the current parent.
 const source=html.match(/      \/\/ FO_F316_BEGIN helper\n([\s\S]*?)      \/\/ FO_F316_END helper/)[1];
 const definitions=html.slice(html.indexOf('      const DRONE_CONFIG ='),html.indexOf('      // 2. PROCEDURAL WEB AUDIO'));
 const {DRONE_CONFIG,WEAPONS,CLASSES}=new Function(definitions+';return {DRONE_CONFIG,WEAPONS,CLASSES}')();
@@ -94,7 +115,7 @@ window.__foF316QA={
 const server=createServer((req,res)=>{
  if(req.url==='/three.min.js'){res.writeHead(200,{'content-type':'text/javascript'});res.end(fs.readFileSync('node_modules/three/build/three.min.js'));return;}
  res.writeHead(200,{'content-type':'text/html; charset=utf-8'});
- res.end(html.replace('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js','/three.min.js').replace(anchor,hook+anchor));
+ res.end(milestoneHtml.replace('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js','/three.min.js').replace(anchor,hook+anchor));
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader']});
@@ -106,7 +127,8 @@ try{
  await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({contentType:'text/css',body:''}));
  await page.addInitScript(()=>{window.requestAnimationFrame=()=>1;});
  await page.goto('http://127.0.0.1:'+server.address().port+'/',{waitUntil:'load',timeout:80000});
- await page.waitForFunction(()=>window.__foF316QA?.ready());
+ try{await page.waitForFunction(()=>window.__foF316QA?.ready(),null,{timeout:15000});}
+ catch(e){throw new Error('F316 browser startup failed: '+errors.join(' | ')+' ; '+e.message);}
  const report=await page.evaluate(()=>window.__foF316QA.test());
  const rows=report.results;assert(rows.every(r=>r.unchanged));
  for(const [id,slots] of Object.entries(expected))for(let slot=1;slot<=4;slot++){

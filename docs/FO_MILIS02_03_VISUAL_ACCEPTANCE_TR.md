@@ -1,0 +1,58 @@
+# FRONT OPERATION — Milis FO_MILIS02/03 görünüm ve kalite kabul kaydı
+
+Tarih: 27 Kasım 2026. PR: https://github.com/zxc28tarik/FRONT-OPERATION/pull/69  
+Geliştirme dalı: `art/fo-milis02-outfit-refinement`  
+Taban: `art/v292-crouch-transition`. **Main'e merge yapılmadı.**
+
+## Kapsam
+
+- Kırmızı takımda orijinal V25/V106 insan kafası, silah pivotları, mevcut sınıf silahı ve animasyon rig korunur.
+- İki sivile yakın milis kumaş paleti: koyu gri/füme ceket ve toprak tonlu iş kıyafeti; üç başlık/yüz varyasyonu.
+- Ağır askerî kask ve yelek görselde saklanır; fizik, isabet alanı, nişan, saldırı, karar, takım, görev ve bot rota kodu değişmez.
+- FO_MILIS03 düz renkli kumaşı, **tek kez oluşturulan ve bütün milisler arasında paylaşılan** üç adet 64×64 veri dokusu ile değiştirir (renk mikro-dokusu, kabartma hissi, pürüzlülük). Yeni dinamik gölge yok.
+- V163 gövde üzerindeki mevcut gölgeli köşe/temas renkleri `vertexColors` materyal varyantıyla korunur.
+- Mevcut uzaklık seviyelerinde küçük yüz ve dikiş detayları kapatılır, kask tekrar açılmaz.
+
+## Kod ve test
+
+- Oyun kodu farkı yalnız `index.html` içindeki `FO_MILIS02_BEGIN/END` sunum bloğunda ve ilgili mevcut çağrı adındadır.
+- `scripts/check-soldier-scene.mjs` orijinal 10 sınıf/takım iskeleti, namlu pivotu ve milis/asker ayrımını sınar.
+- `scripts/check-soldier-real-geometry.mjs` gerçek Three.js geometrileri, ekipman, animasyon, yüz, 2 kumaş, 3 başlık, LOD, malzeme haritaları ve gövde köşe gölgelerini sınar.
+- `scripts/browser-milis02-visual.mjs` izole Chromium/WebGL koşulunda 5 sınıf × 3 görünümü, farklı kameraları ve 5/15 karakter sahnelerini çizer. Ekran görüntüleri ve rapor GitHub Actions arşivinde tutulur.
+- `scripts/browser-v316-class-equipment.mjs` mevcut sınıf-ekipman/kontrol davranışlarını korumayı sınar; güncel üst taban ile milis dışı **birebir kaynak eşitliği** ayrı olarak doğrulanır.
+
+## Başarılı sonuç (V3 kumaş + gövde gölgelendirmesi)
+
+WebGL çalışması: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46014184249  
+Sonuç: **PASS**, 15 karakter/varyasyon denetimi, **20** gerçek Chromium görüntüsü (5 sınıf × ön/çeyrek/arka/yüz yakın plan), gerçek Three.js/LOD kontrolü.
+
+| İzole sabit kamera | Görünen mesh | Çizim çağrısı | Üçgen |
+| --- | ---: | ---: | ---: |
+| Asker, 5 model | 680 | 681 | 207.144 |
+| Milis, 5 model | 505 | 506 | 151.932 |
+| Asker, 15 model | 2.040 | 2.041 | 621.428 |
+| Milis, 15 model | 1.516 | 1.517 | 456.342 |
+
+V316 sınıf ve ekipman gerçek Chromium regresyonu ayrıca başarılı: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46014184100\n\nBu ölçümler *gerçek oyunun FPS'si değildir*. Takım donanımları da farklı olduğu için doğrudan eşit model karşılaştırması sayılmaz. Kare süreleri, düşük donanım ve gerçek maç FPS'i ayrıca ölçülmelidir. Oluşturulmuş görsellerin sanat yönetimi açısından yakın plan insan kontrolü henüz tamamlanmamıştır.
+
+## Açık işler
+
+- 5 sınıfın ek yakın plan yüz görüntüsü CI ile oluşturuldu; sanat yönetimi açısından öznel yakın plan kabulü kullanıcı incelemesini bekliyor.
+- PC ve mobil hedef cihazlarda gerçek maç kare süreleri ve kalite incelemesi.
+- GitHub PR #69 taslak durumda; test sonucu ve kullanıcı kabulü olmadan ana dala birleştirme yapılmaz.
+
+## FO_MILIS04 / FO_MILIS05 — gerçek ekran görüntülerine göre düzeltme
+
+20 gerçek WebGL görüntüsü ve göğüs/başlık yakın planı insanlar tarafından incelendi. İlk V2/V3'teki kıyafet ön panelleri fazla hacimli ve dikdörtgen göründüğü için askeri göğüs zırhını andırıyordu.
+
+- Önceki kalın iki panel kaldırıldı; gövdenin mevcut şekillendirilmiş kıyafeti esas alındı. Ön dikiş, cep şeridi ve etek ucu çok ince geometriyle yapıldı.
+- V248–V252 tespitli omuz kalkanları ve göğüs/omuz kayışları milislerde gizlendi. Doktor sırt çantası, mühendis paketi, heavy taşıma paketi, bot silahı ve rig korunuyor.
+- Askerî kırmızı bel kumaşı milis pantolonu paletine dönüştürüldü; mevcut sağlıkçı ve sınıf donanımı ayrımı korunuyor.
+- Baş sargısı üst kısmı kapatıldı; fazla iri yüz kılı ve kaş parçaları inceltildi.
+- Son V5 rötuşu: kalın parlak kırmızı göğüs IFF işareti gizlendi, kollardaki takım işareti koyu-kırmızıyla sadeleştirildi.
+- Önceki 20 kare arşivi: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46014184249 . V4 temel görsel+gerçek geometri PASS: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46015461721
+- **FO_MILIS05 final gerçek WebGL PASS**: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46015770868 . 15 sınıf/varyasyon, 20 ekran görüntüsü, mavi asker kimliği, milis omuz/yelek gizleme, takım işaretleri ve 5/15 karakter çizim yükü doğrulandı. Final V316 sınıf-ekipman PASS: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46015750524 .
+- V5 izole sabit kamera, 15 asker: 2.041 çizim çağrısı / 621.428 üçgen; 15 milis: **1.448 çizim çağrısı / 454.796 üçgen**. V3 milis 1.517 / 456.342 idi: **69 daha az çizim çağrısı** (bu testte yaklaşık %4,5 azalma). Gerçek maç FPS ölçümü değildir.
+- V5 ekran görüntüleri kaynak kontrolüyle yan yana incelendi: ön askeri levha/kalın kayışlar azaldı, ikinci kıyafetin kafa sargısı kapandı, ön askerî kırmızı IFF görünmüyor. Öznel estetik/oyuncu onayı yine ayrı.
+
+Yalnızca görsel çizim ve testler değişti. V4 geçtikten sonra V5 için ayrıca CI koşturuldu; mobil/PC gerçek oyun FPS'i henüz ölçülmedi.
