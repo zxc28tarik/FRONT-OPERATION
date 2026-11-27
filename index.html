@@ -17833,6 +17833,23 @@ return {createExperimentalRig,createAdaptiveRigController};
                 setBotState(bot,'INVESTIGATE',.75,true);
                 desiredUpperYaw=Math.atan2(bot.lastKnownEnemyPos.x-bot.pos.x,bot.lastKnownEnemyPos.z-bot.pos.z);
                 moveSpeed=0;targetCrouch=.2;foPriorityCombat=true;
+                // FO_BOT02_BEGIN short-reacquisition
+                // TDM-only: keep an ongoing ENGAGE decision through a brief lost-LOS
+                // scan while moving toward the LAST OBSERVED (never hidden live) position.
+                // No fire may occur without fresh bestEnemy perception; normal
+                // collision and walkable-line checks remain authoritative.
+                const recentContact=bot.contactOpportunity;
+                if(matchState.mode==='deathmatch'&&bot.behavior?.kind==='ENGAGE'&&
+                   recentContact&&nowSec>=recentContact.lastSeen&&nowSec-recentContact.lastSeen<=.65&&
+                   bot.lastKnownEnemyPos&&
+                   Math.abs(bot.lastKnownEnemyPos.y-bot.pos.y)<1.5&&
+                   Math.hypot(bot.lastKnownEnemyPos.x-bot.pos.x,bot.lastKnownEnemyPos.z-bot.pos.z)>1.35&&
+                   isBotDirectWalkingLineClear(bot.pos,bot.lastKnownEnemyPos)){
+                  behaviorHint='ENGAGE';
+                  moveTargetPos=bot.lastKnownEnemyPos.clone();
+                  moveSpeed=3.1;targetCrouch=0;
+                }
+                // FO_BOT02_END short-reacquisition
               } else if ((isFoBombMode() && foBotMissionEligible(bot) && (foMissionOrder=getFoBombBotOrder(bot,dt))) || (isFoRescueMode()&&(foMissionOrder=getFoRescueBotOrder(bot,dt)))) {
                 behaviorHint='ADVANCE';
                 // Objective mode owns quiet movement; avoid running legacy patrol and medic routes underneath it.
