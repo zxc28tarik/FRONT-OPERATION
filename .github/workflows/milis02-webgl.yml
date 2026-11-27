@@ -1,0 +1,33 @@
+name: FO MILIS02 isolated real WebGL visual and mesh acceptance
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'scripts/browser-milis02-visual.mjs'
+      - 'scripts/check-soldier-real-geometry.mjs'
+      - '.github/workflows/milis02-webgl.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  milis-real-three:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install real Three.js and Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0 three@0.128.0
+          npx playwright install --with-deps chromium
+      - name: Preserve actual articulated geometry and LOD
+        run: node scripts/check-soldier-real-geometry.mjs
+      - name: Render militia V2 variants, class gear, blue team and 5/15 models
+        run: node scripts/browser-milis02-visual.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fo-milis02-real-webgl
+          path: test-artifacts/fo-milis02/
