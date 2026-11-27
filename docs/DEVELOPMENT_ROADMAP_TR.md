@@ -411,3 +411,9 @@ Proje sahibi geri bildirimi: önceki AI geliştirmeleri oynanışı kötüleşti
 - Gerçek V349 15 maç sonucu açıklandı: 15/15 maç PASS ama BOT02 kalite REVIEW_REQUIRED. TDM ADVANCE↔SUPPORT 5236 geçiş, 4937 hızlı salınım. Heavy ve Assault'ta da görülen bu olay sıradan manga formasyonunun yanlış SUPPORT karar türüne bağlanmasından.
 - V350 yalnız manga formasyonunu ADVANCE olarak ele alır; gerçek Medic desteği ayrı, düşmanla temas ENGAGE ve bomba/esir MISSION daha yüksek öncelikli. Formasyon konumu/hızı, savaş veya nişan kuralları değişmez. Hedef sahte sayım azaltmak değil, davranış geçişinin sıfırladığı gerçek hareket ilerlemesini korumaktır.
 - Yeni 80 manga koşulu + 5 savaş/görev önceliği testi. V344 byte-for-byte restore guard korunur. A/B beklenir, gerileme kabul edilmez. Main dokunulmadı.
+
+
+### V351 / BOT02 — Gerçek stuck'ta formasyon terk etme ve Medic cooldown hareketi
+- V350 15 doğal maç tamamlandı ama kalite RED: Heavy/Assault/Medic stuck yükseldi, Medic boşta daha uzun kaldı. Buna karşın karar salınımı ve Heavy karar geçişlerinde büyük azalma var.
+- V351: Formasyon hedefi ilerlemeyi gerçekten durdurup stuck recovery tetiklerse, geçerli mevcut taktik rota tercih edilir; normalde manga ADVANCE korunur. Medic kit hazır değilken hastanın yanında beklemek yerine mevcut rota/göreve katılır, kitin bitmesine 1.5 sn kala gerekirse hastaya yaklaşır. Bomba/esir görev planı ve tüm normal silah ateş şartları aynı. Kod yalnız kontrollü BOT02 dalında.
+- Kalite kapısı değişmedi, yeni V351 15 maç A/B beklenir. Kullanıcının reddettiği V346 kısa görüş kaybı takibi geri getirilmedi.

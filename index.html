@@ -17849,7 +17849,12 @@ return {createExperimentalRig,createAdaptiveRigController};
                 bot.coverNode = -1;
                 bot.coverPhase = 'NONE';
 
-                const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;
+                // FO_BOT02_BEGIN medic-ready-pursuit
+                // A Medic with an unavailable medkit keeps moving with the squad.
+                // Only resume patient pursuit shortly before treatment is ready.
+                const injuredAlly = bot.classId === 'medic' && bot.abilityCooldown <= 1.5
+                  ? selectBotMedicPatient(bot) : null;
+                // FO_BOT02_END medic-ready-pursuit
                 const nextPatientId = injuredAlly ? injuredAlly.id : null;
                 if (bot.supportAllyId !== nextPatientId) {
                   bot.supportGoalNode = -1;
@@ -17999,7 +18004,12 @@ return {createExperimentalRig,createAdaptiveRigController};
                   const isSquadLeader = squadLeaderId[rallyKey] === bot.id;
                   const rallyPt = squadRallyPos[rallyKey];
 
-                  if (!isSquadLeader && rallyPt && bot.classId !== 'sniper' && bot.classId !== 'engineer') {
+                  // FO_BOT02_BEGIN rally-stuck-fallback
+                  // After an actual blocked-route recovery, pursue the bot's own
+                  // tactical path until movement succeeds; do not chase a blocked
+                  // moving formation waypoint on every frame.
+                  if (!isSquadLeader && !(bot.stuckFailures>0) && rallyPt && bot.classId !== 'sniper' && bot.classId !== 'engineer') {
+                  // FO_BOT02_END rally-stuck-fallback
                     const dRally = bot.pos.distanceTo(rallyPt);
                     if (dRally > 6.5 && dRally < 28 && Math.abs(rallyPt.y - bot.pos.y) < 1.5) {
                       // FO_BOT02_BEGIN rally-advance
