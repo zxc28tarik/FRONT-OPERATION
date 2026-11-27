@@ -18,18 +18,24 @@ for(const mode of ['deathmatch','bomb','rescue'])for(const cls of ['heavy','assa
  assert.equal(h(b,e,3.1,false,'x',false,mode),false);
  assert.equal(h(b,e,3.2,false,'x',true,mode),false);cases++;
 }
-const sel=s.slice(s.indexOf('      function selectBotMedicPatient('),s.indexOf('      // V34: Make friendly corridor negotiation'));
-const pos=x=>({x,distanceTo(p){return Math.abs(x-p.x)}});let mc=0;
-for(const mode of ['deathmatch','bomb','rescue'])for(const cooldown of [0,3])for(const kit of ['none','friendly','enemy','expiring','blocked']){
- const b={id:'medic',classId:'medic',team:'blue',abilityCooldown:cooldown,pos:pos(0)},ally={id:'ally',alive:true,hp:40,team:'blue',pos:pos(4)},player={alive:false};
- const kits=kit==='none'?[]:[{team:kit==='enemy'?'red':'blue',life:kit==='expiring'?.1:10,healTick:.5,pos:pos(4)}];
- const fn=new Function('matchState','bots','player','activeMedkits','mapColliders','foMedkitReachable',sel+';return selectBotMedicPatient')({mode},[b,ally],player,kits,[],()=>kit!=='blocked');
- assert.equal(fn(b)?.id,mode==='deathmatch'&&(cooldown>0||kit==='friendly')?undefined:'ally');mc++;
+// Medic BOT02 experiments were rejected; verify exact V344 selection/route parity.
+const a='      function selectBotMedicPatient(',b='      // V34: Make friendly corridor negotiation';
+assert.equal(s.slice(s.indexOf(a),s.indexOf(b)),o.slice(o.indexOf(a),o.indexOf(b)));
+assert(!s.includes('FO_BOT02_BEGIN medic-route'));
+assert(!s.includes('FO_BOT02_BEGIN short-reacquisition'));
+let mc=0;
+const sel=s.slice(s.indexOf(a),s.indexOf(b));
+const pos=x=>({x,distanceTo(p){return Math.abs(x-p.x)}});
+for(const mode of ['deathmatch','bomb','rescue'])
+for(const cooldown of [0,3])
+for(const scenario of ['injured','healthy','dead','enemy','out-of-range']){
+ const bot={id:'medic',classId:'medic',team:'blue',abilityCooldown:cooldown,pos:pos(0)};
+ const ally={id:'ally',alive:scenario!=='dead',team:scenario==='enemy'?'red':'blue',
+   hp:scenario==='healthy'?100:40,pos:pos(scenario==='out-of-range'?25:4)};
+ const patient=new Function('bots','player',sel+';return selectBotMedicPatient')(
+   [bot,ally],{id:'player',alive:false,team:'blue',hp:100,pos:pos(0)})(bot);
+ assert.equal(patient?.id,scenario==='injured'?'ally':undefined);
+ mc++;
 }
-const route=s.match(/\/\/ FO_BOT02_BEGIN medic-route\n([\s\S]*?)\n *\/\/ FO_BOT02_END medic-route/)[1];let rc=0;
-for(const mode of ['deathmatch','bomb','rescue'])for(const cls of ['medic','heavy'])for(const patient of [null,{}])for(const owned of [true,false]){
- let calls=0;const b={classId:cls,supportAllyId:'ally',supportGoalNode:1,path:[0,owned?1:2],goalNode:2,pathIndex:1,blockedNode:-1,pos:pos(0)};
- new Function('matchState','bot','injuredAlly','NAV_NODES','findNearestNavNode','findPathAStar',route)({mode},b,patient,[{}, {}, {}],()=>0,()=>{calls++;return [0,2]});
- assert.equal(calls,mode==='deathmatch'&&cls==='medic'&&!patient&&owned?1:0);rc++;
-}
+console.log('BOT02 isolated PASS',{heavy:cases,medicBaseline:mc,total:cases+mc});
 console.log('BOT02 isolated PASS',{heavy:cases,medic:mc,route:rc,total:cases+mc+rc});
