@@ -140,9 +140,9 @@ for (const team of ['blue', 'red']) {
       assert.ok(model.head.children.find(n=>n.name==='v246_integrated_helmet')?.visible===false,'militia helmet hidden');
       assert.equal(model.root.userData.foMilisOutfit,0,'default red outfit is charcoal jacket');
       assert.equal(model.root.userData.foMilisHeadwear,0,'default red beanie selection');
-      assert.equal(model.upperBody.children.filter(n=>n.name.startsWith('fo_milis02_')).length,3,'three packed torso layers');
-      assert.equal(model.head.children.filter(n=>n.name.startsWith('fo_milis02_')).length,3,'three packed face/headwear layers');
-      assert.ok(model.head.children.filter(n=>n.name.startsWith('fo_milis02_')).every(n=>n.castShadow===false),'new detail has no extra shadows');
+      assert.equal(model.upperBody.children.filter(n=>n.name?.startsWith('fo_milis02_')).length,3,'three packed torso layers');
+      assert.equal(model.head.children.filter(n=>n.name?.startsWith('fo_milis02_')).length,3,'three packed face/headwear layers');
+      assert.ok(model.head.children.filter(n=>n.name?.startsWith('fo_milis02_')).every(n=>n.castShadow===false),'new detail has no extra shadows');
     }
     assert.equal(model.upperBody.children.filter(n=>n.name==='v105_role_vest').length,2,'role vest fit');
     assert.ok(model.head.children.some(n=>n.name==='v106_face'),'fitted face');
