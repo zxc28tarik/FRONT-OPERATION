@@ -77,6 +77,9 @@ try{
         const jacket=body.find(n=>n.name==='fo_milis02_jacket');
         if(jacket.material.color.getHex()!==(o?0x746b54:0x454c4a))
           throw Error('Wrong jacket material');
+        if(model.upperBody.children.some(n=>n.isMesh&&n.visible&&
+           n.material?.color?.getHex?.()===0xdc2626))
+          throw Error('Bright military red IFF still exposed on militia');
         const hiddenHelmet=model.head.children.find(n=>n.name==='v246_integrated_helmet');
         if(hiddenHelmet?.visible)throw Error('Militia military helmet exposed');
         for(const m of [...body,...face]){
