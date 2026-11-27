@@ -70,8 +70,8 @@ jobs:
           path: test-artifacts/bot01/
       - run: node scripts/summarize-bot01-baseline.mjs
         env:
-          BOT01_REFERENCE: V346-BOT02
-          BOT01_EXPECTED_BLOB: 946878ef7331f3c6eef13a49c84ddbb7b718e7f6
+          BOT01_REFERENCE: V345-BOT02
+          BOT01_EXPECTED_BLOB: 86b5837a60a1072ed66d45e2c26af428503f627d
       - run: node scripts/compare-bot02.mjs
       - uses: actions/upload-artifact@v4
         if: always()
