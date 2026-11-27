@@ -5,6 +5,8 @@ on:
     paths:
       - 'index.html'
       - 'scripts/check-bot02.mjs'
+      - 'scripts/browser-bot01-baseline.mjs'
+      - 'scripts/summarize-bot01-baseline.mjs'
       - 'scripts/compare-bot02.mjs'
       - '.github/workflows/bot02-comparison.yml'
   workflow_dispatch:
