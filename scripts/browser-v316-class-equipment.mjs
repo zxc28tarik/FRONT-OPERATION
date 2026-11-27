@@ -127,7 +127,8 @@ try{
  await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({contentType:'text/css',body:''}));
  await page.addInitScript(()=>{window.requestAnimationFrame=()=>1;});
  await page.goto('http://127.0.0.1:'+server.address().port+'/',{waitUntil:'load',timeout:80000});
- await page.waitForFunction(()=>window.__foF316QA?.ready());
+ try{await page.waitForFunction(()=>window.__foF316QA?.ready(),null,{timeout:15000});}
+ catch(e){throw new Error('F316 browser startup failed: '+errors.join(' | ')+' ; '+e.message);}
  const report=await page.evaluate(()=>window.__foF316QA.test());
  const rows=report.results;assert(rows.every(r=>r.unchanged));
  for(const [id,slots] of Object.entries(expected))for(let slot=1;slot<=4;slot++){
