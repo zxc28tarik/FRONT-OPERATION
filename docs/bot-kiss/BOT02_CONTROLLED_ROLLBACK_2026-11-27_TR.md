@@ -22,3 +22,12 @@ Proje sahibi: önceki BOT01–BOT07 KISS planına devam et, son eklenen bot davr
 4. Teknik ve kullanıcı kabulü ayrıdır. Gerileyen adayı geri al; BOT03'e geçmeden BOT02'yi doğrula.
 
 Not: Bu rapor geriye dönük zafer iddiası değil; ölçümler tamamlanana kadar kontrollü deneyi açık tutar.
+
+
+## BOT02 / V347 — Aynı kararı tekrar hesaplamayı kaldırma (27 Kasım 2026)
+- Eski Heavy-only kaynak blob `4a5d2ec9c9016b61ebc17abbfe3d3cd8469318ab`; yeni **BOT02-KISS aday blob `5ebd89aec73be13e9988c094becf3385f1cd6725`**. Üretim commit `740886d3d4ae6cf70c1670add4b01274e743c765`.
+- Mevcut `openingPriority` ve `followThrough` yardımcı kararları, `directCombat` zaten true iken tekrar değerlendirilmez. `openingPriority` true iken `followThrough` ayrı çağrılmaz. İki yardımcı fonksiyonun hiçbir yan etkisi yoktur; `holdContact`, flank iptali, ateş, gerçek görüş, dost hattı, aim, reload ve görev sonucunun seçili değerleri değişmez. Yeni davranış veya nişan yeteneği eklenmedi.
+- Karar kombinasyonlarında 64/64 `holdContact` ve flank parity doğrulandı; bu sentetik örneklerde öncesine göre **80 gereksiz yardımcı çağrı** kaldırıldı. Bu sayı oyun FPS kazancı ya da gerçek maç karar geçişi azalması anlamına gelmez.
+- Toplam BOT02 izole durum **154/154**: Heavy 60, orijinal Medic 30, karar kombinasyonları 64. V54 23 kontrol, V83–V86 tarihsel temas regresyonları, V33 önceki 27 kontrol ve 3/3 inline JS parse başarılı. Eski V344 tam kaynak eşleşmesi: `heavy-helper`, `heavy-commit` ve `contact-shortcircuit` blokları etiketleriyle geri alındığında ve `directCombat` `const` yapıldığında byte-for-byte eşleşir.
+- Güncel QA harness sınıf bazında `eski davranış > yeni davranış` frekanslarını raporlar. 15 maçlık gerçek bot simülasyonu karşılaştırması ve kalite kabulü bu kayıt anında **henüz sonuçlanmadı**. Eşikler gevşetilmedi. Sonuç gelene kadar BOT02 ve BOT03 geçişi açık tutulur.
+- Korunan temel: V344 oyun, silah ve ses kodları; ana dala merge yok; PR #68 draft olarak devam eder. Kullanıcının kaldırılmasını istediği kısa görüş-kaybı hareketi ve Medic ekleri geri getirilmedi.
