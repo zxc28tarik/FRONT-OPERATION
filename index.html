@@ -17492,9 +17492,10 @@ return {createExperimentalRig,createAdaptiveRigController};
         return bot.ammoState[id]||(bot.ammoState[id]={mag:w.magSize,reserve:w.reserveMax});
       }
       function botPreferredInfantryWeapon(bot,distance){
-        return foBotOwnedWeapon(bot,bot.classId==='assault'?'hk416':
+        const preferred=bot.classId==='assault'?'hk416':
           (bot.classId==='medic'||bot.classId==='engineer')?'mp7':
-          bot.classId==='sniper'?(distance<11?'glock18c':'mrad'):'minimi');
+          bot.classId==='sniper'?(distance<11?'glock18c':'mrad'):'minimi';
+        return typeof foFactionWeapon==='function'?foFactionWeapon(bot.team,preferred):preferred;
       }
       function botAmmoWeapon(bot,preferred){
         preferred=foBotOwnedWeapon(bot,preferred);
