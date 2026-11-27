@@ -17397,8 +17397,12 @@ return {createExperimentalRig,createAdaptiveRigController};
               bot.coverNode=-1;bot.coverPhase='NONE';bot.coverThreatAnchor=null;
               resetBotCoverCycle(bot);bot.coverSearchCooldown=Math.max(bot.coverSearchCooldown,1.2);
             }
-            const openingPriority=botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
-            const followThrough=botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
+            // FO_BOT02_BEGIN contact-shortcircuit
+            // Direct combat already wins both decisions; skip the duplicate checks.
+            // These helpers are pure. Only the previously effective value is needed.
+            const openingPriority=!directCombat&&botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
+            const followThrough=!directCombat&&!openingPriority&&botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
+            // FO_BOT02_END contact-shortcircuit
             if((directCombat||openingPriority&&!pressure)&&bot.teamFlankGoalNode>=0){
               bot.teamFlankGoalNode=-1;bot.teamFlankRoute=[];bot.teamFlankPathIndex=0;
             }
