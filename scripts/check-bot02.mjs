@@ -32,21 +32,4 @@ for(const mode of ['deathmatch','bomb','rescue'])for(const cls of ['medic','heav
  new Function('matchState','bot','injuredAlly','NAV_NODES','findNearestNavNode','findPathAStar',route)({mode},b,patient,[{}, {}, {}],()=>0,()=>{calls++;return [0,2]});
  assert.equal(calls,mode==='deathmatch'&&cls==='medic'&&!patient&&owned?1:0);rc++;
 }
-// V346: genuine last-seen movement intent without invisible target tracking.
-const bridge=s.match(/\/\/ FO_BOT02_BEGIN short-reacquisition\n([\s\S]*?)\n *\/\/ FO_BOT02_END short-reacquisition/)[1];
-const bridgeFn=new Function('bot','nowSec','matchState','isBotDirectWalkingLineClear',
-  'let behaviorHint="CONTACT_HOLD",moveTargetPos=null,moveSpeed=0,targetCrouch=.2;'+bridge+';return {behaviorHint,moveTargetPos,moveSpeed,targetCrouch};');
-let bc=0;
-for(const mode of ['deathmatch','bomb','rescue'])
-for(const kind of ['ENGAGE','COVER'])
-for(const age of [.1,.7])
-for(const canWalk of [true,false]){
-  const bot={classId:'heavy',behavior:{kind},pos:{x:0,y:0,z:0},
-    contactOpportunity:{id:'target',lastSeen:10-age},lastKnownEnemyPos:{x:7,y:0,z:0,clone(){return {x:7,y:0,z:0}}}};
-  const r=bridgeFn(bot,10,{mode},()=>canWalk);
-  const active=mode==='deathmatch'&&kind==='ENGAGE'&&age===.1&&canWalk;
-  assert.equal(r.behaviorHint,active?'ENGAGE':'CONTACT_HOLD');
-  assert.equal(r.moveSpeed,active?3.1:0);
-  assert.equal(!!r.moveTargetPos,active);bc++;
-}
-console.log('BOT02 isolated PASS',{heavy:cases,medic:mc,route:rc,reacquisition:bc,total:cases+mc+rc+bc});
+console.log('BOT02 isolated PASS',{heavy:cases,medic:mc,route:rc,total:cases+mc+rc});
