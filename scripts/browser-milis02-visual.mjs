@@ -120,7 +120,8 @@ try{
         const right=models[2].upperBody.children.find(n=>n.name==='fo_milis02_jacket');
         if(left.geometry!==right.geometry||left.material!==right.material)
           throw Error('Same outfit does not share buffers/material');
-        camera.position.set(0,1.38,5.3);camera.lookAt(0,.90,0);
+        if(view==='face'){camera.position.set(0,1.58,3.4);camera.lookAt(0,1.47,0);}
+        else{camera.position.set(0,1.38,5.3);camera.lookAt(0,.90,0);}
         return {role,view,models:vals,...render()};
       },
       stress(team,count){
@@ -147,7 +148,7 @@ try{
   assert.equal(matrix.length,15);
   report.matrix=matrix;
   for(const role of ['assault','medic','engineer','sniper','heavy']){
-    for(const view of ['front','quarter','back']){
+    for(const view of ['front','quarter','back','face']){
       const stats=await page.evaluate(({role,view})=>window.__milis02.scene(role,view),{role,view});
       assert(stats.drawCalls>0&&stats.triangles>0,'WebGL visible draw');
       const image='milis02-'+role+'-'+view+'.png';
