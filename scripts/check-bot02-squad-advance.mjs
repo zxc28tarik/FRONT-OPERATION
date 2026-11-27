@@ -22,23 +22,26 @@ for(const validSlot of [true,false])
 for(const leaderSelf of [true,false])
 for(const stuck of [0,1,2])
 for(const directClear of [true,false]){
- const states=[];let rallyCalls=0;
+ const states=[];let rallyCalls=0,clearCalls=0;
  const bot={id:'member',team:'blue',squadId:0,classId,
    pos:{distanceTo:()=>distance,y:0},rallyGoalNode:2,stuckFailures:stuck};
  const leader={id:'leader',pos:{x:0,y:0,z:0}};
  const result=simulate(bot,{blue_0:leaderSelf?'member':'leader'},
    {blue_0:{x:0,y:0,z:0}},{blue_0:[leader,bot]},
    ()=>validSlot?{x:9,y:0,z:5}:null,
-   (b,p)=>{rallyCalls++;return {x:p.x,y:p.y,z:p.z};},()=>true,()=>directClear,
+   (b,p)=>{rallyCalls++;return {x:p.x,y:p.y,z:p.z};},()=>true,()=>{clearCalls++;return directClear;},
    (b,state)=>states.push(state),{Vector3:class {constructor(x,y,z){this.x=x;this.y=y;this.z=z;}}});
  const eligible=!leaderSelf&&stuck===0&&!['sniper','engineer'].includes(classId)&&distance>6.5&&distance<28;
+ const slotClearRequired=classId==='heavy'||classId==='assault';
+ const pursuing=eligible&&validSlot&&(!slotClearRequired||directClear);
  assert.equal(result.behaviorHint,'ADVANCE');
  assert.equal(states.length,eligible?1:0);
- if(eligible){assert.equal(states[0],'ADVANCE');assert.equal(!!result.moveTargetPos,validSlot&&directClear);}
+ if(eligible){assert.equal(states[0],'ADVANCE');assert.equal(!!result.moveTargetPos,pursuing);}
  else assert.equal(result.moveTargetPos,null);
- assert.equal(rallyCalls,eligible&&validSlot&&directClear?1:0,'blocked formation must not call rally navigation');
- if(eligible&&validSlot&&directClear)assert.equal(result.moveSpeed,distance<10?3.2:4.6);
- if(eligible&&validSlot&&!directClear)assert.equal(bot.rallyGoalNode,-1,'blocked slot yields to own tactical route');
+ assert.equal(rallyCalls,pursuing?1:0,'only blocked Heavy/Assault slots must yield to tactical route');
+ assert.equal(clearCalls,eligible&&validSlot&&slotClearRequired?1:0,'Medic must retain V351 path without clearance probe');
+ if(pursuing)assert.equal(result.moveSpeed,distance<10?3.2:4.6);
+ if(eligible&&validSlot&&slotClearRequired&&!directClear)assert.equal(bot.rallyGoalNode,-1,'blocked Heavy/Assault yields to own tactical route');
  cases++;
 }
 const a=s.indexOf('      const BOT_BEHAVIOR_PRIORITY='),b=s.indexOf('      function resolveBotLocalMovement(',a);
