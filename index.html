@@ -8784,47 +8784,50 @@
           m.vertexColors=true;m.needsUpdate=true;
           m.name='FO_MILIS03_FABRIC';outfit.clothContact=m;
         }
+        // FO_MILIS04: let the approved sculpted torso be the actual shirt.
+        // The previous two deep rectangular front panels read as body armour.
+        // Keep only a thin shirt placket, cloth pockets and soft lower hem.
         const jacketBody=packed([
-          piece(box,-.098,.285,.160,.165,.326,.054,-.035),
-          piece(box,.098,.285,.160,.165,.326,.054,.035),
-          piece(box,-.106,.108,.151,.183,.092,.052,-.040),
-          piece(box,.106,.108,.151,.183,.092,.052,.040)
+          piece(box,-.106,.264,.141,.113,.094,.009),
+          piece(box,.106,.264,.141,.113,.094,.009),
+          piece(box,0,.112,.128,.318,.015,.012)
         ]);
         const jacketTrim=packed([
-          piece(box,-.075,.418,.189,.064,.176,.030,-.30),
-          piece(box,.075,.418,.189,.064,.176,.030,.30),
-          piece(box,0,.132,.183,.337,.025,.030),
-          piece(box,-.113,.291,.193,.113,.105,.018),
-          piece(box,.112,.291,.193,.113,.105,.018)
+          piece(box,-.055,.444,.150,.025,.088,.010,-.24),
+          piece(box,.055,.444,.150,.025,.088,.010,.24),
+          piece(box,0,.132,.145,.300,.011,.010),
+          piece(box,-.106,.232,.151,.105,.010,.006),
+          piece(box,.106,.232,.151,.105,.010,.006)
         ]);
         const jacketDetail=packed([
-          piece(box,0,.331,.194,.016,.167,.011),
-          piece(box,-.112,.339,.207,.117,.015,.008),
-          piece(box,.112,.339,.207,.117,.015,.008),
-          piece(box,-.075,.486,.151,.110,.038,.035,-.27),
-          piece(box,.075,.486,.151,.110,.038,.035,.27),
-          piece(box,.008,.239,.201,.016,.019,.014),
-          piece(box,.008,.185,.201,.016,.019,.014)
+          piece(box,0,.312,.154,.008,.138,.005),
+          piece(box,-.106,.272,.155,.094,.006,.005),
+          piece(box,.106,.272,.155,.094,.006,.005),
+          piece(box,-.042,.494,.134,.082,.021,.008,-.20),
+          piece(box,.042,.494,.134,.082,.021,.008,.20),
+          piece(box,.004,.222,.157,.008,.009,.006),
+          piece(box,.004,.176,.152,.008,.009,.006)
         ]);
         const headwear=[
           packed([piece(beanie,0,.078,-.014,.124,.091,.121),
             piece(ring,0,.058,-.014,.129,.029,.128)]),
-          packed([piece(ring,0,.064,-.009,.125,.043,.119),
-            piece(box,-.096,.014,-.025,.049,.115,.044,-.21),
-            piece(box,.100,.024,-.016,.036,.075,.044,.18)]),
+          packed([piece(beanie,0,.087,-.018,.125,.064,.122),
+            piece(ring,0,.057,-.010,.127,.030,.120),
+            piece(box,-.107,.018,-.023,.026,.078,.030,-.17),
+            piece(box,.108,.022,-.020,.023,.058,.030,.17)]),
           packed([piece(beanie,0,.091,-.026,.113,.042,.110)])
         ];
         const eyes=packed([
           piece(sphere,-.042,.010,.103,.010,.008,.006),
           piece(sphere,.042,.010,.103,.010,.008,.006),
-          piece(box,-.044,.044,.105,.051,.009,.009,-.10),
-          piece(box,.044,.044,.105,.051,.009,.009,.10)
+          piece(box,-.044,.044,.102,.034,.006,.006,-.10),
+          piece(box,.044,.044,.102,.034,.006,.006,.10)
         ]);
         const beard=packed([
-          piece(sphere,-.056,-.057,.065,.029,.031,.032),
-          piece(sphere,.056,-.057,.065,.029,.031,.032),
-          piece(sphere,0,-.083,.067,.074,.022,.042),
-          piece(box,0,-.043,.112,.055,.010,.011)
+          piece(sphere,-.054,-.063,.080,.022,.018,.012),
+          piece(sphere,.054,-.063,.080,.022,.018,.012),
+          piece(sphere,0,-.083,.080,.052,.012,.018),
+          piece(box,0,-.046,.111,.045,.005,.006)
         ]);
         FO_MILIS02_ASSETS={outfits,jacketBody,jacketTrim,jacketDetail,headwear,eyes,beard,
           faceDark:plain(0x292521),stubble:plain(0x40352d)};
@@ -8837,11 +8840,14 @@
         // Keep the real sculpted V106 face. Hide military helmets, masks and
         // tactical eyewear, which are not part of these two militia outfits.
         for(const n of model.head.children.slice())if(n.name!=='v106_face')hide(n);
-        // The inherited armour silhouette is not appropriate for civilian militia.
-        // Class-identifying radios/backpacks and weapon pivots are deliberately kept.
+        // Strip inherited tactical hardware by audited V248–252 component tags.
+        // Keep back-mounted role kits, animations, radios and weapons.
         const vestNames=new Set(['v99_carrier','v99_close_rig','v105_role_vest']);
+        const tactical=['v248HarnessFit','v250StrapContour','v251Harness',
+          'v252Harness','v252ShoulderShield','v252HeavyCollar'];
         for(const n of model.upperBody.children){
           if(vestNames.has(n.name)||n.userData?.v139Carrier||n.userData?.v251Carrier||
+            tactical.some(flag=>n.userData?.[flag])||
             ['pouch','admin'].includes(n.userData?.v176Equipment))hide(n);
         }
         for(const knee of [model.leftKnee,model.rightKnee])
@@ -8863,6 +8869,9 @@
         recolor(model.upperBody,uniform,O.cloth);
         for(const hip of [model.leftHip,model.rightHip])
           recolor(hip,[...uniform,...trousers],O.pants);
+        // The maroon military pelvic shell was still showing as a thick belt.
+        const waist=model.root.children.find(n=>n.userData?.v245Pelvis);
+        if(waist)waist.material=O.pants;
         model.root.traverse(n=>{
           const joint=n.userData?.v154Joint;
           if(joint)n.material=(joint==='hip'||joint==='knee')?O.pants:O.cloth;
