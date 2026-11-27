@@ -14,8 +14,6 @@ const originals={'contact-shortcircuit':originalContactDecision,
  'rally-advance':"                      behaviorHint='SUPPORT';\n                      setBotState(bot, 'SUPPORT_ALLY', 0.8);\n",
  'rally-stuck-fallback':"                  if (!isSquadLeader && rallyPt && bot.classId !== 'sniper' && bot.classId !== 'engineer') {\n",
  'rally-direct-clear':"                      if(slot){\n",
- 'rally-path-preserve':"                      }else{behaviorHint='ADVANCE';bot.rallyGoalNode=-1;}\n",
- 'rally-path-release':'',
  'medic-ready-pursuit':"                const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;\n"};
 const restored=s.replace(tag,(_,name)=>originals[name]??'')
   .replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(');

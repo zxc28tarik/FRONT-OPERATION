@@ -41,7 +41,7 @@ for(const directClear of [true,false]){
  assert.equal(rallyCalls,pursuing?1:0,'only blocked Heavy/Assault slots must yield to tactical route');
  assert.equal(clearCalls,eligible&&validSlot&&slotClearRequired?1:0,'Medic must retain V351 path without clearance probe');
  if(pursuing)assert.equal(result.moveSpeed,distance<10?3.2:4.6);
- if(eligible&&validSlot&&slotClearRequired&&!directClear)assert.equal(bot.rallyGoalNode,2,'blocked formation keeps route owner until tactical fallback');
+ if(eligible&&validSlot&&slotClearRequired&&!directClear)assert.equal(bot.rallyGoalNode,-1,'blocked Heavy/Assault yields to own tactical route');
  cases++;
 }
 const a=s.indexOf('      const BOT_BEHAVIOR_PRIORITY='),b=s.indexOf('      function resolveBotLocalMovement(',a);
