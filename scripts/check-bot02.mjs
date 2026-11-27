@@ -6,7 +6,12 @@ const tag=/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm;
 const originalContactDecision=`            const openingPriority=botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
             const followThrough=botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
 `;
-const restored=s.replace(tag,(_,name)=>name==='contact-shortcircuit'?originalContactDecision:'')
+const originalPressureStrafe="                if(!botObservedPressure(bot,bestEnemy,distToEnemy)){\n";
+const originalPressureObjective="                !botObservedPressure(bot,bestEnemy,distToEnemy)&&distToEnemy>12;\n";
+const originals={'contact-shortcircuit':originalContactDecision,
+ 'pressure-cache-strafe':originalPressureStrafe,
+ 'pressure-cache-objective':originalPressureObjective};
+const restored=s.replace(tag,(_,name)=>originals[name]??'')
   .replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(');
 assert.equal(restored,o);
 const heavy=s.slice(s.indexOf('      function foBot02ContactCommit('),s.indexOf('      // FO_BOT02_END heavy-helper'));
@@ -70,3 +75,19 @@ for(const flank of [false,true]){
 assert(newCalls<oldCalls,'duplicate helper evaluations must be reduced');
 console.log('BOT02 isolated PASS',{heavy:cases,medicBaseline:mc,contactParity:parity,
   total:cases+mc+parity,decisionCallsSaved:oldCalls-newCalls});
+
+// V348: only same-tick pure pressure tests may use cached result.
+assert(s.includes('const pressure=botObservedPressure(bot,bestEnemy,distToEnemy);'));
+assert(s.includes('FO_BOT02_BEGIN pressure-cache-strafe'));
+assert(s.includes('FO_BOT02_BEGIN pressure-cache-objective'));
+const pureStart=s.indexOf('      function botObservedPressure('),pureEnd=s.indexOf('      function chooseBotDodgeMode(',pureStart);
+const pressureFn=new Function(s.slice(pureStart,pureEnd)+';return botObservedPressure;')();
+let pressureCases=0;
+for(const distance of [4,13,20,31])for(const yaw of [0,Math.PI/2,Math.PI])for(const firing of [true,false]){
+ const bot={pos:{x:0,y:0,z:0}},enemy={pos:{x:0,y:0,z:distance},yaw,isFiring:firing};
+ const cached=pressureFn(bot,enemy,distance);
+ assert.equal(!cached,!pressureFn(bot,enemy,distance),'cached strafe pressure parity');
+ assert.equal(cached,pressureFn(bot,enemy,distance),'cached objective pressure parity');
+ pressureCases++;
+}
+console.log('BOT02 pressure cache PASS',{scenarios:pressureCases});

@@ -17512,7 +17512,9 @@ return {createExperimentalRig,createAdaptiveRigController};
                 // or the situation changes; no per-frame random zig-zag.
                 bot.strafeTimer -= dt;
                 const changedThreat = bot.combatStrafeTargetId !== bot.targetId;
-                if(!botObservedPressure(bot,bestEnemy,distToEnemy)){
+                // FO_BOT02_BEGIN pressure-cache-strafe
+                if(!pressure){
+                // FO_BOT02_END pressure-cache-strafe
                   bot.combatStrafeGoal=null;bot.dodgeMode='HOLD';
                 }
                 if (changedThreat || bot.strafeTimer <= 0) {
@@ -17562,7 +17564,9 @@ return {createExperimentalRig,createAdaptiveRigController};
               const allowed=!isWounded&&!isSniperTooClose&&!holdContact&&
                 behaviorHint==='ENGAGE'&&bot.coverNode<0&&bot.teamFlankGoalNode<0&&
                 !bot.activeDroneId&&foBomb.actor!==bot.id&&
-                !botObservedPressure(bot,bestEnemy,distToEnemy)&&distToEnemy>12;
+                // FO_BOT02_BEGIN pressure-cache-objective
+                !pressure&&distToEnemy>12;
+                // FO_BOT02_END pressure-cache-objective
               if(foShouldRetryObjective(bot,order,nowSec,allowed,
                   moveSpeed<=.2&&Math.hypot(bot.moveVelX||0,bot.moveVelZ||0)<.6)){
                 const retry=getFoBombBotOrder(bot,dt,true);

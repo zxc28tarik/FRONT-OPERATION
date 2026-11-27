@@ -1,9 +1,13 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 const a=JSON.parse(fs.readFileSync('docs/bot-kiss/v344-baseline-summary.json','utf8'));
 const b=JSON.parse(fs.readFileSync('test-artifacts/bot01/summary.json','utf8'));
 assert.equal(a.completed,15);assert.equal(b.completed,15);assert.equal(a.blob,'969432fb88c61b824ee6836df40006a64cdd3065');
-assert.equal(b.blob,'5ebd89aec73be13e9988c094becf3385f1cd6725');
+const game=fs.readFileSync('index.html','utf8');
+const currentBlob=createHash('sha1').update('blob '+Buffer.byteLength(game)+'\0').update(game).digest('hex');
+assert.equal(b.blob,currentBlob,'all matches must use the checked-out candidate source');
+assert.notEqual(b.blob,a.blob,'V344 baseline must remain distinct from candidate');
 const checks=[];
 const check=(name,base,value,limit,rule)=>checks.push({name,base,value,limit,rule,pass:Number.isFinite(value)&&(rule==='<='?value<=limit:value>=limit)});
 const x=a.modes.deathmatch,y=b.modes.deathmatch;

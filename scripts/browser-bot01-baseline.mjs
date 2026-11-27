@@ -20,7 +20,7 @@ const hook=String.raw`
       function bot01Row(b){
         let r=bot01Audit.rows.get(b.id);
         if(!r){r={id:b.id,team:b.team,classId:b.classId,aliveSec:0,movingSec:0,idleSec:0,quietNonMissionIdleSec:0,
-          transitions:0,transitionPairs:{},behaviorSec:{},lookSec:{},gateSec:{},visibleSec:0,laneAmmoSec:0,shots:0,contacts:0,contactsFired:0,
+          transitions:0,transitionPairs:{},rapidReversals:0,rapidReversePairs:{},transitionContexts:{},previousKind:null,lastTransitionAt:null,behaviorSec:{},lookSec:{},gateSec:{},visibleSec:0,laneAmmoSec:0,shots:0,contacts:0,contactsFired:0,
           contactsWithLane:0,contactsWithLaneFired:0,latency:[],laneLatency:[],lastBehavior:null};bot01Audit.rows.set(b.id,r);}
         return r;
       }
@@ -46,11 +46,25 @@ const hook=String.raw`
       function bot01Sample(dt){
         for(const [id,c] of bot01Audit.contacts)if(c.tick!==bot01Audit.tick)bot01EndContact(id);
         for(const b of bots){
-          const r=bot01Row(b);if(!b.alive){r.lastBehavior=null;continue;}
+          const r=bot01Row(b);if(!b.alive){r.lastBehavior=null;r.previousKind=null;r.lastTransitionAt=null;continue;}
           r.aliveSec+=dt;
           const kind=b.behaviorPlan?.kind||'NONE',look=b.lookControl?.owner||'NONE';
           r.behaviorSec[kind]=(r.behaviorSec[kind]||0)+dt;r.lookSec[look]=(r.lookSec[look]||0)+dt;
-          if(r.lastBehavior!==null&&r.lastBehavior!==kind){r.transitions++;const key=r.lastBehavior+'>'+kind;r.transitionPairs[key]=(r.transitionPairs[key]||0)+1;}
+          if(r.lastBehavior!==null&&r.lastBehavior!==kind){
+            r.transitions++;const oldKind=r.lastBehavior,key=oldKind+'>'+kind;
+            r.transitionPairs[key]=(r.transitionPairs[key]||0)+1;
+            const elapsed=bot01Audit.tick*dt;
+            if(r.previousKind===kind&&r.lastTransitionAt!==null&&elapsed-r.lastTransitionAt<=1.0){
+              r.rapidReversals++;
+              const reverseKey=[oldKind,kind].sort().join('<>');
+              r.rapidReversePairs[reverseKey]=(r.rapidReversePairs[reverseKey]||0)+1;
+            }
+            const context=b.visibleEnemy?'visible':
+              (b.lastKnownEnemyPos&&Number.isFinite(b.lastDirectContactAt)&&elapsed-b.lastDirectContactAt<.75)?'recentLost':
+              b.hearingPos&&b.hearingTimer>0?'sound':kind==='MISSION'?'mission':'other';
+            r.transitionContexts[context]=(r.transitionContexts[context]||0)+1;
+            r.previousKind=oldKind;r.lastTransitionAt=elapsed;
+          }
           r.lastBehavior=kind;
           const moving=Math.hypot(b.moveVelX||0,b.moveVelZ||0)>.75;
           if(moving)r.movingSec+=dt;else {r.idleSec+=dt;
@@ -69,7 +83,8 @@ const hook=String.raw`
         const snapshots=[],round=v=>Math.round(v*1000)/1000;
         const objective=()=>mode==='bomb'?{phase:foBomb.phase,actor:foBomb.actor,progress:foBomb.progress,site:foBomb.site?.id??null,reason:foBomb.reason}:mode==='rescue'?{room:foRescue.roomId,reason:foRescue.reason,captives:foRescue.captives.map(p=>({id:p.id,discovered:p.discovered,carrier:p.carrier,saved:p.saved,progress:p.progress}))}:null;
         const summary=()=>({elapsed:round(elapsed),scoreBlue:matchState.scoreBlue,scoreRed:matchState.scoreRed,ended:matchState.ended,winner:bot01Audit.winner,objective:objective(),stats:getBotMetricsSnapshot(),
-          actors:[...bot01Audit.rows.values()].map(r=>({...r,latency:r.latency.slice(),laneLatency:r.laneLatency.slice(),behaviorSec:{...r.behaviorSec},lookSec:{...r.lookSec},gateSec:{...r.gateSec}})),
+          actors:[...bot01Audit.rows.values()].map(r=>({...r,latency:r.latency.slice(),laneLatency:r.laneLatency.slice(),behaviorSec:{...r.behaviorSec},lookSec:{...r.lookSec},gateSec:{...r.gateSec},
+            transitionPairs:{...r.transitionPairs},rapidReversePairs:{...r.rapidReversePairs},transitionContexts:{...r.transitionContexts}})),
           activeContacts:[...bot01Audit.contacts.values()].map(c=>({...c}))});
         for(let tick=1;tick<=Math.ceil(cap/dt)&&!matchState.ended;tick++){
           bot01Audit.tick=tick;elapsed=tick*dt;
