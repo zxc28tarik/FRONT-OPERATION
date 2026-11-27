@@ -71,6 +71,9 @@ const THREE = new Proxy({
 
 const modelCode = `let SOLDIER_SHARED = null;
 let SOLDIER_V11_DETAIL_GEOMETRIES = null;
+let FO_MILIS01_ASSETS = null;
+${extract('foMilis01Assets')}
+${extract('foApplyMilis01Visual')}
 ${extract('getSoldierSharedAssets')}
 ${extract('createLimbMesh')}
 ${extract('createBotSoldierMesh')}
@@ -92,8 +95,8 @@ for (const team of ['blue', 'red']) {
       // V26/V26B adds production-quality layers on top of V25+V11.
       // Exact deltas protect against removing these approved details.
       ['root', 2],
-      ['upperBody', role === 'medic' ? 17 : 16],
-      ['head', 12], // V246 adds one integrated protection group under the original head pivot
+      ['upperBody', (role === 'medic' ? 17 : 16) + (team === 'red' ? 1 : 0)],
+      ['head', 12 + (team === 'red' ? 1 : 0)], // V246 group plus optional militia appearance
       ['leftHip', 3],
       ['rightHip', 3],
       ['leftKnee', 3],
@@ -125,6 +128,12 @@ for (const team of ['blue', 'red']) {
     assert.equal(thigh.material.args[0].map,sharedFabric,'same texture shared across teams and classes');
     assert.ok(!flatten(model.weaponPivot).some(n=>n.name==='v100_anatomy'||n.name==='v101_textile'),'weapon excluded from art pass');
     assert.ok(model.head.children.some(n=>n.name==='v105_role_helmet'||n.name==='v246_integrated_helmet'),'role helmet geometry');
+    if(team==='red'){
+      assert.equal(model.root.userData.foFaction,'milis','red team has civilian militia identity');
+      assert.ok(model.head.children.some(n=>n.name==='fo_milis01_face'),'militia face/headwear attached to approved pivot');
+      assert.ok(model.upperBody.children.some(n=>n.name==='fo_milis01_jacket'),'militia jacket attached to approved torso');
+      assert.ok(model.head.children.find(n=>n.name==='v246_integrated_helmet')?.visible===false,'militia helmet hidden');
+    }
     assert.equal(model.upperBody.children.filter(n=>n.name==='v105_role_vest').length,2,'role vest fit');
     assert.ok(model.head.children.some(n=>n.name==='v106_face'),'fitted face');
     assert.equal(model.upperBody.children.filter(n=>/^v107_(support|trigger)_hand$/.test(n.name)).length,2,'two fitted gloves');
