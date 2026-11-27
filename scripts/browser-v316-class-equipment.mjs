@@ -12,7 +12,22 @@ const stripH332=h=>h.replace(h332Tag,(_,id)=>{if(!Object.hasOwn(h332Originals,id
 const h328Tag=/      \/\/ FO_H328_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_H328_END [^\n]+\n/g;
 const g324Tag=/      \/\/ FO_G324_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_G324_END [^\n]+\n/g;
 const gTag=/      \/\/ FO_G320_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_G320_END [^\n]+\n/g;
-const html=stripH332(fs.readFileSync('index.html','utf8').replace(/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm,'').replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(').replace(/^ *\/\/ FO_V344_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V344_END \1\n/gm,'').replace(/^ *\/\/ FO_V343_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V343_END \1\n/gm,'').replace(/^ *\/\/ FO_V342_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V342_END \1\n/gm,'').replace(/^ *\/\/ FO_V341_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V341_END \1\n/gm,'').replace(/^ *\/\/ FO_V340_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V340_END \1\n/gm,'').replace(/^ *\/\/ FO_V339_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V339_END \1\n/gm,'').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'').replace(/    \/\* FO_I335_BEGIN responsive-ui \*\/\n[\s\S]*?    \/\* FO_I335_END responsive-ui \*\/\n/g,'')).replace(h328Tag,'').replace(g324Tag,'').replace(gTag,'');
+// The new militia art is a separate strictly visual revision. Restore precisely
+// the previous militia section, then run the unchanged F316 gameplay parity guard.
+// Comparing the reconstructed full HTML to its exact parent also blocks any
+// inadvertent AI, weapon, UI, map or game-state edits.
+const militiaBase=execFileSync('git',['show','088e61317d5de2f8d44cbe772f2c393770a4d61e:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
+const milestoneHtml=fs.readFileSync('index.html','utf8');
+const milisOldStart=militiaBase.indexOf('      // FO_MILIS01_BEGIN');
+const milisOldEnd=militiaBase.indexOf('      function createEnhancedBotSoldierMesh(',milisOldStart);
+const milisNewStart=milestoneHtml.indexOf('      // FO_MILIS02_BEGIN');
+const milisNewEnd=milestoneHtml.indexOf('      function createEnhancedBotSoldierMesh(',milisNewStart);
+assert.ok(milisOldStart>=0&&milisOldEnd>milisOldStart&&milisNewStart>=0&&milisNewEnd>milisNewStart,'militia visual section boundaries');
+const restoredMilitia=milestoneHtml.slice(0,milisNewStart)+
+  militiaBase.slice(milisOldStart,milisOldEnd)+milestoneHtml.slice(milisNewEnd)
+    .replace('foApplyMilis02Visual(model,classId,variant)','foApplyMilis01Visual(model,classId,variant)');
+assert.equal(restoredMilitia,militiaBase,'Milis02 may change only presentation section and factory hook');
+const html=stripH332(restoredMilitia.replace(/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm,'').replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(').replace(/^ *\/\/ FO_V344_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V344_END \1\n/gm,'').replace(/^ *\/\/ FO_V343_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V343_END \1\n/gm,'').replace(/^ *\/\/ FO_V342_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V342_END \1\n/gm,'').replace(/^ *\/\/ FO_V341_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V341_END \1\n/gm,'').replace(/^ *\/\/ FO_V340_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V340_END \1\n/gm,'').replace(/^ *\/\/ FO_V339_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V339_END \1\n/gm,'').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'').replace(/    \/\* FO_I335_BEGIN responsive-ui \*\/\n[\s\S]*?    \/\* FO_I335_END responsive-ui \*\/\n/g,'')).replace(h328Tag,'').replace(g324Tag,'').replace(gTag,'');
 const tag=/      \/\/ FO_F316_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_F316_END [^\n]+\n/g;
 assert.equal(html.replace(tag,''),baseline,'F must not change any non-presentation source');
 const source=html.match(/      \/\/ FO_F316_BEGIN helper\n([\s\S]*?)      \/\/ FO_F316_END helper/)[1];
