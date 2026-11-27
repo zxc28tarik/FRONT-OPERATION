@@ -17480,7 +17480,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         return typeof foFactionSlots==='function'?foFactionSlots(bot.team,bot.classId):CLASSES[bot.classId]?.slots;
       }
       function foBotOwnedWeapon(bot,id){
-        return typeof foFactionWeapon==='function'?foBotOwnedWeapon(bot,id):id;
+        return typeof foFactionWeapon==='function'?foFactionWeapon(bot.team,id):id;
       }
       function botAmmoSlot(bot,id){
         // Only the current class's two firearm slots may create inventory.
