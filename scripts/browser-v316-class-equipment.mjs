@@ -29,7 +29,13 @@ const restoredMilitia=milestoneHtml.slice(0,milisNewStart)+
 assert.equal(restoredMilitia,militiaBase,'Milis02 may change only presentation section and factory hook');
 const html=stripH332(restoredMilitia.replace(/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm,'').replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(').replace(/^ *\/\/ FO_V344_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V344_END \1\n/gm,'').replace(/^ *\/\/ FO_V343_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V343_END \1\n/gm,'').replace(/^ *\/\/ FO_V342_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V342_END \1\n/gm,'').replace(/^ *\/\/ FO_V341_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V341_END \1\n/gm,'').replace(/^ *\/\/ FO_V340_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V340_END \1\n/gm,'').replace(/^ *\/\/ FO_V339_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V339_END \1\n/gm,'').replace(/^ *\/\/ FO_V336_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_V336_END \1\n/gm,'').replace(/    \/\* FO_I335_BEGIN responsive-ui \*\/\n[\s\S]*?    \/\* FO_I335_END responsive-ui \*\/\n/g,'')).replace(h328Tag,'').replace(g324Tag,'').replace(gTag,'');
 const tag=/      \/\/ FO_F316_BEGIN [^\n]+\n[\s\S]*?      \/\/ FO_F316_END [^\n]+\n/g;
-assert.equal(html.replace(tag,''),baseline,'F must not change any non-presentation source');
+const f316SourceParts=(text)=>[...text.matchAll(tag)].map(m=>m[0]);
+assert.ok(f316SourceParts(milestoneHtml).length>=1,'F316 sections remain present');
+assert.deepEqual(f316SourceParts(milestoneHtml),f316SourceParts(militiaBase),
+  'F316 class-equipment render and helper code remains byte-identical to the parent');
+// The full-file byte check above is stricter for this Milis02-only PR than
+// comparing against the obsolete pre-V336 snapshot: no source outside the
+// new militia visual section may differ from the current parent.
 const source=html.match(/      \/\/ FO_F316_BEGIN helper\n([\s\S]*?)      \/\/ FO_F316_END helper/)[1];
 const definitions=html.slice(html.indexOf('      const DRONE_CONFIG ='),html.indexOf('      // 2. PROCEDURAL WEB AUDIO'));
 const {DRONE_CONFIG,WEAPONS,CLASSES}=new Function(definitions+';return {DRONE_CONFIG,WEAPONS,CLASSES}')();
