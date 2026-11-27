@@ -7,6 +7,7 @@ on:
       - 'scripts/check-bot02.mjs'
       - 'scripts/check-bot02-transition-telemetry.mjs'
       - 'scripts/check-bot02-route-reset-audit.mjs'
+      - 'scripts/check-bot02-squad-advance.mjs'
       - 'scripts/browser-bot01-baseline.mjs'
       - 'scripts/summarize-bot01-baseline.mjs'
       - 'scripts/compare-bot02.mjs'
@@ -36,6 +37,7 @@ jobs:
       - run: node scripts/check-bot02.mjs
       - run: node scripts/check-bot02-transition-telemetry.mjs
       - run: node scripts/check-bot02-route-reset-audit.mjs
+      - run: node scripts/check-bot02-squad-advance.mjs
       - run: node scripts/browser-bot01-baseline.mjs
         env:
           BOT01_GAME_FILE: index.html
@@ -65,7 +67,7 @@ jobs:
           path: test-artifacts/bot01/
       - run: node scripts/summarize-bot01-baseline.mjs
         env:
-          BOT01_REFERENCE: BOT02-KISS-pressure-cache
+          BOT01_REFERENCE: BOT02-KISS-squad-advance
           BOT01_EXPECTED_BLOB: current
       - run: node scripts/compare-bot02.mjs
       - uses: actions/upload-artifact@v4

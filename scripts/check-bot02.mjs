@@ -10,7 +10,8 @@ const originalPressureStrafe="                if(!botObservedPressure(bot,bestEn
 const originalPressureObjective="                !botObservedPressure(bot,bestEnemy,distToEnemy)&&distToEnemy>12;\n";
 const originals={'contact-shortcircuit':originalContactDecision,
  'pressure-cache-strafe':originalPressureStrafe,
- 'pressure-cache-objective':originalPressureObjective};
+ 'pressure-cache-objective':originalPressureObjective,
+ 'rally-advance':"                      behaviorHint='SUPPORT';\n                      setBotState(bot, 'SUPPORT_ALLY', 0.8);\n"};
 const restored=s.replace(tag,(_,name)=>originals[name]??'')
   .replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(');
 assert.equal(restored,o);

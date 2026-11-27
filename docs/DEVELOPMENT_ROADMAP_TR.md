@@ -405,3 +405,9 @@ Proje sahibi geri bildirimi: önceki AI geliştirmeleri oynanışı kötüleşti
 ### V349 / BOT02 — Navigasyon state reset nedeni ölçümü
 - 15 maçlık kalite raporu GitHub kuyruğunda; kaynak değiştirmek yerine mevcut V54 plan değişimlerinin `routeProgress`, `stuckTimer`, `unstuckTarget`, `passageStepTarget` sıfırlama sayısını **test-only** sınıf/mod bazında sayıyoruz. Üretim `index.html` V348 ile byte-for-byte aynı.
 - `navResetPairs` ve A→B→A salınım telemetrisi birlikte incelenecek; karar salınımının sıkışma yarattığı ancak bu kanıtla tespit edilebilecek. Testler ve rapor: `docs/bot-kiss/BOT02_CONTROLLED_ROLLBACK_2026-11-27_TR.md`. BOT03 bekliyor, main dokunulmadı.
+
+
+### V350 / BOT02 — Kararlı ilerleme, saldırgan temas, ayrı görev önceliği
+- Gerçek V349 15 maç sonucu açıklandı: 15/15 maç PASS ama BOT02 kalite REVIEW_REQUIRED. TDM ADVANCE↔SUPPORT 5236 geçiş, 4937 hızlı salınım. Heavy ve Assault'ta da görülen bu olay sıradan manga formasyonunun yanlış SUPPORT karar türüne bağlanmasından.
+- V350 yalnız manga formasyonunu ADVANCE olarak ele alır; gerçek Medic desteği ayrı, düşmanla temas ENGAGE ve bomba/esir MISSION daha yüksek öncelikli. Formasyon konumu/hızı, savaş veya nişan kuralları değişmez. Hedef sahte sayım azaltmak değil, davranış geçişinin sıfırladığı gerçek hareket ilerlemesini korumaktır.
+- Yeni 80 manga koşulu + 5 savaş/görev önceliği testi. V344 byte-for-byte restore guard korunur. A/B beklenir, gerileme kabul edilmez. Main dokunulmadı.

@@ -18002,8 +18002,12 @@ return {createExperimentalRig,createAdaptiveRigController};
                   if (!isSquadLeader && rallyPt && bot.classId !== 'sniper' && bot.classId !== 'engineer') {
                     const dRally = bot.pos.distanceTo(rallyPt);
                     if (dRally > 6.5 && dRally < 28 && Math.abs(rallyPt.y - bot.pos.y) < 1.5) {
-                      behaviorHint='SUPPORT';
-                      setBotState(bot, 'SUPPORT_ALLY', 0.8);
+                      // FO_BOT02_BEGIN rally-advance
+                      // Squad formation is movement, not a Medic SUPPORT task.
+                      // Preserve rally target, class eligibility and movement speed.
+                      behaviorHint='ADVANCE';
+                      setBotState(bot, 'ADVANCE', 0.8);
+                      // FO_BOT02_END rally-advance
                       const members=squadMembers[rallyKey]||[];
                       const leader=members.find(b=>b.id===squadLeaderId[rallyKey]);
                       const slot=leader?chooseBotFormationPoint(bot,leader,members,isPositionWalkable):null;
