@@ -1,0 +1,38 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync('scripts/browser-bot01-baseline.mjs','utf8');
+const first=source.indexOf('      function bot01Row(b){');
+const mid=source.indexOf('      function bot01EndContact(',first);
+const begin=source.indexOf('      function bot01TraceNavigationReset(',mid);
+const end=source.indexOf('      function bot01Sample(dt){',begin);
+assert(first>=0&&mid>first&&begin>mid&&end>begin);
+const bot={id:'blue_1',classId:'heavy',team:'blue',behavior:{kind:'ENGAGE'}};
+const audit={rows:new Map()};
+const make=new Function('bot01Audit',
+ source.slice(first,mid)+source.slice(begin,end)+
+ ';return {row:bot01Row,trace:bot01TraceNavigationReset};');
+const {row,trace}=make(audit);
+const r=row(bot);
+trace(bot,{kind:'ADVANCE',routeProgress:true,stuckTimer:0.7,unstuck:true,passage:false});
+assert.equal(r.navResetsOnKindChange,1);
+assert.equal(r.routeProgressClears,1);
+assert.equal(r.stuckClockClears,1);
+assert.equal(r.unstuckClears,1);
+assert.equal(r.passageClears,0);
+assert.equal(r.navResetPairs['ADVANCE>ENGAGE'],1);
+trace(bot,{kind:'ENGAGE',routeProgress:true,stuckTimer:2,unstuck:true,passage:true});
+assert.equal(r.navResetsOnKindChange,1,'unchanged kind must not count');
+trace(bot,{kind:'ADVANCE',routeProgress:false,stuckTimer:0,unstuck:false,passage:false});
+assert.equal(r.navResetsOnKindChange,1,'empty navigation state must not count');
+bot.behavior={kind:'MISSION'};
+trace(bot,{kind:'ENGAGE',routeProgress:false,stuckTimer:0,unstuck:false,passage:true});
+assert.equal(r.navResetsOnKindChange,2);
+assert.equal(r.passageClears,1);
+assert.equal(r.navResetPairs['ENGAGE>MISSION'],1);
+assert(!source.includes('bot01TraceNavigationReset(bot,bot01NavPrior);')===false,'test hook must attach after selectedPlan');
+assert(source.includes("['          bot.behaviorPlan=selectedPlan;'"),'hook must preserve original plan assignment');
+assert.equal(source.split('bot01NavPrior=').length,2);
+const originalBot=JSON.stringify(bot);
+trace(bot,{kind:'HOLD',routeProgress:true,stuckTimer:1,unstuck:true,passage:true});
+assert.equal(JSON.stringify(bot),originalBot,'telemetry may not mutate gameplay state');
+console.log('BOT02 navigation reset telemetry PASS (route state, plan changes, no mutation)');

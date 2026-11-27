@@ -400,3 +400,8 @@ Proje sahibi geri bildirimi: önceki AI geliştirmeleri oynanışı kötüleşti
 - V347 tek kaynak karar mantığı korunur. Bot baskı hesabı aynı tick içindeki üç mevcut kullanımdan ikisinde daha önce hesaplanmış saf `pressure` ile değiştirilir. Yeni bot davranışı ya da atış kuralı eklenmez.
 - Test-only A→B→A ≤1 s salınımı; görünür hedef, yakın geçmişte kayıp, ses, görev, diğer bağlamlar; 60. saniye karşılaştırma snapshot bağımsız kopyaları; aynı seed/roster A/B raporu. V344 referansı ve önceki kalite eşikleri korunur. CI 15 maç sonuçlanmadan bu sürüm bot davranışı açısından kabul edilmez.
 - Ayrıntılar: [BOT02 kontrollü rapor](bot-kiss/BOT02_CONTROLLED_ROLLBACK_2026-11-27_TR.md). Ana dal değiştirilmedi. Kullanıcının istemediği V346 kısa görüş-kaybı hareketi ve reddedilen Medic eklentileri yoktur.
+
+
+### V349 / BOT02 — Navigasyon state reset nedeni ölçümü
+- 15 maçlık kalite raporu GitHub kuyruğunda; kaynak değiştirmek yerine mevcut V54 plan değişimlerinin `routeProgress`, `stuckTimer`, `unstuckTarget`, `passageStepTarget` sıfırlama sayısını **test-only** sınıf/mod bazında sayıyoruz. Üretim `index.html` V348 ile byte-for-byte aynı.
+- `navResetPairs` ve A→B→A salınım telemetrisi birlikte incelenecek; karar salınımının sıkışma yarattığı ancak bu kanıtla tespit edilebilecek. Testler ve rapor: `docs/bot-kiss/BOT02_CONTROLLED_ROLLBACK_2026-11-27_TR.md`. BOT03 bekliyor, main dokunulmadı.

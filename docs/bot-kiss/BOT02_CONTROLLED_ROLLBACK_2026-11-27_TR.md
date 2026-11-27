@@ -38,3 +38,11 @@ Not: Bu rapor geriye dönük zafer iddiası değil; ölçümler tamamlanana kada
 - BOT02 154 izole temel durum + 24 baskı senaryosu + kısa salınım/ölüm/bağlam testleri yerel PASS, 3/3 gömülü JS parse PASS. Bunlar gerçek 15 maçın oynanış kabulü değildir.
 - GitHub BOT02 workflow'unda gereksiz çift tetiklenme önlendi: yalnız PR ve manuel çağrı; push tetikleyicisi kaldırıldı. Referans V344 sabit. Aday SHA artık checkout'taki HTML'nin Git blob SHA1'i olarak hesaplanır; test raporları birebir aynı oyun dosyasını kullanmak zorundadır. A/B kalite eşikleri hiç gevşetilmedi.
 - BOT02 kalite kapısı **açık**. GitHub 15 maç / eski ve yeni davranış geçişleri henüz raporlanmadı. Kaldırılması istenen V346 hareket kuralı ve Medic ekleri geri eklenmedi. Main merge yok.
+
+
+## BOT02 / V349 — Gözlem: karar değişiminde navigasyon sıfırlanması (27 Kasım 2026)
+- V348 oynanış kodu aynen korundu: bu tur **`index.html` değiştirmedi**. GitHub 15 maçlık karşılaştırma (`45972034459`) bu kayıt sırasında hâlâ **queued**; sonuç yokken kararları rastgele değiştirmiyoruz.
+- Üretim V54 `selectBotBehaviorPlan`, kind değiştiğinde `routeProgress`, `stuckTimer`, `unstuckTarget` ve `passageStepTarget` alanlarını sıfırlıyor. Bu güvenli ama gereksiz salınımda ilerleme ölçümlerini de bozabilir; nedensellik henüz kanıtlanmadı.
+- Test tarayıcısında aynı gerçek fonksiyonun öncesinde nav-state snapshot'ı okunuyor, sonrasında sıfırlama sayılıyor. Sınıf/harita/mod bazında `navResetsOnKindChangePer100AliveSec`, `navResetPairs`, `routeProgressClears`, `stuckClockClears`, `unstuckClears` ve `passageClears` raporlanır. Test-only enstrümantasyon botların state'ine, RNG'ye, karar veya hareketlerine yazmaz.
+- İzole nav reset testi hem aynı kind için saymama hem gerçek plan değişiminde sayma hem nav state boşsa saymama hem de üretim bot objesine dokunmama kontrollerinden geçti. Genel JS CI içinde de ayrı kısa test koşacak.
+- Kalite kapısı hâlâ açık: sonuçlar görülmeden BOT03'e veya yeni şemaya geçilmez. Silah/karakter/map/SES/aim korunur. Geri alınan V346 görüş kaybı hareketi veya V345 Medic değişiklikleri yok.

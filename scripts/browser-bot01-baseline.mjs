@@ -21,7 +21,8 @@ const hook=String.raw`
         let r=bot01Audit.rows.get(b.id);
         if(!r){r={id:b.id,team:b.team,classId:b.classId,aliveSec:0,movingSec:0,idleSec:0,quietNonMissionIdleSec:0,
           transitions:0,transitionPairs:{},rapidReversals:0,rapidReversePairs:{},transitionContexts:{},previousKind:null,lastTransitionAt:null,behaviorSec:{},lookSec:{},gateSec:{},visibleSec:0,laneAmmoSec:0,shots:0,contacts:0,contactsFired:0,
-          contactsWithLane:0,contactsWithLaneFired:0,latency:[],laneLatency:[],lastBehavior:null};bot01Audit.rows.set(b.id,r);}
+          contactsWithLane:0,contactsWithLaneFired:0,latency:[],laneLatency:[],lastBehavior:null,
+          navResetsOnKindChange:0,routeProgressClears:0,stuckClockClears:0,unstuckClears:0,passageClears:0,navResetPairs:{}};bot01Audit.rows.set(b.id,r);}
         return r;
       }
       function bot01EndContact(id){
@@ -43,6 +44,21 @@ const hook=String.raw`
         r.gateSec[reason]=(r.gateSec[reason]||0)+dt;
       }
       function bot01Shot(b,now){const r=bot01Row(b),c=bot01Audit.contacts.get(b.id);r.shots++;if(c&&c.shotAt===null)c.shotAt=now;}
+
+      function bot01TraceNavigationReset(bot,prior){
+        // Read-only: inspect real V54 ownership hand-offs, never change a bot plan.
+        const next=bot.behavior?.kind;
+        if(!prior.kind||!next||prior.kind===next)return;
+        if(!(prior.routeProgress||prior.stuckTimer>.001||prior.unstuck||prior.passage))return;
+        const r=bot01Row(bot);
+        r.navResetsOnKindChange++;
+        const pair=prior.kind+'>'+next;
+        r.navResetPairs[pair]=(r.navResetPairs[pair]||0)+1;
+        if(prior.routeProgress)r.routeProgressClears++;
+        if(prior.stuckTimer>.001)r.stuckClockClears++;
+        if(prior.unstuck)r.unstuckClears++;
+        if(prior.passage)r.passageClears++;
+      }
       function bot01Sample(dt){
         for(const [id,c] of bot01Audit.contacts)if(c.tick!==bot01Audit.tick)bot01EndContact(id);
         for(const b of bots){
@@ -84,7 +100,8 @@ const hook=String.raw`
         const objective=()=>mode==='bomb'?{phase:foBomb.phase,actor:foBomb.actor,progress:foBomb.progress,site:foBomb.site?.id??null,reason:foBomb.reason}:mode==='rescue'?{room:foRescue.roomId,reason:foRescue.reason,captives:foRescue.captives.map(p=>({id:p.id,discovered:p.discovered,carrier:p.carrier,saved:p.saved,progress:p.progress}))}:null;
         const summary=()=>({elapsed:round(elapsed),scoreBlue:matchState.scoreBlue,scoreRed:matchState.scoreRed,ended:matchState.ended,winner:bot01Audit.winner,objective:objective(),stats:getBotMetricsSnapshot(),
           actors:[...bot01Audit.rows.values()].map(r=>({...r,latency:r.latency.slice(),laneLatency:r.laneLatency.slice(),behaviorSec:{...r.behaviorSec},lookSec:{...r.lookSec},gateSec:{...r.gateSec},
-            transitionPairs:{...r.transitionPairs},rapidReversePairs:{...r.rapidReversePairs},transitionContexts:{...r.transitionContexts}})),
+            transitionPairs:{...r.transitionPairs},rapidReversePairs:{...r.rapidReversePairs},transitionContexts:{...r.transitionContexts},
+            navResetPairs:{...r.navResetPairs}})),
           activeContacts:[...bot01Audit.contacts.values()].map(c=>({...c}))});
         for(let tick=1;tick<=Math.ceil(cap/dt)&&!matchState.ended;tick++){
           bot01Audit.tick=tick;elapsed=tick*dt;
@@ -112,6 +129,9 @@ const anchors=[
  ['      window.onload = function () {',hook],
  ['            if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0 &&','            bot01Gate(bot,bestEnemy,dt,nowSec,{lane:fireLaneClear,ammo:!!activeAmmo&&activeAmmo.mag>0,reload:!!bot.botReload&&bot.botReload.id===botWeaponId&&!bot.botReload.optional,reaction:!!isReactionReady,aim:isAimSettled&&aimAligned,cooldown:bot.fireTimer<=0,stance:canShootFromStance});\n'],
  ['              recordBotContactShot(bot,nowSec);','              bot01Shot(bot,nowSec);\n'],
+ ['          const selectedPlan=selectBotBehaviorPlan(bot,proposals,nowSec);',
+  '          const bot01NavPrior={kind:bot.behavior?.kind||null,routeProgress:!!bot.routeProgress,stuckTimer:bot.stuckTimer||0,unstuck:!!bot.unstuckTarget,passage:!!bot.passageStepTarget};\n'],
+ ['          bot.behaviorPlan=selectedPlan;','          bot01TraceNavigationReset(bot,bot01NavPrior);\n'],
  ['        matchState.ended = true;\n        gamePaused = false;','        bot01Audit.winner=winnerTeam;\n']
 ];
 let source=raw;
