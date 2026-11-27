@@ -5441,7 +5441,7 @@
       }
       function beginV287RenderPose(refs,actor,dt,flashActive=false){
         const pose=refs?.v287Pose;if(!pose||pose.active)return false;
-        const profile=V287_POSES[pose.id]||V287_POSES.knife;
+        const profile=V287_POSES[pose.id]||V287_POSES[FO_FACTION_WEAPON_BASE[pose.id]]||V287_POSES.knife;
         const group=pose.group,root=pose.root;
         if(!actor.alive||!root.visible||!group.visible){pose.sprint=0;return false;}
         const step=Math.max(0,Math.min(.05,Number.isFinite(dt)?dt:0));
@@ -5632,8 +5632,55 @@
         };
 
         const root = new THREE.Group();
-
-        if (weaponId === 'hk416') {
+        const foRequestedWeaponId=weaponId;
+        // The existing tuned models back the AKM/SVD/PKM/TT-33; Uzi and RPG
+        // have their own cheap procedural meshes rather than military substitutes.
+        if(FO_FACTION_WEAPON_BASE[weaponId]&&!['uzi','rpg7','molotov'].includes(weaponId))
+          weaponId=FO_FACTION_WEAPON_BASE[weaponId];
+        const foPart=(geo,mat,x,y,z)=>{
+          const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);root.add(m);return m;
+        };
+        const foBox=(w,h,d,mat,x,y,z)=>foPart(new THREE.BoxGeometry(w,h,d),mat,x,y,z);
+        if(weaponId==='uzi'){
+          const D=WEAPON_MATS.metalDark,G=WEAPON_MATS.gunmetal;
+          foBox(.069,.086,.195,D,0,0,-.026);
+          foBox(.061,.016,.16,G,0,.052,-.024);
+          const barrel=foPart(new THREE.CylinderGeometry(.010,.010,.1,10),G,0,.004,-.17);
+          barrel.rotation.x=Math.PI/2;
+          foBox(.037,.123,.043,WEAPON_MATS.rubberGrip,0,-.10,.035);
+          vmRefs.magazineMesh=foBox(.032,.095,.032,G,0,-.117,.036);
+          foBox(.020,.027,.14,G,0,-.015,.138);
+          foBox(.058,.063,.012,G,0,-.024,.20);
+          for(const z of [-.11,.059])foBox(.018,.022,.018,G,0,.065,z);
+          const handR=createFirstPersonHandArm('right','pistol_grip');
+          handR.position.set(.006,-.08,.036);root.add(handR);
+          const handL=createFirstPersonHandArm('left','foregrip_horizontal');
+          handL.position.set(-.014,-.026,-.116);handL.userData.v267SupportHand=true;root.add(handL);
+          vmRefs.muzzlePoint.position.set(0,.004,-.21);
+          vmRefs.ejectPoint.position.set(.045,.035,-.015);
+          root.position.set(.153,-.165,-.32);
+        }else if(weaponId==='rpg7'){
+          const O=WEAPON_MATS.olivePaint,D=WEAPON_MATS.metalDark;
+          const tube=foPart(new THREE.CylinderGeometry(.033,.034,.70,14),O,0,.01,-.045);
+          tube.rotation.x=Math.PI/2;
+          const cone=foPart(new THREE.CylinderGeometry(.036,.072,.13,14),D,0,.01,.32);
+          cone.rotation.x=Math.PI/2;
+          const warhead=foPart(new THREE.ConeGeometry(.064,.21,14),O,0,.01,-.46);
+          warhead.rotation.x=-Math.PI/2;
+          const collar=foPart(new THREE.CylinderGeometry(.039,.039,.065,12),WEAPON_MATS.brass,0,.01,-.335);
+          collar.rotation.x=Math.PI/2;
+          for(const z of [-.16,.08]){const b=foPart(new THREE.CylinderGeometry(.039,.039,.027,12),D,0,.01,z);b.rotation.x=Math.PI/2;}
+          foBox(.027,.10,.037,D,0,-.069,-.06);
+          foBox(.029,.065,.038,D,-.014,-.063,-.235);
+          foBox(.032,.047,.051,D,-.035,.071,-.064);
+          const handR=createFirstPersonHandArm('right','pistol_grip');
+          handR.position.set(.006,-.064,-.062);root.add(handR);
+          const handL=createFirstPersonHandArm('left','pistol_grip');
+          handL.position.set(-.022,-.059,-.231);handL.userData.v267SupportHand=true;root.add(handL);
+          vmRefs.muzzlePoint.position.set(0,.01,-.55);
+          vmRefs.ejectPoint.position.set(0,0,-.1);
+          root.position.set(.19,-.16,-.25);
+        }else if(weaponId==='hk416'){
           const upper = createExtrudedProfile([
             [-0.024, 0.000], [0.095, 0.000], [0.095, 0.024], [0.082, 0.032],
             [-0.088, 0.032], [-0.098, 0.022], [-0.098, 0.000]
@@ -6314,7 +6361,13 @@
 
           root.position.set(0.06, -0.16, -0.28);
         } else {
-          if (weaponId === 'm67') {
+          if (weaponId === 'molotov') {
+            const glass=new THREE.MeshStandardMaterial({color:0x52694c,roughness:.35,metalness:0,transparent:true,opacity:.82});
+            foPart(new THREE.CylinderGeometry(.032,.042,.14,12),glass,0,-.012,0);
+            foPart(new THREE.CylinderGeometry(.015,.016,.055,10),WEAPON_MATS.olivePaint,0,.08,0);
+            foPart(new THREE.ConeGeometry(.018,.085,9),WEAPON_MATS.brass,0,.128,0);
+            foBox(.075,.047,.010,WEAPON_MATS.polymerFDE,0,-.025,.038);
+          } else if (weaponId === 'm67') {
             const body = new THREE.Mesh(new THREE.SphereGeometry(0.038, 16, 14), WEAPON_MATS.olivePaint);
             body.scale.set(1.0, 1.12, 1.0);
             root.add(body);
@@ -6348,6 +6401,11 @@
 
         refineV266GloveSurfaces(root);
         applyV259ViewmodelDetail(root);
+        if(['akm','svd','pkm','tt33'].includes(foRequestedWeaponId)){
+          // Low-cost worn stock/handguard accent for irregular small arms.
+          const wood=new THREE.MeshStandardMaterial({color:0x62462f,roughness:.91});
+          foBox(.034,.032,.128,wood,0,-.048,foRequestedWeaponId==='tt33'?.042:.109);
+        }
         // FO_V336_BEGIN viewmodel-call
         foV336WeaponFinish(root,vmRefs,weaponId);
         // FO_V336_END viewmodel-call
