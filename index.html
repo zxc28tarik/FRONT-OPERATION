@@ -8830,7 +8830,8 @@
           piece(box,0,-.046,.111,.045,.005,.006)
         ]);
         FO_MILIS02_ASSETS={outfits,jacketBody,jacketTrim,jacketDetail,headwear,eyes,beard,
-          faceDark:plain(0x292521),stubble:plain(0x40352d)};
+          faceDark:plain(0x292521),stubble:plain(0x40352d),
+          sleevePatch:plain(0x8d4640)};
         return FO_MILIS02_ASSETS;
       }
       function foApplyMilis02Visual(model,classId,variant){
@@ -8852,6 +8853,13 @@
         }
         for(const knee of [model.leftKnee,model.rightKnee])
           for(const n of knee.children)if(n.userData?.v176Equipment==='kneepad')hide(n);
+        // FO_MILIS05: no glowing army chest IFF block on an everyday shirt.
+        // Keep smaller sleeve markers, dimmed for identification without visual noise.
+        for(const n of model.upperBody.children){
+          if(!n.isMesh||n.material?.color?.getHex?.()!==0xdc2626)continue;
+          if(Math.abs(n.position.x)<.055)hide(n);
+          else n.material=A.sleevePatch;
+        }
         // Repaint only inherited garment fabric, not weapons, skin or class kits.
         const uniform=[0x563536,0x634547,0x3d292d],trousers=[0x3e2c2e];
         const similar=(a,b)=>Math.abs((a>>16&255)-(b>>16&255))<25&&
