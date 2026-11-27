@@ -30,7 +30,13 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  assert(hands.every(h=>h.position.toArray().every(Number.isFinite)));assert(mag.position.distanceTo(magRest)>.05);
  m.resetVisualCombatPose();assert(m.weaponPivot.position.distanceTo(rest)<.00001);assert(mag.position.distanceTo(magRest)<.00001);
  let camo=0;m.root.traverse(n=>{if(n.material?.name==='V112 camouflage')camo++;});
- assert(camo>0);
+ if(team==='blue')assert(camo>0,'soldier military camouflage retained');
+ else{
+   assert.equal(camo,0,'civilian militia no longer uses military camouflage');
+   const waist=m.root.children.find(n=>n.userData.v245Pelvis);
+   assert(waist,'militia waist mesh retained');
+   assert.equal(waist.material.color.getHex(),0x383f44,'militia pelvis matches trousers');
+ }
  const head=m.head.children.find(n=>n.name==='v106_face'),other=alt.head.children.find(n=>n.name==='v106_face');
  assert(head.geometry!==other.geometry&&head.material!==other.material);assert(head.geometry===api.enhanced(team,cls,0).head.children.find(n=>n.name==='v106_face').geometry);
  assert.equal(alt.root.userData.visualVariant,1);assert.equal(alt2.root.userData.visualVariant,2);
@@ -45,6 +51,9 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
      assert(x.upperBody.children.some(n=>n.name==='fo_milis02_jacket'),'jacket attached');
      assert(x.upperBody.children.filter(n=>n.name.startsWith('fo_milis02_')).every(n=>!n.castShadow),
        'militia details add no shadow draws');
+     const militaryParts=x.upperBody.children.filter(n=>['v248HarnessFit','v250StrapContour',
+       'v251Harness','v252Harness','v252ShoulderShield','v252HeavyCollar'].some(key=>n.userData[key]));
+     assert(militaryParts.every(n=>!n.visible),'militia tactical harness/shield hidden');
      const helm=x.head.children.find(n=>n.name==='v246_integrated_helmet');
      assert(!helm||!helm.visible,'military helmet cannot remain visible');
    }
