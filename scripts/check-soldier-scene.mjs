@@ -84,8 +84,8 @@ ${extract('createLimbMesh')}
 ${extract('createBotSoldierMesh')}
 ${extract('enhanceV25SoldierWithV11Details')}
 ${extract('createEnhancedBotSoldierMesh')}
-({ base: createBotSoldierMesh, enhanced: createEnhancedBotSoldierMesh });`;
-const { base: baseFactory, enhanced: factory } = vm.runInNewContext(modelCode, { THREE });
+({ base: createBotSoldierMesh, enhanced: createEnhancedBotSoldierMesh, visual: foApplyMilis02Visual });`;
+const { base: baseFactory, enhanced: factory, visual: applyMilisVisual } = vm.runInNewContext(modelCode, { THREE });
 assert.equal((source.match(/createEnhancedBotSoldierMesh\(/g) || []).length, 4,
   'all three bot/stand-in creation sites use enhanced V25 rig');
 const required = ['root', 'upperBody', 'head', 'leftHip', 'rightHip',
@@ -162,13 +162,13 @@ for (const team of ['blue', 'red']) {
 }
 assert.equal(count, 10);
 for(let variant=0;variant<3;variant++){
-  const m=factory('red','assault',variant);
+  const m=applyMilisVisual(baseFactory('red','assault'),'assault',variant);
   assert.equal(m.root.userData.foMilisOutfit,variant===1?1:0,'exactly two coherent outfits');
   assert.equal(m.root.userData.foMilisHeadwear,variant,'three headwear variants');
   assert.ok(m.head.children.some(n=>n.name==='fo_milis02_headwear'),'headwear anchored to the head');
   assert.ok(m.upperBody.children.some(n=>n.name==='fo_milis02_jacket'),'jacket anchored to the torso');
 }
-const blue=factory('blue','assault',2);
+const blue=factory('blue','assault');
 assert.ok(!blue.root.userData?.foFaction,'blue team has no militia override');
 
 
