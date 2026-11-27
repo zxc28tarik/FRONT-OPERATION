@@ -769,7 +769,7 @@
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]"></span>
           <div class="text-right">
-            <div class="text-[10px] uppercase tracking-wider text-sky-300 font-bold">DERBARAN</div>
+            <div class="text-[10px] uppercase tracking-wider text-sky-300 font-bold">ASKER</div>
             <div id="score-blue" class="mono text-xl sm:text-2xl font-extrabold text-white leading-none">0</div>
           </div>
         </div>
@@ -783,7 +783,7 @@
 
         <div class="flex items-center gap-2">
           <div class="text-left">
-            <div class="text-[10px] uppercase tracking-wider text-rose-400 font-bold">N.I.U.</div>
+            <div class="text-[10px] uppercase tracking-wider text-rose-400 font-bold">MİLİS</div>
             <div id="score-red" class="mono text-xl sm:text-2xl font-extrabold text-white leading-none">0</div>
           </div>
           <span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]"></span>
@@ -918,9 +918,9 @@
       <h2 id="pause-title">DURAKLATILDI</h2>
       <p>Maç beklemede. Hazır olduğunda devam et.</p>
       <div class="fo-pause-score" aria-label="Geçerli maç bilgileri">
-        <span><b id="pause-blue-score">0</b><small>DERBARAN</small></span>
+        <span><b id="pause-blue-score">0</b><small>ASKER</small></span>
         <span class="fo-pause-clock" id="pause-timer">10:00</span>
-        <span><b id="pause-red-score">0</b><small>N.I.U.</small></span>
+        <span><b id="pause-red-score">0</b><small>MİLİS</small></span>
       </div>
       <button type="button" id="btn-pause-resume" class="fo-pause-primary">OYUNA DEVAM ET <span>ESC</span></button>
       <button type="button" id="btn-pause-class" class="fo-pause-secondary">Sınıf Değiştir <span>B</span></button>
@@ -946,7 +946,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="fo-team-score fo-team-blue">
           <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-            <span class="fo-team-title">DERBARAN</span>
+            <span class="fo-team-title">ASKER</span>
             <span id="sb-blue-score" class="mono text-base font-black text-white">0</span>
           </div>
           <div class="fo-score-column"><span>OYUNCU</span><span>EL / ÖL</span></div>
@@ -955,7 +955,7 @@
 
         <div class="fo-team-score fo-team-red">
           <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-            <span class="fo-team-title">N.I.U.</span>
+            <span class="fo-team-title">MİLİS</span>
             <span id="sb-red-score" class="mono text-base font-black text-white">0</span>
           </div>
           <div class="fo-score-column"><span>OYUNCU</span><span>EL / ÖL</span></div>
@@ -998,7 +998,7 @@
       <p id="menu-subtitle" class="fo-menu-status hidden">Sınıfını seç, çatışmaya katıl.</p>
       <div id="match-result-badge" class="hidden fo-match-result">
         <span>MAÇ SONUCU</span>
-        <strong id="match-result-text">DERBARAN KAZANDI</strong>
+        <strong id="match-result-text">ASKER KAZANDI</strong>
       </div>
       <div id="class-grid" class="fo-class-grid" role="tablist" aria-label="Piyade sınıfları">
         <div class="class-card selected" data-class="assault" id="fo-class-tab-assault" role="tab" tabindex="0" aria-selected="true" aria-controls="class-detail" aria-label="Hücum sınıfını seç">
@@ -8696,8 +8696,104 @@
         model.root.userData=model.root.userData||{};model.root.userData.visualVariant=variantId;model.root.userData.v182Role=classId;
         return model;
       }
+      // FO_MILIS01_BEGIN - red team civilian-militia look, original soldier rig preserved.
+      let FO_MILIS01_ASSETS=null;
+      function foMilis01Assets(){
+        if(FO_MILIS01_ASSETS)return FO_MILIS01_ASSETS;
+        const make=c=>new THREE.MeshStandardMaterial({color:c,roughness:.96,metalness:0});
+        FO_MILIS01_ASSETS={
+          cloth:[make(0x3b4951),make(0x877a66),make(0x5c5546)],
+          seams:[make(0x2a363b),make(0x665a4b),make(0x413d34)],
+          pants:[make(0x373c3f),make(0x494640),make(0x41443c)],
+          headwear:[make(0x292c2c),make(0x3b342d),make(0x5b5448)],
+          beard:make(0x2d2724),eyes:make(0x25201e),skin:make(0xa98068),
+          box:new THREE.BoxGeometry(1,1,1),
+          round:new THREE.SphereGeometry(1,10,8),
+          cap:new THREE.SphereGeometry(1,12,8,0,Math.PI*2,0,Math.PI*.52),
+          rim:new THREE.CylinderGeometry(1,1,1,12)
+        };
+        return FO_MILIS01_ASSETS;
+      }
+      function foApplyMilis01Visual(model,classId,variant){
+        const v=((Math.floor(variant)||0)%3+3)%3,A=foMilis01Assets(),hidden=[];
+        const vestNames=new Set(['v99_carrier','v99_close_rig','v105_role_vest']);
+        const hide=n=>{n.visible=false;hidden.push(n);};
+        // No military helmets or face armour; retain the sculpted V106 human face.
+        for(const n of model.head.children.slice())if(n.name!=='v106_face')hide(n);
+        // Take the hard plate-carrier silhouette off the torso without touching class kit.
+        for(const n of model.upperBody.children){
+          if(vestNames.has(n.name)||n.userData?.v139Carrier||n.userData?.v251Carrier||
+              ['pouch','admin'].includes(n.userData?.v176Equipment))hide(n);
+        }
+        for(const knee of [model.leftKnee,model.rightKnee])for(const n of knee.children){
+          if(n.userData?.v176Equipment==='kneepad')hide(n);
+        }
+        // Recolor the inherited uniform's fabric only. Excludes weapons, bare skin,
+        // medic/engineer packs, class badges and team-identification material.
+        const uniformColors=[0x563536,0x634547,0x3d292d],trouserColors=[0x3e2c2e];
+        const nearColor=(hex,palette)=>palette.some(k=>
+          Math.abs((hex>>16&255)-(k>>16&255))<24&&
+          Math.abs((hex>>8&255)-(k>>8&255))<24&&
+          Math.abs((hex&255)-(k&255))<24);
+        const repaint=(root,palette,material)=>{
+          const visit=n=>{
+            if(n===model.head||n===model.weaponPivot)return;
+            if(n.isMesh&&n.material&&!Array.isArray(n.material)){
+              const color=n.material.color;
+              if(color&&typeof color.getHex==='function'&&nearColor(color.getHex(),palette))n.material=material;
+            }
+            for(const child of n.children||[])visit(child);
+          };
+          visit(root);
+        };
+        repaint(model.upperBody,uniformColors,A.cloth[v]);
+        for(const hip of [model.leftHip,model.rightHip])repaint(hip,[...trouserColors,...uniformColors],A.pants[v]);
+        // Plain civilian jacket/shirt: narrow lapels and soft chest pockets.
+        const jacket=new THREE.Group();jacket.name='fo_milis01_jacket';model.upperBody.add(jacket);
+        const add=(parent,geo,mat,x,y,z,sx,sy,sz,rz=0)=>{
+          const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);
+          m.scale.set(sx,sy,sz);m.rotation.z=rz;m.castShadow=false;
+          parent.add(m);return m;
+        };
+        for(const sign of [-1,1]){
+          add(jacket,A.box,A.cloth[v],sign*.085,.285,.158,.164,.302,.048);
+          add(jacket,A.box,A.seams[v],sign*.085,.432,.190,.095,.125,.021,-sign*.27);
+        }
+        add(jacket,A.box,A.seams[v],0,.146,.189,.31,.018,.023);
+        if(v!==0)add(jacket,A.box,A.seams[v],.085,.265,.192,.072,.083,.018);
+        // Open, readable face; one knit beanie, one bare head, one light head wrap.
+        const face=new THREE.Group();face.name='fo_milis01_face';model.head.add(face);
+        const beanie=v!==1;
+        if(beanie){
+          add(face,A.cap,A.headwear[v],0,.069,-.008,.127,.095,.126);
+          add(face,A.rim,A.headwear[v],0,.046,-.008,.129,.035,.129);
+        }else{
+          add(face,A.cap,A.headwear[v],0,.084,-.014,.112,.038,.118);
+        }
+        for(const side of [-1,1]){
+          add(face,A.round,A.eyes,side*.042,.013,.103,.010,.009,.005);
+          add(face,A.box,A.headwear[v],side*.043,.041,.103,.054,.009,.009,-side*.08);
+        }
+        if(v!==1){
+          // Short beard, not a tactical balaclava.
+          add(face,A.round,A.beard,0,-.073,.052,.081,.032,.058);
+        }else{
+          add(face,A.round,A.skin,0,-.026,.099,.019,.031,.019);
+        }
+        // Preserve distance-LOD behaviour and never re-enable hidden armour.
+        const oldLod=model.setVisualDetailDistance;
+        if(typeof oldLod==='function')model.setVisualDetailDistance=d=>{
+          oldLod(d);for(const n of hidden)n.visible=false;
+        };
+        model.root.userData=model.root.userData||{};
+        model.root.userData.foFaction='milis';
+        model.root.userData.foMilisOutfit=v;
+        return model;
+      }
+      // FO_MILIS01_END
       function createEnhancedBotSoldierMesh(team, classId, variant=0) {
-        return enhanceV25SoldierWithV11Details(createBotSoldierMesh(team, classId), team, classId,variant);
+        const model=enhanceV25SoldierWithV11Details(createBotSoldierMesh(team,classId),team,classId,variant);
+        return team==='red'?foApplyMilis01Visual(model,classId,variant):model;
       }
 
       function createBotSoldierMesh(team, classId) {
@@ -13870,10 +13966,10 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         badge.classList.remove('hidden');
         if (winnerTeam === 'blue') {
-          resTxt.textContent = `DERBARAN KAZANDI (${matchState.scoreBlue} - ${matchState.scoreRed})`;
+          resTxt.textContent = `ASKER KAZANDI (${matchState.scoreBlue} - ${matchState.scoreRed})`;
           resTxt.className = 'text-lg font-black text-sky-400';
         } else if (winnerTeam === 'red') {
-          resTxt.textContent = `N.I.U. KAZANDI (${matchState.scoreRed} - ${matchState.scoreBlue})`;
+          resTxt.textContent = `MİLİS KAZANDI (${matchState.scoreRed} - ${matchState.scoreBlue})`;
           resTxt.className = 'text-lg font-black text-rose-400';
         } else {
           resTxt.textContent = `BERABERE (${matchState.scoreBlue} - ${matchState.scoreRed})`;
@@ -19056,7 +19152,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
       }
       function foG324ResultPresentation(state,winner,bomb,rescue,actor,target){
-        const name=winner==='blue'?'DERBARAN KAZANDI':winner==='red'?'N.I.U. KAZANDI':'BERABERE';
+        const name=winner==='blue'?'ASKER KAZANDI':winner==='red'?'MİLİS KAZANDI':'BERABERE';
         const score=state.scoreBlue+' – '+state.scoreRed;
         const mode=state.mode;
         let reason,modeName;
@@ -19064,7 +19160,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         else if(mode==='rescue'){modeName='KURTARMA';reason=rescue.reason||'Tur tamamlandı';}
         else{modeName='ÖLÜM MAÇI';reason=Math.max(state.scoreBlue,state.scoreRed)>=target?'Hedefe ulaşıldı':'Maç süresi doldu';}
         return {title:modeName+' TAMAMLANDI',result:name+' · '+reason,
-          summary:'Derbaran – N.I.U. eleme: '+score+' · Sen: '+actor.kills+' eleme / '+actor.deaths+' ölüm',
+          summary:'Asker – Milis eleme: '+score+' · Sen: '+actor.kills+' eleme / '+actor.deaths+' ölüm',
           score,modeName};
       }
       function foG324SyncModePresentation(state,rescue,rules,actor,spectator,doc,bomb){
