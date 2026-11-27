@@ -14573,6 +14573,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       const activeImpactMarks = [];
       const activeShellCasings = [];
       const activeGrenades = [];
+      const activeFires = [];
       const activeRockets = [];
       const activeMedkits = [];
       const activeClaymores = [];
@@ -15035,6 +15036,9 @@ return {createExperimentalRig,createAdaptiveRigController};
 
       // FO_V343_END blast-pool
       function clearAllMatchEntities() {
+        // FO_FACTION02: fire never survives a match/map reset.
+        for(const fire of activeFires)foReleaseEquipment(fire,scene);
+        activeFires.length=0;
         // FO_V343_BEGIN blast-clear
         foV343ClearBlasts();
         // FO_V343_END blast-clear
@@ -15154,11 +15158,12 @@ return {createExperimentalRig,createAdaptiveRigController};
       }
       function foAdvanceGrenade(g,dt,colliders,floorAt){
        g.vel.y-=18*dt;
-       let remaining=dt;
+       let remaining=dt,contact=false;
        for(let i=0;i<4&&remaining>1e-8;i++){
         const dx=g.vel.x*remaining,dy=g.vel.y*remaining,dz=g.vel.z*remaining;
         const hit=foGrenadeSweep(g.pos,dx,dy,dz,colliders);
         if(!hit){g.pos.addScaledVector(g.vel,remaining);break;}
+        contact=true;
         g.pos.x+=dx*hit.t+hit.nx*hit.push;g.pos.y+=dy*hit.t+hit.ny*hit.push;g.pos.z+=dz*hit.t+hit.nz*hit.push;
         const inward=g.vel.x*hit.nx+g.vel.y*hit.ny+g.vel.z*hit.nz;
         if(inward<0){
@@ -15168,12 +15173,21 @@ return {createExperimentalRig,createAdaptiveRigController};
         remaining*=1-hit.t;
        }
        const floorY=floorAt(g.pos.x,g.pos.z,g.pos.y+.3);
-       if(g.pos.y<=floorY+.08){g.pos.y=floorY+.08;g.vel.y=Math.abs(g.vel.y)*.38;g.vel.x*=.68;g.vel.z*=.68;}
+       if(g.pos.y<=floorY+.08){contact=true;g.pos.y=floorY+.08;g.vel.y=Math.abs(g.vel.y)*.38;g.vel.x*=.68;g.vel.z*=.68;}
+       return contact;
       }
 
       // FO_H332_BEGIN grenade
       function throwGrenade(origin, dir, ownerName, team) {
-        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), WEAPON_MATS.olivePaint);
+        const isMolotov=team==='red';
+        const mesh = isMolotov
+          ?new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,.18,10),
+            new THREE.MeshStandardMaterial({color:0x52714a,roughness:.4,metalness:0,transparent:true,opacity:.86}))
+          :new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), WEAPON_MATS.olivePaint);
+        if(isMolotov){
+          const rag=new THREE.Mesh(new THREE.ConeGeometry(.026,.07,8),WEAPON_MATS.brass);
+          rag.position.y=.118;mesh.add(rag);
+        }
         // The caller supplies a short forward spawn offset; sweep it too.
         const launchOffset=ownerName===player.name?.55:.5;
         const launchDir=dir.clone().normalize(),launchBase=origin.clone().addScaledVector(launchDir,-launchOffset);
@@ -15195,7 +15209,9 @@ return {createExperimentalRig,createAdaptiveRigController};
           vel,
           ownerName,
           team,
-          fuse: 2.3
+          kind:isMolotov?'molotov':'m67',
+          age:0,
+          fuse:isMolotov?3:2.3
         });
       }
       // FO_H332_END grenade
@@ -15242,6 +15258,75 @@ return {createExperimentalRig,createAdaptiveRigController};
        const start={x:mk.x,y:mk.y+.25,z:mk.z};
        return !foGrenadeSweep(start,actor.x-start.x,actor.y+.9-start.y,actor.z-start.z,colliders,0);
       }
+
+      // FO_FACTION02_BEGIN fire field. Fictional game effect, not a real-world device.
+      let FO_MOLOTOV_VISUALS=null;
+      function foMolotovVisuals(){
+        if(FO_MOLOTOV_VISUALS)return FO_MOLOTOV_VISUALS;
+        FO_MOLOTOV_VISUALS={
+          ground:new THREE.CircleGeometry(2.2,20),
+          flame:new THREE.ConeGeometry(.24,.78,6),
+          scorch:new THREE.MeshBasicMaterial({color:0x873a1a,transparent:true,opacity:.25,depthWrite:false,side:THREE.DoubleSide}),
+          orange:new THREE.MeshBasicMaterial({color:0xff8b30,transparent:true,opacity:.76,depthWrite:false}),
+          yellow:new THREE.MeshBasicMaterial({color:0xffd16e,transparent:true,opacity:.78,depthWrite:false})
+        };
+        for(const v of [FO_MOLOTOV_VISUALS.ground,FO_MOLOTOV_VISUALS.flame])v.foH332Shared=true;
+        return FO_MOLOTOV_VISUALS;
+      }
+      function foIgniteMolotov(pos,ownerName,team){
+        const A=foMolotovVisuals(),root=new THREE.Group();
+        const floor=getFloorHeightAt(pos.x,pos.z,pos.y+.3);
+        const center=pos.clone();center.y=Number.isFinite(floor)?floor+.025:Math.max(.025,pos.y);
+        const disk=new THREE.Mesh(A.ground,A.scorch);disk.rotation.x=-Math.PI/2;
+        disk.position.y=.015;root.add(disk);
+        for(let i=0;i<5;i++){
+          const t=i*2.39996;
+          const flame=new THREE.Mesh(A.flame,i%2?A.orange:A.yellow);
+          flame.position.set(Math.cos(t)*(.35+i*.16),.38,Math.sin(t)*(.35+i*.16));
+          root.add(flame);
+        }
+        root.position.copy(center);scene.add(root);
+        const fire={mesh:root,pos:center,team,ownerName,life:6,age:0,tick:0};
+        activeFires.push(fire);
+        while(activeFires.length>8)foReleaseEquipment(activeFires.shift(),scene);
+        return fire;
+      }
+      function foUpdateMolotovFires(dt){
+        for(let i=activeFires.length-1;i>=0;i--){
+          const f=activeFires[i];
+          f.age+=dt;f.life-=dt;f.tick+=dt;
+          if(f.life<=0){foReleaseEquipment(f,scene);activeFires.splice(i,1);continue;}
+          const fade=Math.min(1,f.life/.75);
+          for(let k=1;k<f.mesh.children.length;k++){
+            const flame=f.mesh.children[k];
+            const rise=1+.13*Math.sin(f.age*9+k*2.2);
+            flame.scale.set(fade,rise*fade,fade);
+            flame.position.y=.38*rise;
+          }
+          if(f.tick<.5)continue;
+          f.tick-=.5;
+          const origin=f.pos.clone().add(new THREE.Vector3(0,.3,0));
+          const radius=2.7;
+          const damage=d=>Math.max(1,Math.round(13*(1-.4*d/radius)));
+          if(player.alive&&player.team!==f.team){
+            const target=player.pos.clone().add(new THREE.Vector3(0,1,0));
+            const dist=Math.hypot(target.x-origin.x,target.z-origin.z);
+            if(dist<radius&&Math.abs(target.y-origin.y)<1.75&&hasLineOfSight(origin,target))
+              applyDamageToPlayer(damage(dist),f.ownerName,'MOLOTOF',f.pos,true);
+          }
+          for(const b of bots){
+            if(!b.alive||b.team===f.team)continue;
+            const target=b.pos.clone().add(new THREE.Vector3(0,1,0));
+            const dist=Math.hypot(target.x-origin.x,target.z-origin.z);
+            if(dist<radius&&Math.abs(target.y-origin.y)<1.75&&hasLineOfSight(origin,target)){
+              const dmg=damage(dist);
+              if(f.ownerName===player.name)triggerHitmarker(false,b.hp-dmg<=0);
+              applyDamageToTarget(b,dmg,false,f.ownerName,f.team,'MOLOTOF',f.pos);
+            }
+          }
+        }
+      }
+      // FO_FACTION02_END fire field
 
       // FO_H332_BEGIN rocket
       function fireRocket(origin, dir, ownerName, team) {
@@ -18955,8 +19040,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         for (let i = activeGrenades.length - 1; i >= 0; i--) {
           const g = activeGrenades[i];
           g.fuse -= dt;
-          foAdvanceGrenade(g,dt,mapColliders,getFloorHeightAt);
-
+          const contacted=foAdvanceGrenade(g,dt,mapColliders,getFloorHeightAt);
+          g.age=(g.age||0)+dt;
           if (Math.abs(g.pos.x) > foWorldX(39)) g.vel.x *= -0.5;
           if (Math.abs(g.pos.z) > foWorldZ(60)) g.vel.z *= -0.5;
 
@@ -18964,13 +19049,15 @@ return {createExperimentalRig,createAdaptiveRigController};
           g.mesh.rotation.x += 6 * dt;
           g.mesh.rotation.z += 5 * dt;
 
-          if (g.fuse <= 0) {
-            triggerExplosion(g.pos, 6.0, 115, g.ownerName, g.team, 'M67 BOMBA');
+          if(g.kind==='molotov' ? ((contacted&&g.age>.18)||g.fuse<=0) : g.fuse<=0){
+            if(g.kind==='molotov')foIgniteMolotov(g.pos,g.ownerName,g.team);
+            else triggerExplosion(g.pos,6.0,115,g.ownerName,g.team,'M67 BOMBA');
             foReleaseEquipment(g,scene);
             activeGrenades.splice(i, 1);
           }
         }
 
+        foUpdateMolotovFires(dt);
         for (let i = activeRockets.length - 1; i >= 0; i--) {
           const r = activeRockets[i];
           r.life -= dt;
