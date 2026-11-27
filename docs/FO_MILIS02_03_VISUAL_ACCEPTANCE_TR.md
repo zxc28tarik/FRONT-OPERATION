@@ -51,6 +51,8 @@ V316 sınıf ve ekipman gerçek Chromium regresyonu ayrıca başarılı: https:/
 - Baş sargısı üst kısmı kapatıldı; fazla iri yüz kılı ve kaş parçaları inceltildi.
 - Son V5 rötuşu: kalın parlak kırmızı göğüs IFF işareti gizlendi, kollardaki takım işareti koyu-kırmızıyla sadeleştirildi.
 - Önceki 20 kare arşivi: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46014184249 . V4 temel görsel+gerçek geometri PASS: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46015461721
-- Final V5 ekran görüntüleri ve izole maliyet sayıları için aktif CI koşusu tamamlandıktan sonra bağlantı/sonuç güncellenir.
+- **FO_MILIS05 final gerçek WebGL PASS**: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46015770868 . 15 sınıf/varyasyon, 20 ekran görüntüsü, mavi asker kimliği, milis omuz/yelek gizleme, takım işaretleri ve 5/15 karakter çizim yükü doğrulandı. Final V316 sınıf-ekipman PASS: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46015750524 .
+- V5 izole sabit kamera, 15 asker: 2.041 çizim çağrısı / 621.428 üçgen; 15 milis: **1.448 çizim çağrısı / 454.796 üçgen**. V3 milis 1.517 / 456.342 idi: **69 daha az çizim çağrısı** (bu testte yaklaşık %4,5 azalma). Gerçek maç FPS ölçümü değildir.
+- V5 ekran görüntüleri kaynak kontrolüyle yan yana incelendi: ön askeri levha/kalın kayışlar azaldı, ikinci kıyafetin kafa sargısı kapandı, ön askerî kırmızı IFF görünmüyor. Öznel estetik/oyuncu onayı yine ayrı.
 
 Yalnızca görsel çizim ve testler değişti. V4 geçtikten sonra V5 için ayrıca CI koşturuldu; mobil/PC gerçek oyun FPS'i henüz ölçülmedi.
