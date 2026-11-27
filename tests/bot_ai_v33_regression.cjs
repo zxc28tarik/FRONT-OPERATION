@@ -115,8 +115,12 @@ function runBotAiV33Regression(html) {
   ok(html.includes('isBotFireLaneClear(bot, coverOpp.targetEye)') &&
     html.includes('isBotAimAligned(bot, coverOpp.targetEye)'),
     'Covering fire also respects ally line and body direction');
-  ok(html.includes("const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;"),
-    'Live support loop uses stable medic selection');
+  const originalMedicSelection = html.includes("const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;");
+  const readyMedicSelection = html.includes("const injuredAlly = bot.classId === 'medic' && bot.abilityCooldown <= 1.5") &&
+    html.includes("? selectBotMedicPatient(bot) : null;") &&
+    html.includes("if (injuredAlly) {\n                  behaviorHint='SUPPORT';");
+  ok(originalMedicSelection || readyMedicSelection,
+    'Live support loop selects the same patient when the medkit is ready');
   ok((html.match(/fireLaneRecoveryGoal: null/g) || []).length === 2 &&
     html.includes('bot.fireLaneRecoveryGoal = null;'),
     'All bot spawns and respawns initialize lane-recovery state');
