@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 const s=fs.readFileSync('index.html','utf8'),o=execFileSync('git',['show','5fd037e83cb0aa77a5ff997b610e1b17c04f0486:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const tag=/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm;
-assert.equal(s.replace(tag,'').replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact('),o);
+const originalContactDecision=`
+            const openingPriority=botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
+            const followThrough=botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);`;
+const restored=s.replace(tag,(_,name)=>name==='contact-shortcircuit'?originalContactDecision:'')
+  .replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(');
+assert.equal(restored,o);
 const heavy=s.slice(s.indexOf('      function foBot02ContactCommit('),s.indexOf('      // FO_BOT02_END heavy-helper'));
 const h=new Function(heavy+';return foBot02ContactCommit')();let cases=0;
 for(const mode of ['deathmatch','bomb','rescue'])for(const cls of ['heavy','assault','medic','engineer','sniper'])for(const hp of [20,51,52,100]){
@@ -37,4 +42,31 @@ for(const scenario of ['injured','healthy','dead','enemy','out-of-range']){
  assert.equal(patient?.id,scenario==='injured'?'ally':undefined);
  mc++;
 }
-console.log('BOT02 isolated PASS',{heavy:cases,medicBaseline:mc,total:cases+mc});
+// Verify the *actual* gameplay expressions: no altered combat, flank or hold result.
+const shortBlock=s.match(/\/\/ FO_BOT02_BEGIN contact-shortcircuit\n([\s\S]*?)\n *\/\/ FO_BOT02_END contact-shortcircuit/);
+assert(shortBlock,'contact short-circuit block must exist');
+const expr=shortBlock[1];
+const contactDecision=new Function('directCombat','botOpeningFirePriority','botFollowThroughPriority',
+  'bot','bestEnemy','nowSec','initialFireLane','isWounded','isSniperTooClose','pressure',
+  expr+'; return {openingPriority,followThrough};');
+let parity=0,oldCalls=0,newCalls=0;
+for(const direct of [false,true])
+for(const opening of [false,true])
+for(const follow of [false,true])
+for(const hold of [false,true])
+for(const pressure of [false,true])
+for(const flank of [false,true]){
+  const result=contactDecision(direct,()=>{newCalls++;return opening;},
+    ()=>{newCalls++;return follow;},{},{},0,false,false,false,pressure);
+  oldCalls+=2;
+  const oldHold=direct||opening||follow||hold;
+  const newHold=direct||result.openingPriority||result.followThrough||hold;
+  assert.equal(newHold,oldHold,'holdContact must remain identical');
+  const oldFlank=flank&&(direct||(opening&&!pressure));
+  const newFlank=flank&&(direct||(result.openingPriority&&!pressure));
+  assert.equal(newFlank,oldFlank,'flank clearance must remain identical');
+  parity++;
+}
+assert(newCalls<oldCalls,'duplicate helper evaluations must be reduced');
+console.log('BOT02 isolated PASS',{heavy:cases,medicBaseline:mc,contactParity:parity,
+  total:cases+mc+parity,decisionCallsSaved:oldCalls-newCalls});
