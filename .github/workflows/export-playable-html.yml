@@ -1,0 +1,29 @@
+name: FRONT OPERATION downloadable HTML
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'index.html'
+      - '.github/workflows/export-playable-html.yml'
+  workflow_dispatch:
+jobs:
+  playable-html:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'art/v292-crouch-transition'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify complete HTML file
+        run: |
+          test -s index.html
+          grep -q '<!DOCTYPE html>' index.html
+          grep -q '</html>' index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FRONT_OPERATION_PLAYABLE_HTML
+          path: index.html
+          if-no-files-found: error
+          retention-days: 30
