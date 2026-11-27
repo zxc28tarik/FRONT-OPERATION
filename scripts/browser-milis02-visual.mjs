@@ -101,6 +101,34 @@ try{
       return {drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,
         geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures}};
     window.__milis02={
+      diagnose(){
+        const rows=[];
+        for(const role of classes){
+          const m=api.create('red',role,0);
+          const walk=(node,parent='root',depth=0,visible=true)=>{
+            const enabled=visible&&node.visible;
+            if(node.isMesh||node.children.length&&depth<=2){
+              const g=node.geometry,b=g?.boundingBox;
+              rows.push({
+                role,parent,depth,name:node.name||'',isMesh:!!node.isMesh,
+                visible:enabled,localVisible:node.visible,
+                flags:Object.keys(node.userData||{}).filter(k=>k.startsWith('v')||k.startsWith('fo')),
+                material:node.material?.name||'',color:node.material?.color?.getHexString?.()||'',
+                geometryVertices:g?.getAttribute?.('position')?.count||0,
+                position:node.position?.toArray?.()?.map(n=>+n.toFixed(3)),
+                scale:node.scale?.toArray?.()?.map(n=>+n.toFixed(3)),
+                bound:b?[...b.min.toArray(),...b.max.toArray()].map(n=>+n.toFixed(3)):null
+              });
+            }
+            if(depth<3)for(const c of node.children)walk(c,node.name||parent,depth+1,enabled);
+          };
+          walk(m.upperBody,'torso',0);
+          walk(m.root,'body-root',0);
+          walk(m.leftKnee,'knee-left',0);
+          walk(m.head,'head',0);
+        }
+        return rows;
+      },
       scene(role,view){
         clean();
         const models=[],vals=[];
@@ -144,6 +172,7 @@ try{
       }
     };
   },soldierCode);
+  report.diagnostic=await page.evaluate(()=>window.__milis02.diagnose());
   const matrix=await page.evaluate(()=>window.__milis02.roleMatrix());
   assert.equal(matrix.length,15);
   report.matrix=matrix;
