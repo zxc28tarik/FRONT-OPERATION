@@ -1,0 +1,28 @@
+name: FO FACTION01 team choice and Molotov real Chromium acceptance
+on:
+  push:
+    branches:
+      - art/fo-faction01-team-weapons-molotov
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  faction01-webgl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install real Three.js and Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0 three@0.128.0
+          npx playwright install --with-deps chromium
+      - name: Test selectable factions across three maps and Molotov
+        run: node scripts/browser-faction01.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fo-faction01-real-webgl
+          path: test-artifacts/faction01/

@@ -995,6 +995,16 @@
           <option value="rescue">Esir Kurtarma • Cezaevi</option>
         </select>
       </label>
+      <!-- FO_FACTION01 team choice appears for each new match, not mid-round. -->
+      <fieldset id="fo-faction-picker" aria-label="Takım seç" style="display:flex;gap:8px;border:0;padding:0;margin:10px 0 9px;">
+        <legend style="color:#aebcbe;font-size:11px;font-weight:700;margin-bottom:5px;">TAKIMINI SEÇ</legend>
+        <label id="fo-faction-blue-label" style="flex:1;cursor:pointer;background:#213747;border:1px solid #6b9bb1;color:#dbeaf3;border-radius:7px;padding:9px 12px;font-size:12px;font-weight:800;text-align:center;">
+          <input id="fo-faction-blue" type="radio" name="fo-faction" value="blue" checked style="accent-color:#80bdde;"> ASKER
+        </label>
+        <label id="fo-faction-red-label" style="flex:1;cursor:pointer;background:#2b2927;border:1px solid #4e4944;color:#d4c3b0;border-radius:7px;padding:9px 12px;font-size:12px;font-weight:800;text-align:center;">
+          <input id="fo-faction-red" type="radio" name="fo-faction" value="red" style="accent-color:#dca17d;"> MİLİS
+        </label>
+      </fieldset>
       <p id="menu-subtitle" class="fo-menu-status hidden">Sınıfını seç, çatışmaya katıl.</p>
       <div id="match-result-badge" class="hidden fo-match-result">
         <span>MAÇ SONUCU</span>
@@ -1510,6 +1520,41 @@
           }
         }
       };
+
+      // FO_FACTION01_BEGIN arsenal: red-team counterparts; existing blue weapons intact.
+      const FO_FACTION_WEAPON_LIST=[
+        ['akm','hk416','AKM','AKM',{damage:30,rpm:625,spreadBase:.0065,spreadAds:.0017}],
+        ['uzi','mp7','Uzi','UZI',{damage:22,rpm:785,magSize:32,reserveMax:128,spreadBase:.009,spreadAds:.003,reloadTime:1.83}],
+        ['svd','mrad','SVD Dragunov','SVD',{damage:72,rpm:105,magSize:10,reserveMax:40,reloadTime:2.3,auto:false,spreadAds:.00032}],
+        ['pkm','minimi','PKM','PKM',{damage:27,rpm:655,magSize:100,reserveMax:200,reloadTime:5.1}],
+        ['tt33','p320','TT-33','TT-33',{damage:28,rpm:320,magSize:8,reserveMax:56,reloadTime:1.6}],
+        ['rpg7','carlgustaf','RPG-7','RPG-7',{damage:120,rpm:38,magSize:1,reserveMax:2,reloadTime:2.75}],
+        ['molotov','m67','Molotof Kokteyli','MOLOTOF',{damage:13,magSize:2,rpm:72}]
+      ];
+      const FO_FACTION_WEAPON_BASE=Object.create(null);
+      for(const [id,base,name,slotName,stats] of FO_FACTION_WEAPON_LIST){
+        FO_FACTION_WEAPON_BASE[id]=base;
+        const template=WEAPONS[base];
+        WEAPONS[id]={...template,...stats,id,name,slotName,
+          ...(template.recoilProfile?{recoilProfile:{...template.recoilProfile}}:{})};
+      }
+      const FO_MILIS_LOADOUTS=Object.freeze({
+        assault:Object.freeze({1:'akm',2:'tt33',3:'knife',4:'molotov'}),
+        medic:Object.freeze({1:'uzi',2:'tt33',3:'knife',4:'medkit'}),
+        engineer:Object.freeze({1:'uzi',2:'tt33',3:'knife',4:'drone'}),
+        sniper:Object.freeze({1:'svd',2:'tt33',3:'knife',4:null}),
+        heavy:Object.freeze({1:'pkm',2:'tt33',3:'knife',4:'rpg7'})
+      });
+      function foFactionSlots(team,classId){
+        return team==='red'?FO_MILIS_LOADOUTS[classId]:CLASSES[classId]?.slots;
+      }
+      function foFactionWeapon(team,baseId){
+        if(team!=='red'||!baseId)return baseId;
+        const table={hk416:'akm',mp7:'uzi',mrad:'svd',minimi:'pkm',p320:'tt33',
+          glock18c:'tt33',carlgustaf:'rpg7',m67:'molotov'};
+        return table[baseId]||baseId;
+      }
+      // FO_FACTION01_END arsenal
 
       const CLASSES = {
         assault: {
@@ -5396,7 +5441,7 @@
       }
       function beginV287RenderPose(refs,actor,dt,flashActive=false){
         const pose=refs?.v287Pose;if(!pose||pose.active)return false;
-        const profile=V287_POSES[pose.id]||V287_POSES.knife;
+        const profile=V287_POSES[pose.id]||V287_POSES[FO_FACTION_WEAPON_BASE[pose.id]]||V287_POSES.knife;
         const group=pose.group,root=pose.root;
         if(!actor.alive||!root.visible||!group.visible){pose.sprint=0;return false;}
         const step=Math.max(0,Math.min(.05,Number.isFinite(dt)?dt:0));
@@ -5587,8 +5632,55 @@
         };
 
         const root = new THREE.Group();
-
-        if (weaponId === 'hk416') {
+        const foRequestedWeaponId=weaponId;
+        // The existing tuned models back the AKM/SVD/PKM/TT-33; Uzi and RPG
+        // have their own cheap procedural meshes rather than military substitutes.
+        if(FO_FACTION_WEAPON_BASE[weaponId]&&!['uzi','rpg7','molotov'].includes(weaponId))
+          weaponId=FO_FACTION_WEAPON_BASE[weaponId];
+        const foPart=(geo,mat,x,y,z)=>{
+          const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);root.add(m);return m;
+        };
+        const foBox=(w,h,d,mat,x,y,z)=>foPart(new THREE.BoxGeometry(w,h,d),mat,x,y,z);
+        if(weaponId==='uzi'){
+          const D=WEAPON_MATS.metalDark,G=WEAPON_MATS.gunmetal;
+          foBox(.069,.086,.195,D,0,0,-.026);
+          foBox(.061,.016,.16,G,0,.052,-.024);
+          const barrel=foPart(new THREE.CylinderGeometry(.010,.010,.1,10),G,0,.004,-.17);
+          barrel.rotation.x=Math.PI/2;
+          foBox(.037,.123,.043,WEAPON_MATS.rubberGrip,0,-.10,.035);
+          vmRefs.magazineMesh=foBox(.032,.095,.032,G,0,-.117,.036);
+          foBox(.020,.027,.14,G,0,-.015,.138);
+          foBox(.058,.063,.012,G,0,-.024,.20);
+          for(const z of [-.11,.059])foBox(.018,.022,.018,G,0,.065,z);
+          const handR=createFirstPersonHandArm('right','pistol_grip');
+          handR.position.set(.006,-.08,.036);root.add(handR);
+          const handL=createFirstPersonHandArm('left','foregrip_horizontal');
+          handL.position.set(-.014,-.026,-.116);handL.userData.v267SupportHand=true;root.add(handL);
+          vmRefs.muzzlePoint.position.set(0,.004,-.21);
+          vmRefs.ejectPoint.position.set(.045,.035,-.015);
+          root.position.set(.153,-.165,-.32);
+        }else if(weaponId==='rpg7'){
+          const O=WEAPON_MATS.olivePaint,D=WEAPON_MATS.metalDark;
+          const tube=foPart(new THREE.CylinderGeometry(.033,.034,.70,14),O,0,.01,-.045);
+          tube.rotation.x=Math.PI/2;
+          const cone=foPart(new THREE.CylinderGeometry(.036,.072,.13,14),D,0,.01,.32);
+          cone.rotation.x=Math.PI/2;
+          const warhead=foPart(new THREE.ConeGeometry(.064,.21,14),O,0,.01,-.46);
+          warhead.rotation.x=-Math.PI/2;
+          const collar=foPart(new THREE.CylinderGeometry(.039,.039,.065,12),WEAPON_MATS.brass,0,.01,-.335);
+          collar.rotation.x=Math.PI/2;
+          for(const z of [-.16,.08]){const b=foPart(new THREE.CylinderGeometry(.039,.039,.027,12),D,0,.01,z);b.rotation.x=Math.PI/2;}
+          foBox(.027,.10,.037,D,0,-.069,-.06);
+          foBox(.029,.065,.038,D,-.014,-.063,-.235);
+          foBox(.032,.047,.051,D,-.035,.071,-.064);
+          const handR=createFirstPersonHandArm('right','pistol_grip');
+          handR.position.set(.006,-.064,-.062);root.add(handR);
+          const handL=createFirstPersonHandArm('left','pistol_grip');
+          handL.position.set(-.022,-.059,-.231);handL.userData.v267SupportHand=true;root.add(handL);
+          vmRefs.muzzlePoint.position.set(0,.01,-.55);
+          vmRefs.ejectPoint.position.set(0,0,-.1);
+          root.position.set(.19,-.16,-.25);
+        }else if(weaponId==='hk416'){
           const upper = createExtrudedProfile([
             [-0.024, 0.000], [0.095, 0.000], [0.095, 0.024], [0.082, 0.032],
             [-0.088, 0.032], [-0.098, 0.022], [-0.098, 0.000]
@@ -6269,7 +6361,13 @@
 
           root.position.set(0.06, -0.16, -0.28);
         } else {
-          if (weaponId === 'm67') {
+          if (weaponId === 'molotov') {
+            const glass=new THREE.MeshStandardMaterial({color:0x52694c,roughness:.35,metalness:0,transparent:true,opacity:.82});
+            foPart(new THREE.CylinderGeometry(.032,.042,.14,12),glass,0,-.012,0);
+            foPart(new THREE.CylinderGeometry(.015,.016,.055,10),WEAPON_MATS.olivePaint,0,.08,0);
+            foPart(new THREE.ConeGeometry(.018,.085,9),WEAPON_MATS.brass,0,.128,0);
+            foBox(.075,.047,.010,WEAPON_MATS.polymerFDE,0,-.025,.038);
+          } else if (weaponId === 'm67') {
             const body = new THREE.Mesh(new THREE.SphereGeometry(0.038, 16, 14), WEAPON_MATS.olivePaint);
             body.scale.set(1.0, 1.12, 1.0);
             root.add(body);
@@ -6303,6 +6401,11 @@
 
         refineV266GloveSurfaces(root);
         applyV259ViewmodelDetail(root);
+        if(['akm','svd','pkm','tt33'].includes(foRequestedWeaponId)){
+          // Low-cost worn stock/handguard accent for irregular small arms.
+          const wood=new THREE.MeshStandardMaterial({color:0x62462f,roughness:.91});
+          foBox(.034,.032,.128,wood,0,-.048,foRequestedWeaponId==='tt33'?.042:.109);
+        }
         // FO_V336_BEGIN viewmodel-call
         foV336WeaponFinish(root,vmRefs,weaponId);
         // FO_V336_END viewmodel-call
@@ -8831,7 +8934,7 @@
         ]);
         FO_MILIS02_ASSETS={outfits,jacketBody,jacketTrim,jacketDetail,headwear,eyes,beard,
           faceDark:plain(0x292521),stubble:plain(0x40352d),
-          sleevePatch:plain(0x8d4640)};
+          sleevePatch:plain(0x8d4640),weaponWood:plain(0x62472d)};
         return FO_MILIS02_ASSETS;
       }
       function foApplyMilis02Visual(model,classId,variant){
@@ -8910,6 +9013,23 @@
         model.root.userData.foFaction='milis';
         model.root.userData.foMilisOutfit=style;
         model.root.userData.foMilisHeadwear=v;
+        // FO_FACTION01 weapon silhouettes: alter inherited decorative stock/receiver
+        // without touching muzzle anchor, firing pivot, animation or hitboxes.
+        const gun=model.weaponPivot?.children||[];
+        if(gun.length>=3){
+          const receiver=gun[0],stock=gun[1];
+          if(classId==='medic'||classId==='engineer'){
+            receiver.scale.z*=.73;receiver.scale.y*=1.17;
+            stock.scale.z*=.56;
+            stock.position.z+=.032;
+          }else if(['assault','sniper','heavy'].includes(classId)){
+            stock.material=A.weaponWood;
+            if(classId==='assault')receiver.scale.y*=1.05;
+          }
+        }
+        model.root.userData.foMilisWeapon={
+          assault:'akm',medic:'uzi',engineer:'uzi',sniper:'svd',heavy:'pkm'
+        }[classId]||'akm';
         return model;
       }
       // FO_MILIS02_END
@@ -9412,7 +9532,7 @@
         return null;
       }
       function foBombActors(){
-        return [{id:'player',team:'blue',alive:player.alive,pos:player.pos,
+        return [{id:'player',team:player.team,alive:player.alive,pos:player.pos,
           player:true},...bots];
       }
       function foBombCanInteract(actor,site){
@@ -9451,7 +9571,8 @@
         status.textContent=blue+' / '+red+' CANLI • '+(active
           ?'BOMBA '+foBomb.site.id+' '+Math.ceil(foBomb.seconds)+' sn'
           :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%'
-          :playerAtPlantZone?'F BASILI TUT • BOMBA KUR':'A / B BÖLGESİNE GİT • F BASILI TUT');
+          :player.team==='red'?'BOMBA BÖLGELERİNİ SAVUN • F İLE İMHA ET':
+          playerAtPlantZone?'F BASILI TUT • BOMBA KUR':'A / B BÖLGESİNE GİT • F BASILI TUT');
         if(active&&foBomb.actor)status.textContent+=' • ÇÖZÜLÜYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.defuseSeconds*100))+'%';
         // FO_V343_BEGIN c4-visual
         if(result?.reason==='Bomba patladı'&&foBomb.site){
@@ -9998,6 +10119,7 @@
         document.getElementById('fo-bomb-status').textContent='ESİR '+saved+'/2 • '+
           (carrying?'ESİR SENİ TAKİP EDİYOR • TAHLİYE BÖLGESİNE DÖN':
           pickingUp?'F • KURTARILIYOR '+Math.min(100,Math.floor(pickingUp.progress/FO_RESCUE_RULES.holdSeconds*100))+'%':
+          player.team==='red'?'ESİRLERİ KORU • KURTARMA EKİBİNİ DURDUR':
           closeToCaptive?'F BASILI TUT • ESİRİ AL':'ESİRİ BUL • YAKLAŞ VE F BASILI TUT');
         if(result){foRescue.reason=result.reason;endMatch(result.winner);}
       }
@@ -10141,8 +10263,8 @@
       };
 
       function getCurrentWeapon() {
-        const cls = CLASSES[player.classId];
-        const wId = cls.slots[player.slot];
+        const slots=foFactionSlots(player.team,player.classId);
+        const wId=slots[player.slot];
         return wId ? WEAPONS[wId] : null;
       }
 
@@ -10151,10 +10273,10 @@
           droneSystem.onOperatorInterrupted('player');
         }
         player.classId = classId;
-        const cls = CLASSES[classId];
+        const slots=foFactionSlots(player.team,classId);
         player.ammoState = {};
         [1, 2, 3, 4].forEach((s) => {
-          const wId = cls.slots[s];
+          const wId = slots[s];
           if (wId) {
             const w = WEAPONS[wId];
             player.ammoState[wId] = {
@@ -10187,18 +10309,18 @@
         player.boltAnimTimer = 0;
         player.switchAnim = 1.0;
         updateSniperScopeUI();
-        buildViewmodel(cls.slots[1]);
+        buildViewmodel(slots[1]);
         updateHUD();
       }
 
       function switchSlot(slotNum) {
         if (!player.alive) return;
         if (typeof droneSystem !== 'undefined' && droneSystem.isPlayerControlling()) return;
-        const cls = CLASSES[player.classId];
-        if (!cls.slots[slotNum]) return;
+        const slots = foFactionSlots(player.team,player.classId);
+        if (!slots[slotNum]) return;
 
         // If slot 4 is DRONE and already selected, pressing 4 again launches drone if 1/1 charge available
-        if (slotNum === 4 && cls.slots[4] === 'drone' && player.slot === 4) {
+        if (slotNum === 4 && slots[4] === 'drone' && player.slot === 4) {
           if (typeof droneSystem !== 'undefined') {
             droneSystem.tryDeployPlayerDrone();
           }
@@ -10232,7 +10354,7 @@
         player.switchAnim = 1.0;
         document.getElementById('reload-indicator').classList.add('hidden');
         updateSniperScopeUI();
-        buildViewmodel(cls.slots[slotNum]);
+        buildViewmodel(slots[slotNum]);
         updateHUD();
       }
 
@@ -10249,7 +10371,7 @@
           return;
         }
 
-        if (w && w.id === 'mrad' && player.scopeStage > 0 && player.alive) {
+        if (w && w.category === 'sniper' && player.scopeStage > 0 && player.alive) {
           scopeEl.style.display = 'block';
           chEl.style.opacity = '0';
           if (currentViewmodelMesh) currentViewmodelMesh.visible = false;
@@ -11394,7 +11516,7 @@
       // 10. BOT AI 2.0 — 50-NODE A* NAVIGATION, TACTICAL STATES & SQUADS
       // =========================================================================
       const bots = [];
-      const BOT_NAMES_BLUE = ['Kaya_TR', 'Bora_06', 'AlpArslan', 'Mertcan', 'Tuna_CQC'];
+      const BOT_NAMES_BLUE = ['Kaya_TR', 'Bora_06', 'AlpArslan', 'Mertcan', 'Tuna_CQC', 'Yildiz_CQC'];
       const BOT_NAMES_RED = ['Valkyrie', 'Kobra_X', 'Shadow99', 'Ghost_TR', 'Scorpion', 'Reaper'];
       const CLASS_ORDER = ['assault', 'medic', 'engineer', 'sniper', 'heavy'];
 
@@ -13165,7 +13287,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         // A fresh match starts a fresh per-five/per-fifteen spawn cycle.
         botLifeSequence = 0;
 
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < (player.team==='blue'?5:6); i++) {
           const cls = CLASS_ORDER[i % CLASS_ORDER.length];
           const mesh = createEnhancedBotSoldierMesh('blue', cls, i%3);
           scene.add(mesh.root);
@@ -13286,7 +13408,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           });
         }
 
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < (player.team==='red'?5:6); i++) {
           const cls = CLASS_ORDER[i % CLASS_ORDER.length];
           const mesh = createEnhancedBotSoldierMesh('red', cls, (i+1)%3);
           scene.add(mesh.root);
@@ -14105,6 +14227,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
         if(isFoRescueMode()){resTxt.textContent+=' • '+foRescue.reason;document.getElementById('respawn-overlay').classList.add('hidden');stopFoSpectator();}
         document.getElementById('fo-mode-picker').style.display='flex';
+        foFactionPickerVisible(true);
         titleEl.textContent = 'MAÇ TAMAMLANDI';
         subEl.textContent = `Senin skorun: ${player.kills} eleme / ${player.deaths} ölüm • Yeni maç için sınıfını seç.`;
         subEl.classList.remove('hidden');
@@ -14467,6 +14590,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       const activeImpactMarks = [];
       const activeShellCasings = [];
       const activeGrenades = [];
+      const activeFires = [];
       const activeRockets = [];
       const activeMedkits = [];
       const activeClaymores = [];
@@ -14929,6 +15053,9 @@ return {createExperimentalRig,createAdaptiveRigController};
 
       // FO_V343_END blast-pool
       function clearAllMatchEntities() {
+        // FO_FACTION02: fire never survives a match/map reset.
+        for(const fire of activeFires)foReleaseEquipment(fire,scene);
+        activeFires.length=0;
         // FO_V343_BEGIN blast-clear
         foV343ClearBlasts();
         // FO_V343_END blast-clear
@@ -15048,11 +15175,12 @@ return {createExperimentalRig,createAdaptiveRigController};
       }
       function foAdvanceGrenade(g,dt,colliders,floorAt){
        g.vel.y-=18*dt;
-       let remaining=dt;
+       let remaining=dt,contact=false;
        for(let i=0;i<4&&remaining>1e-8;i++){
         const dx=g.vel.x*remaining,dy=g.vel.y*remaining,dz=g.vel.z*remaining;
         const hit=foGrenadeSweep(g.pos,dx,dy,dz,colliders);
         if(!hit){g.pos.addScaledVector(g.vel,remaining);break;}
+        contact=true;
         g.pos.x+=dx*hit.t+hit.nx*hit.push;g.pos.y+=dy*hit.t+hit.ny*hit.push;g.pos.z+=dz*hit.t+hit.nz*hit.push;
         const inward=g.vel.x*hit.nx+g.vel.y*hit.ny+g.vel.z*hit.nz;
         if(inward<0){
@@ -15062,12 +15190,21 @@ return {createExperimentalRig,createAdaptiveRigController};
         remaining*=1-hit.t;
        }
        const floorY=floorAt(g.pos.x,g.pos.z,g.pos.y+.3);
-       if(g.pos.y<=floorY+.08){g.pos.y=floorY+.08;g.vel.y=Math.abs(g.vel.y)*.38;g.vel.x*=.68;g.vel.z*=.68;}
+       if(g.pos.y<=floorY+.08){contact=true;g.pos.y=floorY+.08;g.vel.y=Math.abs(g.vel.y)*.38;g.vel.x*=.68;g.vel.z*=.68;}
+       return contact;
       }
 
       // FO_H332_BEGIN grenade
       function throwGrenade(origin, dir, ownerName, team) {
-        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), WEAPON_MATS.olivePaint);
+        const isMolotov=team==='red';
+        const mesh = isMolotov
+          ?new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,.18,10),
+            new THREE.MeshStandardMaterial({color:0x52714a,roughness:.4,metalness:0,transparent:true,opacity:.86,depthWrite:false}))
+          :new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), WEAPON_MATS.olivePaint);
+        if(isMolotov){
+          const rag=new THREE.Mesh(new THREE.ConeGeometry(.026,.07,8),WEAPON_MATS.brass);
+          rag.position.y=.118;mesh.add(rag);
+        }
         // The caller supplies a short forward spawn offset; sweep it too.
         const launchOffset=ownerName===player.name?.55:.5;
         const launchDir=dir.clone().normalize(),launchBase=origin.clone().addScaledVector(launchDir,-launchOffset);
@@ -15089,7 +15226,10 @@ return {createExperimentalRig,createAdaptiveRigController};
           vel,
           ownerName,
           team,
-          fuse: 2.3
+          kind:isMolotov?'molotov':'m67',
+          ownedMaterials:isMolotov?[mesh.material]:[],
+          age:0,
+          fuse:isMolotov?3:2.3
         });
       }
       // FO_H332_END grenade
@@ -15136,6 +15276,75 @@ return {createExperimentalRig,createAdaptiveRigController};
        const start={x:mk.x,y:mk.y+.25,z:mk.z};
        return !foGrenadeSweep(start,actor.x-start.x,actor.y+.9-start.y,actor.z-start.z,colliders,0);
       }
+
+      // FO_FACTION02_BEGIN fire field. Fictional game effect, not a real-world device.
+      let FO_MOLOTOV_VISUALS=null;
+      function foMolotovVisuals(){
+        if(FO_MOLOTOV_VISUALS)return FO_MOLOTOV_VISUALS;
+        FO_MOLOTOV_VISUALS={
+          ground:new THREE.CircleGeometry(2.2,20),
+          flame:new THREE.ConeGeometry(.24,.78,6),
+          scorch:new THREE.MeshBasicMaterial({color:0x873a1a,transparent:true,opacity:.25,depthWrite:false,side:THREE.DoubleSide}),
+          orange:new THREE.MeshBasicMaterial({color:0xff8b30,transparent:true,opacity:.76,depthWrite:false}),
+          yellow:new THREE.MeshBasicMaterial({color:0xffd16e,transparent:true,opacity:.78,depthWrite:false})
+        };
+        for(const v of [FO_MOLOTOV_VISUALS.ground,FO_MOLOTOV_VISUALS.flame])v.foH332Shared=true;
+        return FO_MOLOTOV_VISUALS;
+      }
+      function foIgniteMolotov(pos,ownerName,team){
+        const A=foMolotovVisuals(),root=new THREE.Group();
+        const floor=getFloorHeightAt(pos.x,pos.z,pos.y+.3);
+        const center=pos.clone();center.y=Number.isFinite(floor)?floor+.025:Math.max(.025,pos.y);
+        const disk=new THREE.Mesh(A.ground,A.scorch);disk.rotation.x=-Math.PI/2;
+        disk.position.y=.015;root.add(disk);
+        for(let i=0;i<5;i++){
+          const t=i*2.39996;
+          const flame=new THREE.Mesh(A.flame,i%2?A.orange:A.yellow);
+          flame.position.set(Math.cos(t)*(.35+i*.16),.38,Math.sin(t)*(.35+i*.16));
+          root.add(flame);
+        }
+        root.position.copy(center);scene.add(root);
+        const fire={mesh:root,pos:center,team,ownerName,life:6,age:0,tick:0};
+        activeFires.push(fire);
+        while(activeFires.length>8)foReleaseEquipment(activeFires.shift(),scene);
+        return fire;
+      }
+      function foUpdateMolotovFires(dt){
+        for(let i=activeFires.length-1;i>=0;i--){
+          const f=activeFires[i];
+          f.age+=dt;f.life-=dt;f.tick+=dt;
+          if(f.life<=0){foReleaseEquipment(f,scene);activeFires.splice(i,1);continue;}
+          const fade=Math.min(1,f.life/.75);
+          for(let k=1;k<f.mesh.children.length;k++){
+            const flame=f.mesh.children[k];
+            const rise=1+.13*Math.sin(f.age*9+k*2.2);
+            flame.scale.set(fade,rise*fade,fade);
+            flame.position.y=.38*rise;
+          }
+          if(f.tick<.5)continue;
+          f.tick-=.5;
+          const origin=f.pos.clone().add(new THREE.Vector3(0,.3,0));
+          const radius=2.7;
+          const damage=d=>Math.max(1,Math.round(13*(1-.4*d/radius)));
+          if(player.alive&&player.team!==f.team){
+            const target=player.pos.clone().add(new THREE.Vector3(0,1,0));
+            const dist=Math.hypot(target.x-origin.x,target.z-origin.z);
+            if(dist<radius&&Math.abs(target.y-origin.y)<1.75&&hasLineOfSight(origin,target))
+              applyDamageToPlayer(damage(dist),f.ownerName,'MOLOTOF',f.pos,true);
+          }
+          for(const b of bots){
+            if(!b.alive||b.team===f.team)continue;
+            const target=b.pos.clone().add(new THREE.Vector3(0,1,0));
+            const dist=Math.hypot(target.x-origin.x,target.z-origin.z);
+            if(dist<radius&&Math.abs(target.y-origin.y)<1.75&&hasLineOfSight(origin,target)){
+              const dmg=damage(dist);
+              if(f.ownerName===player.name)triggerHitmarker(false,b.hp-dmg<=0);
+              applyDamageToTarget(b,dmg,false,f.ownerName,f.team,'MOLOTOF',f.pos);
+            }
+          }
+        }
+      }
+      // FO_FACTION02_END fire field
 
       // FO_H332_BEGIN rocket
       function fireRocket(origin, dir, ownerName, team) {
@@ -15695,9 +15904,9 @@ return {createExperimentalRig,createAdaptiveRigController};
         player.alive = true;
         player.hp = player.maxHp;
         player.sp = player.maxSp;
-        player.pos.set(foWorldX((Math.random() - 0.5) * 14), 0, foWorldZ(50));
+        player.pos.set(foWorldX((Math.random() - 0.5) * 14), 0, foWorldZ(player.team==='red'?-50:50));
         player.vel.set(0, 0, 0);
-        player.yaw = 0;
+        player.yaw = player.team==='red'?Math.PI:0;
         player.pitch = 0;
         player.reloading = false;
         player.ads = false;
@@ -15709,7 +15918,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         clearTimeout(damageDirTimeout);
         document.getElementById('damage-dir').style.opacity='0';
         camera.position.set(player.pos.x,player.pos.y+1.62,player.pos.z);
-        camera.rotation.set(0,0,0);
+        camera.rotation.set(0,player.yaw,0);
         camera.fov=74;camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
         initPlayerLoadout(player.classId);
         document.getElementById('respawn-overlay').classList.add('hidden');
@@ -15918,7 +16127,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         player.fovKickCurrent *= Math.exp(-14 * dt);
 
-        const targetFov = (w && w.id === 'mrad' && player.scopeStage > 0)
+        const targetFov = (w && w.category === 'sniper' && player.scopeStage > 0)
           ? (player.scopeStage === 1 ? 24 : 10)
           : (player.ads && w ? w.adsFov : 74) + player.fovKickCurrent;
         if (Math.abs(camera.fov - targetFov) > 0.05) {
@@ -15958,7 +16167,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
 
         const align = (w && w.adsAlign) ? w.adsAlign : { adsX: -0.17, adsY: 0.085, adsZ: -0.075, hipRotX: 0, hipRotY: 0 };
-        const adsFactor = (player.ads && !(w && w.id === 'mrad' && player.scopeStage > 0)) ? 1 : 0;
+        const adsFactor = (player.ads && !(w && w.category === 'sniper' && player.scopeStage > 0)) ? 1 : 0;
         const targetVmX = adsFactor ? align.adsX : bobX;
         const targetVmY = (adsFactor ? align.adsY : bobY) - (player.reloading ? Math.sin(Math.min(1, (1 - player.reloadTimer / Math.max(0.01, player.reloadDuration))) * Math.PI) * 0.14 : 0) - player.switchAnim * 0.16;
         const targetVmZ = adsFactor ? align.adsZ : 0;
@@ -17284,9 +17493,16 @@ return {createExperimentalRig,createAdaptiveRigController};
       }
 
       // V68: shared finite ammunition state for every bot firearm path.
+      // Standalone V68 tests still run the original ammo functions in isolation.
+      function foBotOwnedSlots(bot){
+        return typeof foFactionSlots==='function'?foFactionSlots(bot.team,bot.classId):CLASSES[bot.classId]?.slots;
+      }
+      function foBotOwnedWeapon(bot,id){
+        return typeof foFactionWeapon==='function'?foFactionWeapon(bot.team,id):id;
+      }
       function botAmmoSlot(bot,id){
         // Only the current class's two firearm slots may create inventory.
-        const slots=CLASSES[bot.classId]?.slots;
+        const slots=foBotOwnedSlots(bot);
         if(!slots||!id||(id!==slots[1]&&id!==slots[2]))return null;
         const w=WEAPONS[id];
         if(!w||!(w.magSize>0)||!(w.reloadTime>0))return null;
@@ -17294,14 +17510,16 @@ return {createExperimentalRig,createAdaptiveRigController};
         return bot.ammoState[id]||(bot.ammoState[id]={mag:w.magSize,reserve:w.reserveMax});
       }
       function botPreferredInfantryWeapon(bot,distance){
-        return bot.classId==='assault'?'hk416':
+        const preferred=bot.classId==='assault'?'hk416':
           (bot.classId==='medic'||bot.classId==='engineer')?'mp7':
           bot.classId==='sniper'?(distance<11?'glock18c':'mrad'):'minimi';
+        return typeof foFactionWeapon==='function'?foFactionWeapon(bot.team,preferred):preferred;
       }
       function botAmmoWeapon(bot,preferred){
+        preferred=foBotOwnedWeapon(bot,preferred);
         const s=botAmmoSlot(bot,preferred);
         if(s&&(s.mag>0||s.reserve>0))return preferred;
-        const slots=CLASSES[bot.classId]?.slots;
+        const slots=foBotOwnedSlots(bot);
         for(const id of [slots?.[2],slots?.[1]]){
           const a=botAmmoSlot(bot,id);
           if(a&&(a.mag>0||a.reserve>0))return id;
@@ -17339,7 +17557,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
         s.mag--;
         botAmmoAudit(bot,'ammoRounds');
-        if(id===CLASSES[bot.classId]?.slots[2])botAmmoAudit(bot,'ammoSidearmRounds');
+        if(id===foBotOwnedSlots(bot)?.[2])botAmmoAudit(bot,'ammoSidearmRounds');
         if(bot.lastAmmoWeapon&&bot.lastAmmoWeapon!==id)botAmmoAudit(bot,'ammoWeaponSwitches');
         bot.lastAmmoWeapon=id;
         return true;
@@ -17363,7 +17581,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
         }
         if(operator||context.contact||!context.quiet||!context.stationary)return;
-        const id=bot.lastAmmoWeapon||CLASSES[bot.classId]?.slots[1];
+        const id=bot.lastAmmoWeapon||foBotOwnedSlots(bot)?.[1];
         const s=botAmmoSlot(bot,id);
         if(!s)return;
         const guard=context.role==='GUARD'||context.role==='HOLD';
@@ -17917,7 +18135,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0 &&
                 botTrySpendRound(bot,botWeaponId)) {
               const bw = WEAPONS[botWeaponId];
-              bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && botWeaponId === 'mrad' ? 1.35 : 1.75);
+              bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && bw.category === 'sniper' ? 1.35 : 1.75);
               recordBotContactShot(bot,nowSec);
               recordBotHeavyGustavRound(bot,bestEnemy);
               bot.burstCount++;
@@ -17937,7 +18155,7 @@ return {createExperimentalRig,createAdaptiveRigController};
                 (bw.category === 'pistol' ? 'pistol' : 'gun'), bot.id);
 
               const distFactor = botInfantryDistanceFactor(distToEnemy);
-              const classAcc = botWeaponId === 'mrad' ? 0.62 : botWeaponId === 'hk416' ? 0.38 : 0.30;
+              const classAcc = bw.category==='sniper' ? 0.62 : bw.category==='rifle' ? 0.38 : 0.30;
               const targetEvasion = bestEnemy.rolling ? 0.32 : (bestEnemy.crouching ? 0.82 : 1.0);
               const trackingFactor = getBotAimTrackingFactor(bot, bestEnemy.eye);
               const movementFactor = Math.max(0.86,
@@ -18848,8 +19066,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         for (let i = activeGrenades.length - 1; i >= 0; i--) {
           const g = activeGrenades[i];
           g.fuse -= dt;
-          foAdvanceGrenade(g,dt,mapColliders,getFloorHeightAt);
-
+          const contacted=foAdvanceGrenade(g,dt,mapColliders,getFloorHeightAt);
+          g.age=(g.age||0)+dt;
           if (Math.abs(g.pos.x) > foWorldX(39)) g.vel.x *= -0.5;
           if (Math.abs(g.pos.z) > foWorldZ(60)) g.vel.z *= -0.5;
 
@@ -18857,13 +19075,15 @@ return {createExperimentalRig,createAdaptiveRigController};
           g.mesh.rotation.x += 6 * dt;
           g.mesh.rotation.z += 5 * dt;
 
-          if (g.fuse <= 0) {
-            triggerExplosion(g.pos, 6.0, 115, g.ownerName, g.team, 'M67 BOMBA');
+          if(g.kind==='molotov' ? ((contacted&&g.age>.18)||g.fuse<=0) : g.fuse<=0){
+            if(g.kind==='molotov')foIgniteMolotov(g.pos,g.ownerName,g.team);
+            else triggerExplosion(g.pos,6.0,115,g.ownerName,g.team,'M67 BOMBA');
             foReleaseEquipment(g,scene);
             activeGrenades.splice(i, 1);
           }
         }
 
+        foUpdateMolotovFires(dt);
         for (let i = activeRockets.length - 1; i >= 0; i--) {
           const r = activeRockets[i];
           r.life -= dt;
@@ -19343,14 +19563,14 @@ return {createExperimentalRig,createAdaptiveRigController};
         document.getElementById('sp-value').textContent = `${spPct}%`;
         document.getElementById('sp-bar').style.width = `${spPct}%`;
 
-        const cls = CLASSES[player.classId];
+        const cls = CLASSES[player.classId],slots=foFactionSlots(player.team,player.classId);
         document.getElementById('hud-class-badge').textContent = cls.name;
 
         [1, 2, 3, 4].forEach((s) => {
           const box = document.getElementById(`slot-box-${s}`);
           const nameEl = document.getElementById(`slot-name-${s}`);
           const subEl = s === 4 ? document.getElementById('slot-sub-4') : null;
-          const wId = cls.slots[s];
+          const wId = slots[s];
           if (!wId) {
             nameEl.textContent = 'YOK';
             if (subEl) {
@@ -19560,8 +19780,9 @@ return {createExperimentalRig,createAdaptiveRigController};
         document.getElementById('sb-red-score').textContent = matchState.scoreRed;
         document.getElementById('sb-timer').textContent = document.getElementById('match-timer').textContent;
 
-        const blueRows = [{ name: player.name, classId: player.classId, kills: player.kills, deaths: player.deaths, isPlayer: true }];
-        const redRows = [];
+        const playerRow={name:player.name,classId:player.classId,kills:player.kills,deaths:player.deaths,isPlayer:true};
+        const blueRows = player.team==='blue'?[playerRow]:[];
+        const redRows = player.team==='red'?[playerRow]:[];
 
         bots.forEach((b) => {
           const row = { name: b.name, classId: b.classId, kills: b.kills, deaths: b.deaths, isPlayer: false };
@@ -19654,6 +19875,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         refreshMapMenuCaption();
         selectMenuClass(document.querySelector('.class-card[data-class="'+player.classId+'"]'));
         document.getElementById('fo-mode-picker').style.display='flex';
+        document.querySelector('input[name="fo-faction"][value="'+player.team+'"]').checked=true;
+        foFactionPickerVisible(true);updateClassMenuPreview();
         document.getElementById('menu-title').textContent='HARİTA DEĞİŞTİR';
         const subtitle=document.getElementById('menu-subtitle');
         subtitle.textContent='Yeni maç başlatılırsa mevcut maçın skoru ve ilerlemesi sıfırlanır.';
@@ -19669,6 +19892,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         foModeSelect.value=matchState.mode;
         refreshMapMenuCaption();
         document.getElementById('fo-mode-picker').style.display='none';
+        document.querySelector('input[name="fo-faction"][value="'+player.team+'"]').checked=true;
+        foFactionPickerVisible(false);
         document.getElementById('btn-map-cancel').classList.add('hidden');
         document.getElementById('menu-overlay').classList.add('hidden');
         showPauseMenu();
@@ -19687,6 +19912,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         document.getElementById('menu-subtitle').textContent = 'Sınıfını seç ve çatışmaya dön.';
         document.getElementById('menu-subtitle').classList.add('hidden');
         document.getElementById('btn-deploy').textContent = 'SINIFI ONAYLA';
+        document.querySelector('input[name="fo-faction"][value="'+player.team+'"]').checked=true;
+        foFactionPickerVisible(false);updateClassMenuPreview();
         menuEl.classList.remove('hidden');
         if (document.pointerLockElement === canvas) document.exitPointerLock();
       }
@@ -19727,12 +19954,15 @@ return {createExperimentalRig,createAdaptiveRigController};
         hk416: 'HK416A5', p320: 'P320', knife: 'Bıçak', m67: 'M67',
         mp7: 'MP7A1', medkit: 'Medkit', drone: 'FPV Drone',
         mrad: 'MRAD', glock18c: 'Glock 18C',
-        minimi: 'Minimi', carlgustaf: 'Carl Gustaf'
+        minimi: 'Minimi', carlgustaf: 'Carl Gustaf',
+        akm:'AKM',uzi:'Uzi',svd:'SVD Dragunov',pkm:'PKM',tt33:'TT-33',
+        rpg7:'RPG-7',molotov:'Molotof Kokteyli'
       });
       function updateClassMenuPreview() {
         const description = CLASS_MENU_DESCRIPTIONS[selectedMenuClass];
-        const cls = CLASSES[selectedMenuClass];
-        if (!description || !cls) return;
+        const previewTeam=document.querySelector('input[name="fo-faction"]:checked')?.value||player.team;
+        const slotsByTeam=foFactionSlots(previewTeam,selectedMenuClass);
+        if (!description || !slotsByTeam) return;
         document.getElementById('selected-class-title').textContent = description[0];
         document.getElementById('selected-class-description').textContent = description[1];
         const slots = document.getElementById('selected-class-loadout');
@@ -19741,7 +19971,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           const item = document.createElement('span');
           const key = document.createElement('b');
           key.textContent = slot + '.';
-          const weaponId = cls.slots[slot];
+          const weaponId = slotsByTeam[slot];
           const weapon = weaponId && WEAPONS[weaponId];
           const weaponName = !weaponId ? 'Yok'
             : (CLASS_MENU_WEAPON_LABELS[weaponId] || (weapon ? weapon.slotName : weaponId.toUpperCase()));
@@ -19780,6 +20010,17 @@ return {createExperimentalRig,createAdaptiveRigController};
       });
       updateClassMenuPreview();
 
+      // FO_FACTION01 team preview; changing factions is allowed only before a new round.
+      const foFactionPicker=document.getElementById('fo-faction-picker');
+      function foFactionPickerVisible(show){
+        foFactionPicker.style.display=show?'flex':'none';
+        const current=document.querySelector('input[name="fo-faction"]:checked')?.value;
+        document.getElementById('fo-faction-blue-label').style.borderColor=current==='blue'?'#81b8d3':'#4e5961';
+        document.getElementById('fo-faction-red-label').style.borderColor=current==='red'?'#dba17f':'#4e4944';
+      }
+      document.querySelectorAll('input[name="fo-faction"]').forEach(input=>
+        input.addEventListener('change',()=>{foFactionPickerVisible(true);updateClassMenuPreview();}));
+      foFactionPickerVisible(true);
       const foModeSelect=document.getElementById('fo-game-mode');
       function refreshMapMenuCaption(){
         document.querySelector('.fo-map-caption').textContent=foMapName(foModeSelect.value)+' • 6V6';
@@ -19799,10 +20040,12 @@ return {createExperimentalRig,createAdaptiveRigController};
         document.getElementById('scoreboard-overlay').classList.add('hidden');
         document.getElementById('menu-subtitle').classList.add('hidden');
         const selectedMode=['bomb','rescue'].includes(foModeSelect.value)?foModeSelect.value:'deathmatch';
-        const isNewMatch = mapSwitchPending || matchState.ended || (!matchState.started && selectedMode!=='deathmatch');
+        const isNewMatch = mapSwitchPending || matchState.ended || !matchState.started;
         mapSwitchPending=false;
         document.getElementById('btn-map-cancel').classList.add('hidden');
         if (isNewMatch) {
+          const requestedTeam=document.querySelector('input[name="fo-faction"]:checked')?.value;
+          player.team=requestedTeam==='red'?'red':'blue';
           matchState.ended = false;
           matchState.scoreBlue = 0;
           matchState.scoreRed = 0;
@@ -19828,6 +20071,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         matchState.started = true;
         refreshFoModeUi();
         document.getElementById('fo-mode-picker').style.display='none';
+        foFactionPickerVisible(false);
         if (isNewMatch || !player.alive) {
           player.classId = selectedMenuClass;
           respawnPlayer();
@@ -20027,7 +20271,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           if (player.reloading) return;
           const w = getCurrentWeapon();
           if (!w || w.category === 'melee' || w.category === 'grenade' || w.category === 'medkit' || w.category === 'claymore' || w.category === 'drone') return;
-          if (w.id === 'mrad') {
+          if (w.category === 'sniper') {
             player.scopeStage = (player.scopeStage + 1) % 3;
             player.ads = player.scopeStage > 0;
             updateSniperScopeUI();
@@ -20092,7 +20336,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
       window.addEventListener('wheel', (e) => {
         if (!gameplayInputAllowed() || !player.alive || droneSystem.isPlayerControlling()) return;
-        const order = CLASSES[player.classId].slots[4] ? [1, 2, 3, 4] : [1, 2, 3];
+        const order = foFactionSlots(player.team,player.classId)[4] ? [1, 2, 3, 4] : [1, 2, 3];
         const idx = order.indexOf(player.slot);
         const nextIdx = (idx + (e.deltaY > 0 ? 1 : -1) + order.length) % order.length;
         switchSlot(order[nextIdx]);
@@ -20216,7 +20460,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
         const w = getCurrentWeapon();
         if (!w || w.category === 'drone') return;
-        if (w.id === 'mrad') {
+        if (w.category === 'sniper') {
           player.scopeStage = (player.scopeStage + 1) % 3;
           player.ads = player.scopeStage > 0;
           updateSniperScopeUI();

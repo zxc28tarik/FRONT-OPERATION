@@ -112,7 +112,9 @@ const bounds=new Function('mode',html.slice(gstart,html.indexOf('      const FO_
 ok(Math.abs(bounds('bomb')[0]-52.668)<.001&&Math.abs(bounds('bomb')[1]-45.5175)<.001,'V88 bomb bounds reduced on both axes');
 ok(bounds('deathmatch')[0]===38.5&&bounds('deathmatch')[1]===59.5,'Marien world bounds unchanged');
 ok(html.includes('foActiveMap=mode; // Set bounds before validating the selected graph.'),'Select correct bounds before nav validation');
-ok(html.includes('foWorldZ(50));'),'Player deploys at expanded spawn');
+ok(html.includes("foWorldZ(player.team==='red'?-50:50));")&&
+   html.includes("player.team==='red'?Math.PI:0"),
+   'Faction player spawns at opposite V88-expanded bases, facing toward battle');
 ok(html.includes('b.pos.x=foWorldX(b.pos.x);b.pos.z=foWorldZ(b.pos.z);'),'Bot deployment uses enlarged arena');
 // Quantify physical head-height sightlines across original reference nodes.
 let visible=0,total=0;
