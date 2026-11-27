@@ -9496,7 +9496,8 @@
         status.textContent=blue+' / '+red+' CANLI • '+(active
           ?'BOMBA '+foBomb.site.id+' '+Math.ceil(foBomb.seconds)+' sn'
           :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%'
-          :playerAtPlantZone?'F BASILI TUT • BOMBA KUR':'A / B BÖLGESİNE GİT • F BASILI TUT');
+          :player.team==='red'?'BOMBA BÖLGELERİNİ SAVUN • F İLE İMHA ET':
+          playerAtPlantZone?'F BASILI TUT • BOMBA KUR':'A / B BÖLGESİNE GİT • F BASILI TUT');
         if(active&&foBomb.actor)status.textContent+=' • ÇÖZÜLÜYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.defuseSeconds*100))+'%';
         // FO_V343_BEGIN c4-visual
         if(result?.reason==='Bomba patladı'&&foBomb.site){
@@ -10043,6 +10044,7 @@
         document.getElementById('fo-bomb-status').textContent='ESİR '+saved+'/2 • '+
           (carrying?'ESİR SENİ TAKİP EDİYOR • TAHLİYE BÖLGESİNE DÖN':
           pickingUp?'F • KURTARILIYOR '+Math.min(100,Math.floor(pickingUp.progress/FO_RESCUE_RULES.holdSeconds*100))+'%':
+          player.team==='red'?'ESİRLERİ KORU • KURTARMA EKİBİNİ DURDUR':
           closeToCaptive?'F BASILI TUT • ESİRİ AL':'ESİRİ BUL • YAKLAŞ VE F BASILI TUT');
         if(result){foRescue.reason=result.reason;endMatch(result.winner);}
       }
@@ -14150,6 +14152,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
         if(isFoRescueMode()){resTxt.textContent+=' • '+foRescue.reason;document.getElementById('respawn-overlay').classList.add('hidden');stopFoSpectator();}
         document.getElementById('fo-mode-picker').style.display='flex';
+        foFactionPickerVisible(true);
         titleEl.textContent = 'MAÇ TAMAMLANDI';
         subEl.textContent = `Senin skorun: ${player.kills} eleme / ${player.deaths} ölüm • Yeni maç için sınıfını seç.`;
         subEl.classList.remove('hidden');
@@ -19701,6 +19704,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         refreshMapMenuCaption();
         selectMenuClass(document.querySelector('.class-card[data-class="'+player.classId+'"]'));
         document.getElementById('fo-mode-picker').style.display='flex';
+        document.querySelector('input[name="fo-faction"][value="'+player.team+'"]').checked=true;
+        foFactionPickerVisible(true);updateClassMenuPreview();
         document.getElementById('menu-title').textContent='HARİTA DEĞİŞTİR';
         const subtitle=document.getElementById('menu-subtitle');
         subtitle.textContent='Yeni maç başlatılırsa mevcut maçın skoru ve ilerlemesi sıfırlanır.';
@@ -19716,6 +19721,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         foModeSelect.value=matchState.mode;
         refreshMapMenuCaption();
         document.getElementById('fo-mode-picker').style.display='none';
+        document.querySelector('input[name="fo-faction"][value="'+player.team+'"]').checked=true;
+        foFactionPickerVisible(false);
         document.getElementById('btn-map-cancel').classList.add('hidden');
         document.getElementById('menu-overlay').classList.add('hidden');
         showPauseMenu();
@@ -19734,6 +19741,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         document.getElementById('menu-subtitle').textContent = 'Sınıfını seç ve çatışmaya dön.';
         document.getElementById('menu-subtitle').classList.add('hidden');
         document.getElementById('btn-deploy').textContent = 'SINIFI ONAYLA';
+        document.querySelector('input[name="fo-faction"][value="'+player.team+'"]').checked=true;
+        foFactionPickerVisible(false);updateClassMenuPreview();
         menuEl.classList.remove('hidden');
         if (document.pointerLockElement === canvas) document.exitPointerLock();
       }
@@ -19774,12 +19783,15 @@ return {createExperimentalRig,createAdaptiveRigController};
         hk416: 'HK416A5', p320: 'P320', knife: 'Bıçak', m67: 'M67',
         mp7: 'MP7A1', medkit: 'Medkit', drone: 'FPV Drone',
         mrad: 'MRAD', glock18c: 'Glock 18C',
-        minimi: 'Minimi', carlgustaf: 'Carl Gustaf'
+        minimi: 'Minimi', carlgustaf: 'Carl Gustaf',
+        akm:'AKM',uzi:'Uzi',svd:'SVD Dragunov',pkm:'PKM',tt33:'TT-33',
+        rpg7:'RPG-7',molotov:'Molotof Kokteyli'
       });
       function updateClassMenuPreview() {
         const description = CLASS_MENU_DESCRIPTIONS[selectedMenuClass];
-        const cls = CLASSES[selectedMenuClass];
-        if (!description || !cls) return;
+        const previewTeam=document.querySelector('input[name="fo-faction"]:checked')?.value||player.team;
+        const slotsByTeam=foFactionSlots(previewTeam,selectedMenuClass);
+        if (!description || !slotsByTeam) return;
         document.getElementById('selected-class-title').textContent = description[0];
         document.getElementById('selected-class-description').textContent = description[1];
         const slots = document.getElementById('selected-class-loadout');
@@ -19788,7 +19800,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           const item = document.createElement('span');
           const key = document.createElement('b');
           key.textContent = slot + '.';
-          const weaponId = cls.slots[slot];
+          const weaponId = slotsByTeam[slot];
           const weapon = weaponId && WEAPONS[weaponId];
           const weaponName = !weaponId ? 'Yok'
             : (CLASS_MENU_WEAPON_LABELS[weaponId] || (weapon ? weapon.slotName : weaponId.toUpperCase()));
@@ -19827,6 +19839,17 @@ return {createExperimentalRig,createAdaptiveRigController};
       });
       updateClassMenuPreview();
 
+      // FO_FACTION01 team preview; changing factions is allowed only before a new round.
+      const foFactionPicker=document.getElementById('fo-faction-picker');
+      function foFactionPickerVisible(show){
+        foFactionPicker.style.display=show?'flex':'none';
+        const current=document.querySelector('input[name="fo-faction"]:checked')?.value;
+        document.getElementById('fo-faction-blue-label').style.borderColor=current==='blue'?'#81b8d3':'#4e5961';
+        document.getElementById('fo-faction-red-label').style.borderColor=current==='red'?'#dba17f':'#4e4944';
+      }
+      document.querySelectorAll('input[name="fo-faction"]').forEach(input=>
+        input.addEventListener('change',()=>{foFactionPickerVisible(true);updateClassMenuPreview();}));
+      foFactionPickerVisible(true);
       const foModeSelect=document.getElementById('fo-game-mode');
       function refreshMapMenuCaption(){
         document.querySelector('.fo-map-caption').textContent=foMapName(foModeSelect.value)+' • 6V6';
@@ -19846,10 +19869,12 @@ return {createExperimentalRig,createAdaptiveRigController};
         document.getElementById('scoreboard-overlay').classList.add('hidden');
         document.getElementById('menu-subtitle').classList.add('hidden');
         const selectedMode=['bomb','rescue'].includes(foModeSelect.value)?foModeSelect.value:'deathmatch';
-        const isNewMatch = mapSwitchPending || matchState.ended || (!matchState.started && selectedMode!=='deathmatch');
+        const isNewMatch = mapSwitchPending || matchState.ended || !matchState.started;
         mapSwitchPending=false;
         document.getElementById('btn-map-cancel').classList.add('hidden');
         if (isNewMatch) {
+          const requestedTeam=document.querySelector('input[name="fo-faction"]:checked')?.value;
+          player.team=requestedTeam==='red'?'red':'blue';
           matchState.ended = false;
           matchState.scoreBlue = 0;
           matchState.scoreRed = 0;
@@ -19875,6 +19900,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         matchState.started = true;
         refreshFoModeUi();
         document.getElementById('fo-mode-picker').style.display='none';
+        foFactionPickerVisible(false);
         if (isNewMatch || !player.alive) {
           player.classId = selectedMenuClass;
           respawnPlayer();
