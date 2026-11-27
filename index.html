@@ -10354,7 +10354,7 @@
           return;
         }
 
-        if (w && w.id === 'mrad' && player.scopeStage > 0 && player.alive) {
+        if (w && w.category === 'sniper' && player.scopeStage > 0 && player.alive) {
           scopeEl.style.display = 'block';
           chEl.style.opacity = '0';
           if (currentViewmodelMesh) currentViewmodelMesh.visible = false;
@@ -16024,7 +16024,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         player.fovKickCurrent *= Math.exp(-14 * dt);
 
-        const targetFov = (w && w.id === 'mrad' && player.scopeStage > 0)
+        const targetFov = (w && w.category === 'sniper' && player.scopeStage > 0)
           ? (player.scopeStage === 1 ? 24 : 10)
           : (player.ads && w ? w.adsFov : 74) + player.fovKickCurrent;
         if (Math.abs(camera.fov - targetFov) > 0.05) {
@@ -16064,7 +16064,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
 
         const align = (w && w.adsAlign) ? w.adsAlign : { adsX: -0.17, adsY: 0.085, adsZ: -0.075, hipRotX: 0, hipRotY: 0 };
-        const adsFactor = (player.ads && !(w && w.id === 'mrad' && player.scopeStage > 0)) ? 1 : 0;
+        const adsFactor = (player.ads && !(w && w.category === 'sniper' && player.scopeStage > 0)) ? 1 : 0;
         const targetVmX = adsFactor ? align.adsX : bobX;
         const targetVmY = (adsFactor ? align.adsY : bobY) - (player.reloading ? Math.sin(Math.min(1, (1 - player.reloadTimer / Math.max(0.01, player.reloadDuration))) * Math.PI) * 0.14 : 0) - player.switchAnim * 0.16;
         const targetVmZ = adsFactor ? align.adsZ : 0;
@@ -18024,7 +18024,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             if (isReactionReady && isAimSettled && canShootFromStance && fireLaneClear && aimAligned && bot.fireTimer <= 0 &&
                 botTrySpendRound(bot,botWeaponId)) {
               const bw = WEAPONS[botWeaponId];
-              bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && botWeaponId === 'mrad' ? 1.35 : 1.75);
+              bot.fireTimer = (60 / bw.rpm) * (bot.classId === 'sniper' && bw.category === 'sniper' ? 1.35 : 1.75);
               recordBotContactShot(bot,nowSec);
               recordBotHeavyGustavRound(bot,bestEnemy);
               bot.burstCount++;
@@ -18044,7 +18044,7 @@ return {createExperimentalRig,createAdaptiveRigController};
                 (bw.category === 'pistol' ? 'pistol' : 'gun'), bot.id);
 
               const distFactor = botInfantryDistanceFactor(distToEnemy);
-              const classAcc = botWeaponId === 'mrad' ? 0.62 : botWeaponId === 'hk416' ? 0.38 : 0.30;
+              const classAcc = bw.category==='sniper' ? 0.62 : bw.category==='rifle' ? 0.38 : 0.30;
               const targetEvasion = bestEnemy.rolling ? 0.32 : (bestEnemy.crouching ? 0.82 : 1.0);
               const trackingFactor = getBotAimTrackingFactor(bot, bestEnemy.eye);
               const movementFactor = Math.max(0.86,
@@ -20158,7 +20158,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           if (player.reloading) return;
           const w = getCurrentWeapon();
           if (!w || w.category === 'melee' || w.category === 'grenade' || w.category === 'medkit' || w.category === 'claymore' || w.category === 'drone') return;
-          if (w.id === 'mrad') {
+          if (w.category === 'sniper') {
             player.scopeStage = (player.scopeStage + 1) % 3;
             player.ads = player.scopeStage > 0;
             updateSniperScopeUI();
@@ -20347,7 +20347,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
         const w = getCurrentWeapon();
         if (!w || w.category === 'drone') return;
-        if (w.id === 'mrad') {
+        if (w.category === 'sniper') {
           player.scopeStage = (player.scopeStage + 1) % 3;
           player.ads = player.scopeStage > 0;
           updateSniperScopeUI();
