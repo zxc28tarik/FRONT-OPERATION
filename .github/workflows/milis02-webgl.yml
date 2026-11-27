@@ -1,5 +1,8 @@
 name: FO MILIS02 isolated real WebGL visual and mesh acceptance
 on:
+  push:
+    branches:
+      - art/fo-milis02-outfit-refinement
   pull_request:
     paths:
       - 'index.html'
