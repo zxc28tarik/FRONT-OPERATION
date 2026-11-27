@@ -9,7 +9,7 @@ const out=path.resolve('test-artifacts/faction01');fs.mkdirSync(out,{recursive:t
 const anchor='      window.onload = function () {';
 assert(src.includes(anchor),'game entry point');
 assert(src.includes('FO_FACTION01_BEGIN arsenal')&&src.includes('FO_FACTION02_BEGIN fire field'));
-const hook=String.raw\`
+const hook=String.raw`
 window.__foFactionQA={
  ready:()=>!!FO_MAPS.deathmatch&&!!document.getElementById('fo-faction-red'),
  start(team,mode){
@@ -77,7 +77,7 @@ window.__foFactionQA={
    const before=activeFires.length;clearAllMatchEntities();
    return {before,after:activeFires.length,released:g.foReleased};
  }
-};\`;
+};`;
 const gameHtml=src.replace('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js','/three.min.js')
   .replace(anchor,hook+anchor);
 const server=createServer((req,res)=>{
