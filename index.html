@@ -4730,8 +4730,7 @@
           sphere(side*.082,1.74,.224,.022,eye);
           cube(side*.085,1.813,.196,.12,.026,.028,hair,-side*.23);
         }
-        const mouth=sphere(0,1.622,.218,.042,eye);
-        mouth.scale.set(.76,1.15,.4);
+        sphere(0,1.622,.218,.042,eye);
         // Keep the old objective locator, without making it part of the outfit.
         attach(new THREE.OctahedronGeometry(.18),indicator,0,2.16,0,0,true);
         return parts;
