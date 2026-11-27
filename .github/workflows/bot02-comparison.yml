@@ -8,6 +8,7 @@ on:
       - 'scripts/check-bot02-transition-telemetry.mjs'
       - 'scripts/check-bot02-route-reset-audit.mjs'
       - 'scripts/check-bot02-squad-advance.mjs'
+      - 'scripts/check-bot02-rally-path-owner.mjs'
       - 'scripts/check-bot02-medic-readiness.mjs'
       - 'scripts/browser-bot01-baseline.mjs'
       - 'scripts/summarize-bot01-baseline.mjs'
@@ -39,6 +40,7 @@ jobs:
       - run: node scripts/check-bot02-transition-telemetry.mjs
       - run: node scripts/check-bot02-route-reset-audit.mjs
       - run: node scripts/check-bot02-squad-advance.mjs
+      - run: node scripts/check-bot02-rally-path-owner.mjs
       - run: node scripts/check-bot02-medic-readiness.mjs
       - run: node scripts/browser-bot01-baseline.mjs
         env:

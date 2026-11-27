@@ -18031,11 +18031,21 @@ return {createExperimentalRig,createAdaptiveRigController};
                         moveTargetPos = selectBotRallyWaypoint(bot, formationPoint);
                         if(!moveTargetPos)moveSpeed=0;
                         else moveSpeed=Math.min(moveSpeed,dRally<10?3.2:4.6);
-                      }else{behaviorHint='ADVANCE';bot.rallyGoalNode=-1;}
+                      // FO_BOT02_BEGIN rally-path-preserve
+                      // Leave the route owner marker for the fallback path handoff.
+                      }else{behaviorHint='ADVANCE';}
+                      // FO_BOT02_END rally-path-preserve
                     }
                   }
 
                   if (!moveTargetPos && moveSpeed > 0) {
+                    // FO_BOT02_BEGIN rally-path-release
+                    // Remove the abandoned squad A* path only when it owns this path.
+                    // Otherwise leave the independent tactical route untouched.
+                    if(bot.rallyGoalNode>=0 && bot.path?.at(-1)===bot.rallyGoalNode){
+                      bot.path=[];bot.pathIndex=0;
+                    }
+                    // FO_BOT02_END rally-path-release
                     behaviorHint='ADVANCE';
                     bot.rallyGoalNode = -1;
                     setBotState(bot, 'ADVANCE', 0.7);

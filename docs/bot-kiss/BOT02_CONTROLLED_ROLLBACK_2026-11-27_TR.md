@@ -81,3 +81,11 @@ Not: Bu rapor geriye dönük zafer iddiası değil; ölçümler tamamlanana kada
 - **V354 oyuna hiç dokunmayan QA adımıdır**: 15 maç sonucunun aynı `stats.stuckBreakdown` ve sınırlı `stats.stuckContexts` kayıtlarından hangi sınıf/plan/trigger etkilendiğini, 8 metre içindeki fiziksel geçişin kapalı olup olmadığını, gerçekte mesafe alınmasına rağmen rota ilerlemesi sağlanamayıp sağlanmadığını çıkarır. `stuckContexts` her maçta boyut sınırlıdır; örnek sayım bütün olayların oranı diye sunulmayacaktır.
 - Sadece `scripts/summarize-bot01-baseline.mjs` ve bu rapor değişir. QA karşılaştırma eşikleri, oyun HTML blob'u, test tohumları, nişan, görev, silah, navigasyon, kullanıcı arayüzü ve PR draft durumu aynen kalır.
 - Buradan çıkacak nedenler görülmeden yeni AI hareket kuralı eklenmez.
+
+
+## V355 — Takılmanın çoğunlukta olduğu ADVANCE: eski manga A* rota sahipliğini serbest bırakma (27 Kasım 2026)
+- V354 tanı çalışması: 58 TDM takılmasının 43'ü ADVANCE, 10'u INVESTIGATE, 4'ü COVER, 1'i RETREAT. Sınıf: Medic 22, Assault 16, Heavy 14, Sniper 5, Engineer 1. 57 incelenen olayın 50'sinde fiziksel kısa geçiş açıktı; 53'ünde yer değiştirme yetersiz. Kaynak: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/45993393705
+- Gerçek oyun koduyla yeniden üretilen bug: formasyon `rallyGoalNode=4` ve yol `bot.path=[3,4]` olan Heavy, gerçekten takılınca yalnız işareti sıfırlayarak [3,4] yürümeye devam ediyordu; mevcut `goalNode=8` taktik rotasına yeniden dönmüyordu.
+- V355'in tek değişikliği: engelli slot durumunda `rallyGoalNode` işaretini taktik fallback'ine kadar koru; fallback anında yalnızca son düğümü `rallyGoalNode` ile eşleşen manga A* yolunu boşalt. Bağımsız taktik rota farklı son düğüme sahipse koru. Mevcut `assignBotTacticalGoal` yalnızca gerçek eski manga yolundan çıkarken kullanılır. Nişan, ateş, görev, sınıf ve Medic tedavi sistemi değişmez.
+- V344 byte-for-byte eski kaynak restorasyonu, V353'ün 480 manga + 5 görev/çatışma testi, Medic 30, BOT02 154+24 ve yeni 5 gerçek oyun kodu rota sahibi senaryosu kontrol edilir. Önceki testin formasyon slotu kapanınca işaretin anında silinmesi beklentisi, işaretin güvenli fallback'e taşınması sözleşmesiyle güncellendi.
+- V355 bir aday: 15 maç A/B ve sabit kalite kapısı gelmeden kabul edilmez. Main değişmez, PR #68 draft.
