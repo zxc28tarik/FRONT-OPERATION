@@ -8748,6 +8748,11 @@
         };
         repaint(model.upperBody,uniformColors,A.cloth[v]);
         for(const hip of [model.leftHip,model.rightHip])repaint(hip,[...trouserColors,...uniformColors],A.pants[v]);
+        // Cloth bridges keep the same civilian fabric at animated joints.
+        model.root.traverse(n=>{
+          const joint=n.userData?.v154Joint;
+          if(joint)n.material=(joint==='hip'||joint==='knee')?A.pants[v]:A.cloth[v];
+        });
         // Plain civilian jacket/shirt: narrow lapels and soft chest pockets.
         const jacket=new THREE.Group();jacket.name='fo_milis01_jacket';model.upperBody.add(jacket);
         const add=(parent,geo,mat,x,y,z,sx,sy,sz,rz=0)=>{

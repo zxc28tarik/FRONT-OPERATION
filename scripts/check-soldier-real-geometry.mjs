@@ -65,7 +65,11 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  for(const kind of ['hip','knee','shoulder','elbow'])assert.equal(joints.filter(j=>j.kind===kind).length,2);
  for(const j of joints){
    assert(j.high.boundingBox&&j.high.getAttribute('position').count>=375&&j.n.userData.v240TextileBridge);
-   assert(j.n.material.name==='V112 camouflage','joint fabric matches the adjacent limb');
+   if(team==='blue')assert(j.n.material.name==='V112 camouflage','soldier joint camouflage unchanged');
+   else{
+     const expected=['hip','knee'].includes(j.kind)?0x373c3f:0x3b4951;
+     assert.equal(j.n.material.color.getHex(),expected,'militia joint matches civilian cloth');
+   }
    assert(j.n.quaternion.toArray().every(Number.isFinite));
  }
  for(const pitch of [-1.1,-.6,0,.6,1.1]){
@@ -114,7 +118,8 @@ for(const team of ['blue','red'])for(const cls of ['assault','medic','engineer',
  const near=countVisible(m.root);
  const armBands=m.upperBody.children.filter(n=>n.geometry===api.base(team,cls).upperBody.children.find(c=>c.geometry?.parameters?.height===.065)?.geometry);
  const closeGroups=[m.head.children.find(n=>n.name==='v99_close_face'),m.upperBody.children.find(n=>n.name==='v99_close_rig')];
- assert(closeGroups.every(g=>g&&g.visible&&g.children.length>0));
+ assert(closeGroups.every(g=>g&&g.children.length>0));
+ assert(closeGroups.every(g=>g.visible===(team==='blue')),'soldiers retain tactical details; milis hide them');
  assert(m.root.children.some(n=>n.name==='v120_fitted_waist'));
  m.setVisualCombatPose({carry:1});assert(m.weaponPivot.position.y<rest.y);
  m.resetVisualCombatPose();assert(m.weaponPivot.position.distanceTo(rest)<.00001);
