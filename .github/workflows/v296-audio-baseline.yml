@@ -1,0 +1,35 @@
+name: V296 Audio baseline
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'scripts/check-v296-audio-baseline.mjs'
+      - 'scripts/check-v301-audio-acceptance.mjs'
+      - '.github/workflows/v296-audio-baseline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audio-baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.51.1
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          set -o pipefail
+          node scripts/check-v296-audio-baseline.mjs --browser | tee v296-audio-baseline.log
+          node scripts/check-v301-audio-acceptance.mjs --browser | tee v301-audio-acceptance.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v296-audio-baseline
+          path: |
+            v296-audio-baseline.log
+            v301-audio-acceptance.log

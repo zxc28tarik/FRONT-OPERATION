@@ -20,6 +20,12 @@ jobs:
         run: node tests/bot_ai_v32_regression.cjs
       - name: Run BOT AI V33 behavior regression
         run: node tests/bot_ai_v33_regression.cjs
+      - name: Validate BOT02 decision and route reset telemetry
+        run: |
+          node scripts/check-bot02-transition-telemetry.mjs
+          node scripts/check-bot02-route-reset-audit.mjs
+          node scripts/check-bot02-squad-advance.mjs
+          node scripts/check-bot02-medic-readiness.mjs
       - name: Run BOT AI V34 behavior regression
         run: node tests/bot_ai_v34_regression.cjs
       - name: Run BOT AI V35 difficulty mix regression
@@ -219,3 +225,11 @@ jobs:
         run: node tests/soldier_v145_transition_regression.cjs
       - name: Validate V196 contact and directional smoothing
         run: node tests/soldier_v196_contact_regression.cjs
+      - name: Validate critical 01–03 clocks, grenade contact and resource release
+        run: node tests/critical_01_03_regression.cjs
+      - name: Validate critical 01/04/05/06 frame catch-up and physical contacts
+        run: node tests/critical_01_04_06_regression.cjs
+      - name: Validate critical 07–10 scoreboard, life state and mobile inputs
+        run: node tests/critical_07_10_regression.cjs
+      - name: Validate C295 isolated render pose continuity and exact restoration
+        run: node tests/soldier_v295_render_pose_regression.cjs

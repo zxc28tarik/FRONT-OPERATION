@@ -31,9 +31,13 @@ function runBotAiV33Regression(html) {
   ];
   let walk = () => true;
   let sight = () => true;
+  // V346: extracted helpers now read the live mode/medkit context introduced by BOT02.
+  // Supply an inert deterministic fixture rather than mutating production AI.
   const make = () => new Function('THREE', 'bots', 'player', 'normalizeAngle', 'isPositionWalkable', 'hasLineOfSight',
+    'matchState', 'activeMedkits', 'mapColliders', 'foMedkitReachable',
     helpers + '\nreturn {isBotAimAligned,isBotFireLaneClear,chooseBotFireLaneStep,selectBotMedicPatient};')(
-      THREE, mates, player, (a) => Math.atan2(Math.sin(a), Math.cos(a)), (...args) => walk(...args), (...args) => sight(...args)
+      THREE, mates, player, (a) => Math.atan2(Math.sin(a), Math.cos(a)), (...args) => walk(...args), (...args) => sight(...args),
+      {mode:'deathmatch'}, [], [], () => true
     );
   const enemy = new Vec3(0, 1.45, 30);
   let ai = make();
@@ -111,8 +115,12 @@ function runBotAiV33Regression(html) {
   ok(html.includes('isBotFireLaneClear(bot, coverOpp.targetEye)') &&
     html.includes('isBotAimAligned(bot, coverOpp.targetEye)'),
     'Covering fire also respects ally line and body direction');
-  ok(html.includes("const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;"),
-    'Live support loop uses stable medic selection');
+  const originalMedicSelection = html.includes("const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;");
+  const readyMedicSelection = html.includes("const injuredAlly = bot.classId === 'medic' && bot.abilityCooldown <= 1.5") &&
+    html.includes("? selectBotMedicPatient(bot) : null;") &&
+    html.includes("if (injuredAlly) {\n                  behaviorHint='SUPPORT';");
+  ok(originalMedicSelection || readyMedicSelection,
+    'Live support loop selects the same patient when the medkit is ready');
   ok((html.match(/fireLaneRecoveryGoal: null/g) || []).length === 2 &&
     html.includes('bot.fireLaneRecoveryGoal = null;'),
     'All bot spawns and respawns initialize lane-recovery state');

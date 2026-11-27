@@ -1,0 +1,30 @@
+name: V332 Performance final acceptance
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'scripts/browser-v332-effects-stress.mjs'
+      - 'scripts/h332-original-blocks.json'
+      - '.github/workflows/v332-effects-stress.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  effects-stress:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.55.0 three@0.128.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/browser-v332-effects-stress.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v332-effects-stress
+          path: test-artifacts/front-operation-h332/

@@ -1,0 +1,114 @@
+name: Front Operation integrated PR acceptance
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+jobs:
+  historical-visual-contracts:
+    if: github.head_ref == 'art/v292-crouch-transition'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save three@0.128.0
+      - name: V287 original strict contract on original version
+        run: |
+          mkdir -p /tmp/fo-v287/scripts
+          git show 1b99db408570ea48d1dc9652ab582dddf7edfbc6:index.html > /tmp/fo-v281.html
+          git show a34c2ca958379b0023b0ee0418b40d01daeced61:index.html > /tmp/fo-v287/index.html
+          cp scripts/check-v287-animation.mjs /tmp/fo-v287/scripts/
+          ln -s "$PWD/node_modules" /tmp/fo-v287/node_modules
+          cd /tmp/fo-v287
+          FO_V281_BASELINE=/tmp/fo-v281.html node scripts/check-v287-animation.mjs
+      - name: V291 original strict contract on original version
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p /tmp/fo-v291/scripts
+          git show a34c2ca958379b0023b0ee0418b40d01daeced61:index.html > /tmp/fo-v287-baseline.html
+          git show 046cc2d3493246569469f8e08496690ef1c25f04:index.html > /tmp/fo-v291/index.html
+          cp scripts/check-v291-directional-gait-draft.mjs /tmp/fo-v291/scripts/
+          cd /tmp/fo-v291
+          FO_V287_BASELINE=/tmp/fo-v287-baseline.html node scripts/check-v291-directional-gait-draft.mjs
+      - name: Current crouch and muzzle contracts
+        if: ${{ !cancelled() }}
+        run: |
+          node scripts/check-v292-crouch-transition.mjs
+          node scripts/check-v273-muzzle-profiles.mjs
+      - name: V288 current rig and locomotion baseline
+        if: ${{ !cancelled() }}
+        run: |
+          git show a34c2ca958379b0023b0ee0418b40d01daeced61:index.html > /tmp/fo-v287-v288.html
+          FO_V287_BASELINE=/tmp/fo-v287-v288.html node scripts/check-v288-animation-baseline.mjs
+      - name: Save V288 baseline report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-operation-v288-baseline
+          path: test-artifacts/front-operation-browser/v288-baseline.json
+          if-no-files-found: warn
+  integrated-critical-webgl:
+    if: github.head_ref == 'art/v292-crouch-transition'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --no-save playwright@1.55.0 three@0.128.0
+          npx playwright install --with-deps chromium
+      - name: Current three-mode critical fix regression
+        run: node scripts/browser-critical-10.mjs
+      - name: Existing actual 6v6 match and UI acceptance
+        if: ${{ !cancelled() }}
+        run: node scripts/browser-webgl-smoke.mjs
+      - name: Preserve current integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-operation-integrated-critical-qa
+          path: test-artifacts/front-operation-browser/
+          if-no-files-found: warn
+  integrated-animation-webgl:
+    if: github.head_ref == 'art/v292-crouch-transition'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --no-save playwright@1.55.0 three@0.128.0
+          npx playwright install --with-deps chromium
+      - name: Current V287 weapon animation
+        run: node scripts/browser-v287-animation.mjs
+      - name: Current V291 directional gait
+        if: ${{ !cancelled() }}
+        run: |
+          git show a34c2ca958379b0023b0ee0418b40d01daeced61:index.html > /tmp/fo-v287-baseline.html
+          FO_V287_BASELINE=/tmp/fo-v287-baseline.html node scripts/browser-v291-directional-gait.mjs
+      - name: Current V292 crouch pose
+        if: ${{ !cancelled() }}
+        run: node scripts/browser-v292-crouch-transition.mjs
+      - name: Current C295 all class and team render poses
+        if: ${{ !cancelled() }}
+        run: node scripts/browser-v295-render-pose.mjs
+      - name: Preserve current animation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-operation-integrated-animation-qa
+          path: test-artifacts/front-operation-browser/
+          if-no-files-found: warn

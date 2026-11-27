@@ -6,7 +6,7 @@ const s=html.indexOf('      const FO_RESCUE_RULES='),e=html.indexOf('      funct
 const solids=[];let graph;
 const mesh=()=>({position:{set(){}},visible:true});
 const three=new Proxy({}, {get:()=>function(){return {}}});
-const api=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph',html.slice(a,b)+html.slice(s,e)+'\nbuildFoPrisonMap();return {rooms:FO_RESCUE_ROOMS,branches:FO_RESCUE_BRANCHES,state:foRescue,reset:resetFoRescue};')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return mesh()},()=>mesh(),null,(nodes,edges)=>graph={nodes,edges});
+const api=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph','const foE311ShareBumps=()=>{},foE311PrisonFinish=()=>{},foE311PrisonInterior=()=>{};\n'+html.slice(a,b)+html.slice(s,e)+'\nbuildFoPrisonMap();return {rooms:FO_RESCUE_ROOMS,branches:FO_RESCUE_BRANCHES,state:foRescue,reset:resetFoRescue};')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return mesh()},()=>mesh(),null,(nodes,edges)=>graph={nodes,edges});
 const walk=(x,z)=>!solids.some(c=>1.6>c.y-c.h/2+.05&&0<c.y+c.h/2-.25&&x+.48>c.x-c.w/2&&x-.48<c.x+c.w/2&&z+.48>c.z-c.d/2&&z-.48<c.z+c.d/2);
 const openings=z=>{let count=0,prev=false;for(let x=-38.5;x<=38.5;x+=.1){const free=walk(x,z);if(free&&!prev)count++;prev=free;}return count;};
 assert.equal(openings(28),2);assert.equal(openings(-17),4);

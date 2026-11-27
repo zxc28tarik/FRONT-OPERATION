@@ -605,6 +605,27 @@
       #pause-overlay .fo-pause-panel { padding:20px; }
       #scoreboard-overlay > .hud-glass { padding:14px; }
     }
+    /* FO_I335_BEGIN responsive-ui */
+    /* Preserve approved design; compact only when vertical space is scarce. */
+    #pause-overlay .fo-pause-panel {
+      max-height: calc(100vh - 32px);
+      max-height: calc(100dvh - 32px);
+      overflow-y: auto;
+    }
+    @media (max-height: 520px) {
+      #pause-overlay .fo-pause-panel { padding: 12px 16px; gap: 5px; }
+      #pause-title { font-size: 20px; margin: 0; }
+      #pause-overlay .fo-pause-panel > p { margin: 0 0 2px; }
+      #pause-overlay .fo-pause-score { padding: 5px 8px; margin-bottom: 3px; }
+      #pause-overlay .fo-pause-score b { font-size: 18px; }
+      #pause-overlay button { min-height: 36px; padding: 6px 12px; }
+    }
+    #hud .fo-ammo-panel > div:last-child { flex-wrap: wrap; }
+    #hud #ammo-mag, #hud #ammo-reserve, #hud #hud-weapon-name {
+      min-width: 0; max-width: 100%; overflow-wrap: anywhere;
+    }
+    #hud #hud-class-badge { flex-shrink: 0; }
+    /* FO_I335_END responsive-ui */
   </style>
 </head>
 <body>
@@ -748,7 +769,7 @@
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]"></span>
           <div class="text-right">
-            <div class="text-[10px] uppercase tracking-wider text-sky-300 font-bold">DERBARAN</div>
+            <div class="text-[10px] uppercase tracking-wider text-sky-300 font-bold">ASKER</div>
             <div id="score-blue" class="mono text-xl sm:text-2xl font-extrabold text-white leading-none">0</div>
           </div>
         </div>
@@ -762,7 +783,7 @@
 
         <div class="flex items-center gap-2">
           <div class="text-left">
-            <div class="text-[10px] uppercase tracking-wider text-rose-400 font-bold">N.I.U.</div>
+            <div class="text-[10px] uppercase tracking-wider text-rose-400 font-bold">MİLİS</div>
             <div id="score-red" class="mono text-xl sm:text-2xl font-extrabold text-white leading-none">0</div>
           </div>
           <span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]"></span>
@@ -897,9 +918,9 @@
       <h2 id="pause-title">DURAKLATILDI</h2>
       <p>Maç beklemede. Hazır olduğunda devam et.</p>
       <div class="fo-pause-score" aria-label="Geçerli maç bilgileri">
-        <span><b id="pause-blue-score">0</b><small>DERBARAN</small></span>
+        <span><b id="pause-blue-score">0</b><small>ASKER</small></span>
         <span class="fo-pause-clock" id="pause-timer">10:00</span>
-        <span><b id="pause-red-score">0</b><small>N.I.U.</small></span>
+        <span><b id="pause-red-score">0</b><small>MİLİS</small></span>
       </div>
       <button type="button" id="btn-pause-resume" class="fo-pause-primary">OYUNA DEVAM ET <span>ESC</span></button>
       <button type="button" id="btn-pause-class" class="fo-pause-secondary">Sınıf Değiştir <span>B</span></button>
@@ -925,7 +946,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="fo-team-score fo-team-blue">
           <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-            <span class="fo-team-title">DERBARAN</span>
+            <span class="fo-team-title">ASKER</span>
             <span id="sb-blue-score" class="mono text-base font-black text-white">0</span>
           </div>
           <div class="fo-score-column"><span>OYUNCU</span><span>EL / ÖL</span></div>
@@ -934,7 +955,7 @@
 
         <div class="fo-team-score fo-team-red">
           <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-            <span class="fo-team-title">N.I.U.</span>
+            <span class="fo-team-title">MİLİS</span>
             <span id="sb-red-score" class="mono text-base font-black text-white">0</span>
           </div>
           <div class="fo-score-column"><span>OYUNCU</span><span>EL / ÖL</span></div>
@@ -977,7 +998,7 @@
       <p id="menu-subtitle" class="fo-menu-status hidden">Sınıfını seç, çatışmaya katıl.</p>
       <div id="match-result-badge" class="hidden fo-match-result">
         <span>MAÇ SONUCU</span>
-        <strong id="match-result-text">DERBARAN KAZANDI</strong>
+        <strong id="match-result-text">ASKER KAZANDI</strong>
       </div>
       <div id="class-grid" class="fo-class-grid" role="tablist" aria-label="Piyade sınıfları">
         <div class="class-card selected" data-class="assault" id="fo-class-tab-assault" role="tab" tabindex="0" aria-selected="true" aria-controls="class-detail" aria-label="Hücum sınıfını seç">
@@ -1530,12 +1551,17 @@
           this.dryBus = null;
           this.reverbNode = null;
           this.reverbGain = null;
+          this.indoorWet = null;
+          this.outdoorWet = null;
           this.indoorIR = null;
           this.outdoorIR = null;
           this.noiseBuffers = {};
           this.isIndoor = false;
           this.activeVoices = 0;
           this.maxVoices = 22;
+          this.audibleVoices = 0;
+          this.maxAudibleVoices = 32;
+          this.remoteAudibleLimit = 24;
           this.droneHumNodes = null;
         }
 
@@ -1546,12 +1572,12 @@
             this.ctx = new AudioCtx();
 
             this.master = this.ctx.createGain();
-            this.master.gain.value = 0.44;
+            this.master.gain.value = 0.42;
 
             this.comp = this.ctx.createDynamicsCompressor();
-            this.comp.threshold.value = -16;
+            this.comp.threshold.value = -18;
             this.comp.knee.value = 14;
-            this.comp.ratio.value = 5;
+            this.comp.ratio.value = 4;
             this.comp.attack.value = 0.002;
             this.comp.release.value = 0.14;
 
@@ -1563,18 +1589,30 @@
             this.limiter.release.value = 0.05;
 
             this.dryBus = this.ctx.createGain();
-            this.dryBus.gain.value = 0.90;
+            this.dryBus.gain.value = 0.86;
 
-            this.reverbNode = this.ctx.createConvolver();
+            this.reverbNode = this.ctx.createGain();
             this.reverbGain = this.ctx.createGain();
             this.reverbGain.gain.value = 0.16;
 
             this.indoorIR = this._buildImpulseResponse(true);
             this.outdoorIR = this._buildImpulseResponse(false);
-            this.reverbNode.buffer = this.outdoorIR;
+            const indoorConvolver = this.ctx.createConvolver();
+            const outdoorConvolver = this.ctx.createConvolver();
+            indoorConvolver.buffer = this.indoorIR;
+            outdoorConvolver.buffer = this.outdoorIR;
+            this.indoorWet = this.ctx.createGain();
+            this.outdoorWet = this.ctx.createGain();
+            this.indoorWet.gain.value = 0;
+            this.outdoorWet.gain.value = 1;
+            this.reverbNode.connect(indoorConvolver);
+            this.reverbNode.connect(outdoorConvolver);
+            indoorConvolver.connect(this.indoorWet);
+            outdoorConvolver.connect(this.outdoorWet);
+            this.indoorWet.connect(this.reverbGain);
+            this.outdoorWet.connect(this.reverbGain);
 
             this.dryBus.connect(this.comp);
-            this.reverbNode.connect(this.reverbGain);
             this.reverbGain.connect(this.comp);
             this.comp.connect(this.limiter);
             this.limiter.connect(this.master);
@@ -1625,17 +1663,10 @@
           if (this.isIndoor === isIndoor) return;
           this.isIndoor = isIndoor;
           const now = this.ctx.currentTime;
-          this.reverbGain.gain.cancelScheduledValues(now);
-          this.reverbGain.gain.setTargetAtTime(0.02, now, 0.03);
-          const targetIR = isIndoor ? this.indoorIR : this.outdoorIR;
-          const targetGain = isIndoor ? 0.34 : 0.16;
-          setTimeout(() => {
-            if (!this.ctx || !this.reverbNode) return;
-            if (this.isIndoor === isIndoor) {
-              this.reverbNode.buffer = targetIR;
-              this.reverbGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.05);
-            }
-          }, 55);
+          for (const [param, target] of [[this.indoorWet.gain, isIndoor ? 1 : 0], [this.outdoorWet.gain, isIndoor ? 0 : 1], [this.reverbGain.gain, isIndoor ? 0.28 : 0.14]]) {
+            param.cancelScheduledValues(now);
+            param.setTargetAtTime(target, now, 0.075);
+          }
         }
 
         createNoiseBuffers() {
@@ -1683,17 +1714,56 @@
           return true;
         }
 
-        _autoCleanup(sourceNode, nodesToDisconnect) {
+        _autoCleanup(sourceNode, nodesToDisconnect, priority = true, onFinished = null) {
+          // Preserve legacy activeVoices and source stop times for the existing shared-RNG gate.
           this.activeVoices++;
+          const audible = this.audibleVoices < (priority ? this.maxAudibleVoices : this.remoteAudibleLimit);
+          if (audible) this.audibleVoices++;
+          else { try { sourceNode.disconnect(); } catch (e) {} }
+          let ended = false;
           sourceNode.onended = () => {
+            if (ended) return;
+            ended = true;
             this.activeVoices = Math.max(0, this.activeVoices - 1);
+            if (audible) this.audibleVoices = Math.max(0, this.audibleVoices - 1);
             for (let i = 0; i < nodesToDisconnect.length; i++) {
               try { nodesToDisconnect[i].disconnect(); } catch (e) {}
             }
+            if (onFinished) onFinished();
           };
         }
 
         _resolveWeaponProfile(category, weaponId) {
+          const base = this._legacyWeaponProfile(category, weaponId);
+          const styles = {
+            hk416:      { crackFreq: 3150, crackQ: 0.88, crackGain: 0.57, bodyFreq: 1080, bodyQ: 0.78, bodyGain: 0.76, subGain: 0.72, mechFreq: 2150, mechGain: 0.19, reverbSend: 0.69 },
+            mp7:        { crackFreq: 4450, crackQ: 1.05, crackGain: 0.41, bodyFreq: 2350, bodyQ: 0.98, bodyGain: 0.50, subGain: 0.39, mechFreq: 3400, mechGain: 0.17, reverbSend: 0.39 },
+            mrad:       { crackFreq: 2250, crackQ: 0.72, crackGain: 0.68, bodyFreq: 570, bodyQ: 0.62, bodyGain: 0.91, subGain: 1.02, mechFreq: 1280, mechGain: 0.21, reverbSend: 1.32 },
+            minimi:     { crackFreq: 2550, crackQ: 0.82, crackGain: 0.51, bodyFreq: 790, bodyQ: 0.76, bodyGain: 0.76, subGain: 0.80, mechFreq: 1690, mechGain: 0.30, reverbSend: 0.78 },
+            p320:       { crackFreq: 3450, crackQ: 1.05, crackGain: 0.47, bodyFreq: 1460, bodyQ: 0.92, bodyGain: 0.60, subGain: 0.53, mechFreq: 2460, mechGain: 0.22, reverbSend: 0.47 },
+            glock18c:   { crackFreq: 4800, crackQ: 1.13, crackGain: 0.38, bodyFreq: 1740, bodyQ: 1.13, bodyGain: 0.47, subGain: 0.40, mechFreq: 3750, mechGain: 0.17, reverbSend: 0.36 },
+            carlgustaf: { crackFreq: 980, crackQ: 0.65, crackGain: 0.45, bodyFreq: 350, bodyQ: 0.58, bodyGain: 0.89, subGain: 1.01, mechFreq: 640, mechGain: 0.23, reverbSend: 1.20 }
+          };
+          // FO_V336_BEGIN audio-profiles
+          // Stronger transient, shorter perceived tail; preserve every voice lifetime.
+          Object.assign(styles.mrad,{crackFreq:3100,crackQ:.82,crackGain:1.14,bodyFreq:1020,bodyQ:.76,bodyGain:1.20,subStart:142,subEnd:43,subGain:.62,mechFreq:1550,mechGain:.065,reverbSend:.86,bodyEarly:.16,bodyEarlyGain:.09});
+          Object.assign(styles.p320,{crackFreq:2850,crackQ:.92,crackGain:.77,bodyFreq:1120,bodyQ:.84,bodyGain:.83,subStart:174,subEnd:64,subGain:.37,mechFreq:2100,mechGain:.085,reverbSend:.40,bodyEarly:.28,bodyEarlyGain:.35});
+          Object.assign(styles.glock18c,{crackFreq:5300,crackQ:1.04,crackGain:.95,bodyFreq:2250,bodyQ:.90,bodyGain:.80,subStart:235,subEnd:82,subGain:.30,mechFreq:3650,mechGain:.065,reverbSend:.29,bodyEarly:.23,bodyEarlyGain:.27});
+          // FO_V336_END audio-profiles
+          // FO_V340_BEGIN mrad-profile
+          // Dry, noise-led punch instead of a prolonged synthetic bass sweep.
+          Object.assign(styles.mrad,{crackFreq:2450,crackQ:.65,crackGain:.98,bodyFreq:760,bodyQ:.58,bodyGain:1.32,subStart:112,subEnd:48,subGain:.46,mechGain:.035,reverbSend:.58,bodyEarly:.24,bodyEarlyGain:.075,subEarly:.15,subEarlyGain:.08});
+          // FO_V340_END mrad-profile
+          // FO_V342_BEGIN audio-profiles
+          // Fictional game sound design: short MP7 snap and broad Carl Gustaf pressure burst.
+          Object.assign(styles.mp7,{crackFreq:3650,crackQ:.78,crackGain:.79,bodyFreq:1850,bodyQ:.72,bodyGain:.94,subStart:180,subEnd:95,subGain:.36,subEarly:.30,subEarlyGain:.18,bodyEarly:.34,bodyEarlyGain:.23,mechFreq:2900,mechGain:.105,reverbSend:.36});
+          Object.assign(styles.carlgustaf,{crackFreq:1600,crackQ:.55,crackGain:1.05,bodyFreq:690,bodyQ:.48,bodyGain:2.05,subStart:88,subEnd:43,subGain:.58,subEarly:.20,subEarlyGain:.075,bodyEarly:.36,bodyEarlyGain:.21,mechFreq:980,mechGain:.075,reverbSend:.95});
+          // FO_V342_END audio-profiles
+          return Object.assign(base, Object.prototype.hasOwnProperty.call(styles, weaponId) ? styles[weaponId] : {});
+        }
+
+        // Preserve the V296 event lengths and fallback profile.
+        _legacyWeaponProfile(category, weaponId) {
           if (weaponId === 'glock18c') {
             return {
               crackFreq: 4200, crackQ: 1.3, crackGain: 0.42,
@@ -1755,26 +1825,51 @@
           }
         }
 
+        _audioDistance(dist, range = 65) {
+          const d = Math.max(0, Number.isFinite(dist) ? dist : range);
+          const ratio = Math.min(1, d / range);
+          const fade = (start, end) => {
+            const t = Math.max(0, Math.min(1, (d - start) / (end - start)));
+            return 1 - t * t * (3 - 2 * t);
+          };
+          return {
+            ratio,
+            attenuation: 1 / (1 + Math.pow(d / (range * 0.37), 1.78)),
+            airCutHz: 650 + 17350 / (1 + Math.pow(d / 19, 1.9)),
+            crack: fade(26, 42),
+            sub: fade(33, 48)
+          };
+        }
+
         playGunshot(category, dist = 0, weaponId = '') {
           if (!this._canSpawnVoice(dist === 0)) return;
           const now = this.ctx.currentTime;
-          const distRatio = Math.min(1, dist / 65);
-          const atten = Math.max(0.05, Math.pow(1 - distRatio, 1.35));
+          const distance = this._audioDistance(dist);
+          const distRatio = distance.ratio;
+          const atten = distance.attenuation;
           const prof = this._resolveWeaponProfile(category, weaponId);
           const pitchJitter = 0.965 + Math.random() * 0.07;
 
-          const airCutHz = Math.max(950, 12000 * Math.pow(1 - distRatio, 1.55));
+          const airCutHz = distance.airCutHz;
           const distFilter = this.ctx.createBiquadFilter();
           distFilter.type = 'lowpass';
           distFilter.frequency.value = dist === 0 ? 18000 : airCutHz;
 
           const wetSend = this.ctx.createGain();
-          wetSend.gain.value = (dist === 0 ? 0.55 : 0.45 + distRatio * 0.95) * prof.reverbSend;
+          wetSend.gain.value = (0.52 + distRatio * 0.46) * prof.reverbSend;
 
           distFilter.connect(this.dryBus);
           distFilter.connect(wetSend);
           wetSend.connect(this.reverbNode);
 
+          // Shared routing must outlive every connected layer, not just the body.
+          let remaining = 1 + (dist < 42 ? 1 : 0) + (dist < 48 ? 1 : 0);
+          const releaseRoute = () => {
+            if (--remaining === 0) {
+              try { distFilter.disconnect(); } catch (e) {}
+              try { wetSend.disconnect(); } catch (e) {}
+            }
+          };
           if (dist < 42) {
             const crackSrc = this.ctx.createBufferSource();
             crackSrc.buffer = this.noiseBuffers.crack;
@@ -1784,19 +1879,27 @@
             crackFlt.frequency.value = prof.crackFreq * pitchJitter;
             crackFlt.Q.value = prof.crackQ;
             const crackGain = this.ctx.createGain();
-            const cg = prof.crackGain * atten * (1 - distRatio * 0.55);
-            crackGain.gain.setValueAtTime(Math.max(0.001, cg), now);
-            crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.042);
+            const cg = prof.crackGain * atten * distance.crack;
+            crackGain.gain.setValueAtTime(Math.max(0.00001, cg), now);
+            crackGain.gain.exponentialRampToValueAtTime(Math.max(0.000001, Math.min(0.001, cg * 0.02)), now + 0.042);
 
             crackSrc.connect(crackFlt);
             crackFlt.connect(crackGain);
             crackGain.connect(distFilter);
             crackSrc.start(now);
             crackSrc.stop(now + 0.05);
-            this._autoCleanup(crackSrc, [crackSrc, crackFlt, crackGain]);
+            this._autoCleanup(crackSrc, [crackSrc, crackFlt, crackGain], dist === 0, releaseRoute);
           }
 
           const bodySrc = this.ctx.createBufferSource();
+          // FO_V340_BEGIN mrad-noise
+          if(weaponId==='mrad')bodySrc.buffer=this.noiseBuffers.pink;
+          else
+          // FO_V340_END mrad-noise
+          // FO_V336_BEGIN audio-transient
+          if(weaponId==='mrad')bodySrc.buffer=this.noiseBuffers.white;
+          else
+          // FO_V336_END audio-transient
           bodySrc.buffer = category === 'sniper' || category === 'rocket' ? this.noiseBuffers.pink : this.noiseBuffers.white;
           bodySrc.playbackRate.value = pitchJitter;
           const bodyFlt = this.ctx.createBiquadFilter();
@@ -1807,6 +1910,9 @@
 
           const bodyGain = this.ctx.createGain();
           bodyGain.gain.setValueAtTime(Math.max(0.001, prof.bodyGain * atten), now);
+          // FO_V336_BEGIN audio-envelope
+          if(prof.bodyEarly)bodyGain.gain.exponentialRampToValueAtTime(Math.max(.001,prof.bodyGain*atten*prof.bodyEarlyGain),now+prof.bodyDur*prof.bodyEarly);
+          // FO_V336_END audio-envelope
           bodyGain.gain.exponentialRampToValueAtTime(0.001, now + prof.bodyDur);
 
           bodySrc.connect(bodyFlt);
@@ -1814,7 +1920,7 @@
           bodyGain.connect(distFilter);
           bodySrc.start(now);
           bodySrc.stop(now + prof.bodyDur + 0.02);
-          this._autoCleanup(bodySrc, [bodySrc, bodyFlt, bodyGain, distFilter, wetSend]);
+          this._autoCleanup(bodySrc, [bodySrc, bodyFlt, bodyGain], dist === 0, releaseRoute);
 
           if (dist < 48) {
             const osc = this.ctx.createOscillator();
@@ -1823,17 +1929,36 @@
             osc.frequency.exponentialRampToValueAtTime(prof.subEnd, now + prof.subDur);
 
             const oscGain = this.ctx.createGain();
-            oscGain.gain.setValueAtTime(Math.max(0.001, prof.subGain * atten), now);
-            oscGain.gain.exponentialRampToValueAtTime(0.001, now + prof.subDur + 0.01);
+            const subLevel = prof.subGain * atten * distance.sub;
+            oscGain.gain.setValueAtTime(Math.max(0.00001, subLevel), now);
+            // FO_V340_BEGIN mrad-sub
+            if(prof.subEarly)oscGain.gain.exponentialRampToValueAtTime(Math.max(.000001,subLevel*prof.subEarlyGain),now+prof.subDur*prof.subEarly);
+            // FO_V340_END mrad-sub
+            oscGain.gain.exponentialRampToValueAtTime(Math.max(0.000001, Math.min(0.001, subLevel * 0.02)), now + prof.subDur + 0.01);
 
             osc.connect(oscGain);
             oscGain.connect(distFilter);
             osc.start(now);
             osc.stop(now + prof.subDur + 0.02);
-            this._autoCleanup(osc, [osc, oscGain]);
+            this._autoCleanup(osc, [osc, oscGain], dist === 0, releaseRoute);
           }
 
           if (dist === 0) {
+            // FO_V342_BEGIN mechanical-noise
+            if((weaponId==='mp7'||weaponId==='carlgustaf')&&this.noiseBuffers.white){
+              const source=this.ctx.createBufferSource(),filter=this.ctx.createBiquadFilter(),gain=this.ctx.createGain();
+              const start=now+prof.mechDelay;
+              source.buffer=this.noiseBuffers.white;
+              filter.type='bandpass';filter.frequency.value=prof.mechFreq*pitchJitter;filter.Q.value=.65;
+              gain.gain.setValueAtTime(.00001,start);
+              gain.gain.linearRampToValueAtTime(prof.mechGain,start+.0015);
+              gain.gain.exponentialRampToValueAtTime(.00001,start+.023);
+              source.connect(filter);filter.connect(gain);gain.connect(this.dryBus);
+              source.start(start,weaponId==='mp7'?.36:.64);source.stop(start+.036);
+              this._autoCleanup(source,[source,filter,gain]);
+              return;
+            }
+            // FO_V342_END mechanical-noise
             const mechOsc = this.ctx.createOscillator();
             mechOsc.type = 'square';
             mechOsc.frequency.setValueAtTime(prof.mechFreq * pitchJitter, now + prof.mechDelay);
@@ -1851,11 +1976,31 @@
           }
         }
 
+        // FO_V343_BEGIN drone-audio
+        // Drone-specific presentation; same two voice lifetimes as the legacy explosion.
+        playV343DroneExplosion(dist=0){
+          if(!this._canSpawnVoice(true))return;
+          const now=this.ctx.currentTime,d=this._audioDistance(dist,75),a=d.attenuation;
+          for(const [name,hz,q,level,early,tail,stop,wet] of [['pink',840,.58,3.5,.095,.52,1,1.05],['white',2550,.62,1.8,.018,.10,.75,.42]]){
+            const src=this.ctx.createBufferSource(),f=this.ctx.createBiquadFilter(),g=this.ctx.createGain(),w=this.ctx.createGain();
+            src.buffer=this.noiseBuffers[name];f.type='lowpass';f.Q.value=q;
+            f.frequency.setValueAtTime(Math.max(350,hz*(1-d.ratio*.65)),now);
+            f.frequency.exponentialRampToValueAtTime(name==='pink'?105:230,now+tail);
+            g.gain.setValueAtTime(Math.max(.0001,level*a),now);
+            g.gain.exponentialRampToValueAtTime(Math.max(.0001,level*a*.22),now+early);
+            g.gain.exponentialRampToValueAtTime(.0001,now+tail);
+            w.gain.value=wet;src.connect(f);f.connect(g);g.connect(this.dryBus);g.connect(w);w.connect(this.reverbNode);
+            src.start(now);src.stop(now+stop);this._autoCleanup(src,[src,f,g,w]);
+          }
+        }
+
+        // FO_V343_END drone-audio
         playExplosion(dist = 0) {
           if (!this._canSpawnVoice(true)) return;
           const now = this.ctx.currentTime;
-          const distRatio = Math.min(1, dist / 75);
-          const atten = Math.max(0.08, Math.pow(1 - distRatio, 1.3));
+          const distance = this._audioDistance(dist, 75);
+          const distRatio = distance.ratio;
+          const atten = distance.attenuation;
 
           const wetSend = this.ctx.createGain();
           wetSend.gain.value = 1.45;
@@ -1902,8 +2047,8 @@
 
           if (isKill) {
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(1250, now);
-            osc.frequency.setValueAtTime(1760, now + 0.042);
+            osc.frequency.setValueAtTime(1050, now);
+            osc.frequency.setValueAtTime(1520, now + 0.042);
             g.gain.setValueAtTime(0.32, now);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
             osc.connect(g);
@@ -1913,8 +2058,8 @@
             this._autoCleanup(osc, [osc, g]);
           } else if (isHeadshot) {
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(2250, now);
-            osc.frequency.exponentialRampToValueAtTime(1420, now + 0.085);
+            osc.frequency.setValueAtTime(1920, now);
+            osc.frequency.exponentialRampToValueAtTime(1180, now + 0.085);
             g.gain.setValueAtTime(0.32, now);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
             osc.connect(g);
@@ -1924,8 +2069,8 @@
             this._autoCleanup(osc, [osc, g]);
           } else {
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(1480, now);
-            osc.frequency.exponentialRampToValueAtTime(840, now + 0.045);
+            osc.frequency.setValueAtTime(1250, now);
+            osc.frequency.exponentialRampToValueAtTime(720, now + 0.045);
             g.gain.setValueAtTime(0.22, now);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
             osc.connect(g);
@@ -1945,6 +2090,39 @@
             { t: 0.24, f1: 880,  f2: 1320, dur: 0.050, g: 0.22 },
             { t: 0.31, f1: 2450, f2: 1680, dur: 0.036, g: 0.24 }
           ];
+          // FO_V341_BEGIN bolt-noise
+          // Use existing noise buffers for dry metal clicks and short sliding sounds.
+          // Preserve the four original event starts, stops, and voice admissions.
+          if (this.noiseBuffers.white && this.noiseBuffers.pink) {
+            const finish = [
+              {buffer:'white', hz:2700, q:.60, gain:.105, attack:.001, hold:.003, release:.012, offset:.12},
+              {buffer:'pink', hz:1550, q:.65, gain:.16, attack:.007, hold:.018, release:.045, offset:.31},
+              {buffer:'white', hz:1250, q:.50, gain:.085, attack:.004, hold:.011, release:.031, offset:.52},
+              {buffer:'white', hz:2200, q:.63, gain:.155, attack:.001, hold:.004, release:.016, offset:.71}
+            ];
+            steps.forEach((step, i) => {
+              const f = finish[i], start = now + step.t;
+              const source = this.ctx.createBufferSource();
+              source.buffer = this.noiseBuffers[f.buffer];
+              const filter = this.ctx.createBiquadFilter();
+              filter.type = 'bandpass';
+              filter.frequency.value = f.hz;
+              filter.Q.value = f.q;
+              const gain = this.ctx.createGain();
+              gain.gain.setValueAtTime(.00001, start);
+              gain.gain.linearRampToValueAtTime(f.gain, start + f.attack);
+              gain.gain.setValueAtTime(f.gain * .78, start + f.hold);
+              gain.gain.exponentialRampToValueAtTime(.00001, start + f.release);
+              source.connect(filter);
+              filter.connect(gain);
+              gain.connect(this.dryBus);
+              source.start(start, f.offset);
+              source.stop(start + step.dur + .01);
+              this._autoCleanup(source, [source, filter, gain]);
+            });
+            return;
+          }
+          // FO_V341_END bolt-noise
           steps.forEach((s) => {
             const osc = this.ctx.createOscillator();
             osc.type = 'square';
@@ -1970,11 +2148,11 @@
           scrape.buffer = this.noiseBuffers.white;
           const scrapeFlt = this.ctx.createBiquadFilter();
           scrapeFlt.type = 'bandpass';
-          scrapeFlt.frequency.value = stage === 'out' ? 2400 : stage === 'in' ? 1900 : 3200;
-          scrapeFlt.Q.value = 3.2;
+          scrapeFlt.frequency.value = stage === 'out' ? 2050 : stage === 'in' ? 1520 : 2850;
+          scrapeFlt.Q.value = 2.1;
           const scrapeGain = this.ctx.createGain();
           const sDur = stage === 'bolt' ? 0.045 : 0.075;
-          scrapeGain.gain.setValueAtTime(0.14, now);
+          scrapeGain.gain.setValueAtTime(0.12, now);
           scrapeGain.gain.exponentialRampToValueAtTime(0.001, now + sDur);
           scrape.connect(scrapeFlt);
           scrapeFlt.connect(scrapeGain);
@@ -2073,7 +2251,7 @@
         playDroneBeep(mode = 'spot', dist = 0) {
           if (!this._canSpawnVoice(dist === 0)) return;
           const now = this.ctx.currentTime;
-          const atten = Math.max(0.08, 1 - Math.min(1, dist / 35));
+          const atten = this._audioDistance(dist, 35).attenuation;
           const osc = this.ctx.createOscillator();
           const g = this.ctx.createGain();
           osc.type = mode === 'armed' ? 'sawtooth' : 'sine';
@@ -2105,7 +2283,7 @@
             osc.start(now);
             osc.stop(now + 0.10);
           }
-          this._autoCleanup(osc, [osc, g]);
+          this._autoCleanup(osc, [osc, g], dist === 0);
         }
 
         startDroneHum() {
@@ -2117,7 +2295,7 @@
           osc.type = 'triangle';
           osc.frequency.setValueAtTime(138, now);
           flt.type = 'bandpass';
-          flt.frequency.setValueAtTime(280, now);
+          flt.frequency.setValueAtTime(310, now);
           flt.Q.value = 1.6;
           g.gain.setValueAtTime(0.001, now);
           g.gain.linearRampToValueAtTime(0.055, now + 0.12);
@@ -2132,7 +2310,7 @@
         updateDroneHum(speedRatio = 0, isArmed = false) {
           if (!this.ctx || !this.droneHumNodes) return;
           const now = this.ctx.currentTime;
-          const targetFreq = (isArmed ? 195 : 138) + speedRatio * 68;
+          const targetFreq = (isArmed ? 195 : 138) + speedRatio * 58;
           this.droneHumNodes.osc.frequency.setTargetAtTime(targetFreq, now, 0.06);
           this.droneHumNodes.g.gain.setTargetAtTime(isArmed ? 0.075 : 0.052, now, 0.06);
         }
@@ -2160,14 +2338,14 @@
           }
 
           const pitchVar = 0.90 + Math.random() * 0.20;
-          const volMult = crouch ? 0.42 : (sprint ? 1.25 : 0.85);
+          const volMult = crouch ? 0.39 : (sprint ? 1.16 : 0.82);
 
           const src = this.ctx.createBufferSource();
           src.buffer = this.noiseBuffers.pink;
           const flt = this.ctx.createBiquadFilter();
           flt.type = surf === 'metal' ? 'bandpass' : 'lowpass';
-          flt.frequency.value = (surf === 'metal' ? 780 : 360) * pitchVar;
-          if (surf === 'metal') flt.Q.value = 3.8;
+          flt.frequency.value = (surf === 'metal' ? 980 : 510) * pitchVar;
+          if (surf === 'metal') flt.Q.value = 2.6;
 
           const g = this.ctx.createGain();
           g.gain.setValueAtTime(0.14 * volMult, now);
@@ -2179,7 +2357,7 @@
           if (this.isIndoor) g.connect(this.reverbNode);
           src.start(now);
           src.stop(now + 0.085);
-          this._autoCleanup(src, [src, flt, g]);
+          this._autoCleanup(src, [src, flt, g], false);
 
           if (surf === 'metal') {
             const ring = this.ctx.createOscillator();
@@ -2187,13 +2365,13 @@
             ring.frequency.setValueAtTime(240 * pitchVar, now);
             ring.frequency.exponentialRampToValueAtTime(145 * pitchVar, now + 0.065);
             const rg = this.ctx.createGain();
-            rg.gain.setValueAtTime(0.08 * volMult, now);
+            rg.gain.setValueAtTime(0.055 * volMult, now);
             rg.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
             ring.connect(rg);
             rg.connect(this.dryBus);
             ring.start(now);
             ring.stop(now + 0.075);
-            this._autoCleanup(ring, [ring, rg]);
+            this._autoCleanup(ring, [ring, rg], false);
           }
         }
       }
@@ -2967,6 +3145,225 @@
     return tex;
   }
 
+      // FO_E306_BEGIN helper
+      // V303–V306: bake detail into existing UV maps; no geometry, lights or random draws.
+      function foE306PaintSurface(tex, style) {
+        const c=tex.image,ctx=c.getContext('2d'),w=c.width,h=c.height;
+        let seed=0x306;
+        for(let i=0;i<style.length;i++)seed=Math.imul(seed^style.charCodeAt(i),16777619)>>>0;
+        const rand=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+        const box=(x,y,a,b,color)=>{ctx.fillStyle=color;ctx.fillRect(x*w,y*h,a*w,b*h);};
+        const line=(x,y,x2,y2,color,width=1)=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x*w,y*h);ctx.lineTo(x2*w,y2*h);ctx.stroke();};
+        const dot=(x,y,r,color)=>{ctx.fillStyle=color;ctx.beginPath();ctx.arc(x*w,y*h,r*w,0,Math.PI*2);ctx.fill();};
+        ctx.save();
+        if(style==='marien-road'||style==='depot-road'){
+          const depot=style==='depot-road';
+          for(let i=0;i<32;i++){
+            const x=rand(),y=rand(),rx=.012+rand()*.045,ry=.009+rand()*.025;
+            const grad=ctx.createRadialGradient(x*w,y*h,0,x*w,y*h,rx*w);
+            grad.addColorStop(0,depot?'rgba(57,45,30,.18)':'rgba(24,28,32,.18)');grad.addColorStop(1,'rgba(20,20,20,0)');
+            ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(x*w,y*h,rx*w,ry*h,0,0,Math.PI*2);ctx.fill();
+          }
+          for(let i=0;i<12;i++){
+            const x=.06+rand()*.86,y=.06+rand()*.84;
+            line(x,y,x+.012+rand()*.023,y+.025,'rgba(17,20,23,.24)',1.1);
+            line(x+.01,y+.018,x-.012,y+.035,'rgba(22,25,27,.16)',.7);
+          }
+        }else if(style==='marien-wall'||style==='depot-wall'){
+          const depot=style==='depot-wall';
+          for(const y of [.03,.53]){
+            box(.012,y,.476,.009,'rgba(16,22,26,.12)');box(.512,y,.476,.009,'rgba(16,22,26,.12)');
+          }
+          for(let i=0;i<28;i++){
+            const x=.025+rand()*.95,y=.05+rand()*.78,len=.025+rand()*.12,wide=.004+rand()*.012;
+            const gr=ctx.createLinearGradient(0,y*h,0,(y+len)*h);
+            gr.addColorStop(0,depot?'rgba(85,57,32,.23)':'rgba(37,48,53,.23)');gr.addColorStop(1,'rgba(35,35,35,0)');
+            ctx.fillStyle=gr;ctx.fillRect(x*w,y*h,wide*w,len*h);
+          }
+          for(let i=0;i<24;i++){const x=.03+rand()*.94,y=.03+rand()*.94;dot(x,y,.002+rand()*.003,'rgba(29,32,34,.17)');}
+        }else if(style==='marien-metal'||style==='depot-metal'||style==='cargo'){
+          const cargo=style==='cargo';
+          for(let i=0;i<30;i++){
+            const x=.015+rand()*.95,y=.015+rand()*.95,len=.014+rand()*.075;
+            line(x,y,Math.min(.995,x+len),y+.002,'rgba(196,197,181,.14)',.9);
+            if(i%3===0)line(x,y+.005,Math.min(.995,x+len*.7),y+.006,'rgba(25,24,21,.22)',1.2);
+          }
+          for(const y of [.04,.96]){
+            box(0,y,.999,.008,'rgba(24,27,27,.20)');
+            for(let i=1;i<=8;i++){const x=i/9;dot(x,y+.012,.004,'rgba(21,25,26,.32)');dot(x-.001,y+.010,.0018,'rgba(207,210,200,.30)');}
+          }
+          if(cargo)for(let i=0;i<15;i++){const x=.02+rand()*.94,y=.12+rand()*.65;box(x,y,.005,.025+rand()*.06,'rgba(82,42,23,.18)');}
+        }else if(style==='marien-machine'||style==='depot-machine'){
+          const depot=style==='depot-machine';
+          for(const [x,y] of [[.04,.07],[.54,.07],[.04,.57],[.54,.57]]){
+            box(x,y,.42,.36,'rgba(17,24,27,.31)');box(x+.009,y+.009,.402,.342,'rgba(158,170,166,.17)');
+            box(x+.026,y+.025,.368,.31,'rgba(30,37,38,.26)');
+            for(const dx of [.022,.398])for(const dy of [.02,.34]){dot(x+dx,y+dy,.006,'rgba(16,20,21,.65)');dot(x+dx-.002,y+dy-.002,.0025,'rgba(212,214,199,.55)');}
+            if(depot){
+              for(let i=0;i<7;i++)box(x+.045,y+.06+i*.035,.24,.012,'rgba(15,20,21,.47)');
+              box(x+.31,y+.07,.056,.052,'rgba(183,145,77,.42)');
+              box(x+.32,y+.085,.014,.012,'rgba(35,40,34,.65)');
+            }else{
+              box(x+.055,y+.065,.30,.15,'rgba(22,29,33,.34)');
+              for(let i=0;i<5;i++)box(x+.067+i*.055,y+.075,.015,.13,'rgba(15,21,24,.49)');
+              box(x+.14,y+.255,.14,.026,'rgba(177,183,174,.38)');
+              box(x+.158,y+.261,.105,.009,'rgba(29,33,34,.56)');
+            }
+          }
+        }else if(style==='marien-storage'||style==='depot-storage'){
+          for(const x of [.045,.91]){
+            box(x,0,.045,1,'rgba(38,31,22,.36)');box(x+.006,0,.006,1,'rgba(203,177,128,.23)');
+            for(let i=1;i<8;i++){dot(x+.021,i/8,.005,'rgba(28,27,22,.50)');dot(x+.019,i/8-.002,.002,'rgba(194,180,151,.40)');}
+          }
+          for(const y of [.08,.55]){
+            box(.26,y,.48,.26,'rgba(29,25,19,.24)');box(.27,y+.012,.46,.235,'rgba(168,154,118,.15)');
+            box(.40,y+.07,.20,.036,'rgba(36,34,27,.51)');box(.405,y+.104,.19,.009,'rgba(190,174,142,.23)');
+          }
+        }else if(style==='depot-interior-floor'){
+          for(let i=0;i<4;i++){
+            const p=i/4;
+            box(p,0,.003,1,'rgba(15,19,20,.30)');box(0,p,1,.003,'rgba(15,19,20,.30)');
+            box(p+.004,0,.002,1,'rgba(205,202,177,.15)');box(0,p+.004,1,.002,'rgba(205,202,177,.15)');
+          }
+          for(let i=0;i<28;i++){const x=rand()*.94,y=rand()*.98;line(x,y,x+.025,y+.006,'rgba(30,32,31,.24)',1.4);}
+        }else throw Error('Unknown map finish '+style);
+        ctx.restore();tex.needsUpdate=true;return tex;
+      }
+
+      function foE306FinishSet(set,style){
+        foE306PaintSurface(set.map,style);return set;
+      }
+      function foE306InteriorMaterial(base,style,source=base.map){
+        const image=document.createElement('canvas');
+        image.width=source.image.width;image.height=source.image.height;
+        image.getContext('2d').drawImage(source.image,0,0);
+        // Three r128 generates UUIDs with Math.random inside clone constructors.
+        // Keep these synchronous, visual-only draws off the simulation RNG stream.
+        const oldRandom=Math.random;
+        let seed=0xE306;
+        for(let i=0;i<style.length;i++)seed=Math.imul(seed^style.charCodeAt(i),16777619)>>>0;
+        let tex,mat;
+        try{
+          Math.random=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+          tex=source.clone();mat=base.clone();
+        }finally{Math.random=oldRandom;}
+        tex.image=image;foE306PaintSurface(tex,style);
+        if(style==='depot-interior-floor')tex.repeat.set(2,3);
+        mat.name='FO_E306:'+style;mat.map=tex;mat.needsUpdate=true;return mat;
+      }
+      function foE306UseInterior(meshes,base,replacement,accept){
+        let count=0;
+        for(const mesh of meshes)if(mesh.material===base&&mesh.isMesh&&accept(mesh)){
+          mesh.material=replacement;count++;
+        }
+        return count;
+      }
+
+      // FO_E306_END helper
+      // FO_E311_BEGIN helper
+      // V307–V310: static surface detailing, shared identical bump maps.
+      const foE311Bumps=new Map();
+      function foE311ShareBumps(entries){
+        for(const [key,set] of entries){
+          const t=set.bumpMap,known=foE311Bumps.get(key);
+          if(!known){foE311Bumps.set(key,t);continue;}
+          if(t===known)continue;
+          // Same deterministic factory type, dimensions, repeat and sampler.
+          if(t.image.width!==known.image.width||t.image.height!==known.image.height||
+            t.repeat.x!==known.repeat.x||t.repeat.y!==known.repeat.y||
+            t.wrapS!==known.wrapS||t.wrapT!==known.wrapT||t.anisotropy!==known.anisotropy)
+            throw Error('Shared map relief mismatch '+key);
+          set.bumpMap=known;t.dispose();
+        }
+      }
+      function foE311Paint(tex,style){
+        const c=tex.image,ctx=c.getContext('2d'),w=c.width,h=c.height;
+        let seed=0x311;
+        for(const ch of style)seed=Math.imul(seed^ch.charCodeAt(0),16777619)>>>0;
+        const rand=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+        const rect=(x,y,a,b,color)=>{ctx.fillStyle=color;ctx.fillRect(x*w,y*h,a*w,b*h);};
+        const stroke=(x,y,X,Y,color,width)=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x*w,y*h);ctx.lineTo(X*w,Y*h);ctx.stroke();};
+        const rivet=(x,y,r,color)=>{ctx.fillStyle=color;ctx.beginPath();ctx.arc(x*w,y*h,r*w,0,Math.PI*2);ctx.fill();};
+        ctx.save();
+        if(style==='prison-concrete'){
+          for(let i=0;i<34;i++){
+            const x=.025+rand()*.95,y=.035+rand()*.72,dy=.03+rand()*.18;
+            const g=ctx.createLinearGradient(0,y*h,0,(y+dy)*h);
+            g.addColorStop(0,'rgba(40,49,44,.22)');g.addColorStop(1,'rgba(40,49,44,0)');
+            ctx.fillStyle=g;ctx.fillRect(x*w,y*h,(.004+rand()*.016)*w,dy*h);
+          }
+          for(const y of [.035,.535]){
+            rect(.012,y,.476,.007,'rgba(46,54,50,.22)');rect(.512,y,.476,.007,'rgba(46,54,50,.22)');
+            rect(.012,y+.007,.476,.002,'rgba(207,210,192,.15)');rect(.512,y+.007,.476,.002,'rgba(207,210,192,.15)');
+          }
+          for(let i=0;i<20;i++){const x=.04+rand()*.91,y=.04+rand()*.9;stroke(x,y,x+.018,y+.036,'rgba(30,36,35,.16)',.85);}
+        }else if(style==='prison-steel'){
+          for(let i=0;i<42;i++){const x=.02+rand()*.89,y=.02+rand()*.96;stroke(x,y,Math.min(.99,x+.025+rand()*.06),y+.001,'rgba(198,205,192,.17)',.8);}
+          for(const y of [.04,.94]){
+            rect(0,y,.999,.012,'rgba(29,35,34,.22)');
+            for(let k=1;k<9;k++){rivet(k/9,y+.021,.004,'rgba(20,27,26,.45)');rivet(k/9-.001,y+.019,.0018,'rgba(200,209,194,.40)');}
+          }
+        }else if(style==='prison-interior-wall'){
+          // Subdued painted dado in the lower part of each existing UV panel.
+          for(const y of [.36,.86]){
+            rect(.012,y,.976,.115,'rgba(82,91,78,.26)');
+            rect(.012,y,.976,.008,'rgba(31,41,37,.35)');
+            rect(.012,y+.112,.976,.003,'rgba(193,199,180,.25)');
+          }
+          for(let i=0;i<22;i++){const x=.02+rand()*.94,y=.38+Math.floor(rand()*2)*.5+rand()*.07;stroke(x,y,Math.min(.99,x+.02),y+.005,'rgba(202,200,181,.20)',1);}
+        }else if(style==='prison-interior-crate'){
+          for(const [x,y] of [[.05,.06],[.55,.06],[.05,.56],[.55,.56]]){
+            rect(x,y,.40,.36,'rgba(25,31,29,.42)');rect(x+.012,y+.013,.376,.334,'rgba(143,156,143,.22)');
+            for(let k=0;k<5;k++)rect(x+.035+k*.063,y+.055,.027,.23,'rgba(30,38,34,.36)');
+            rect(x+.11,y+.282,.18,.026,'rgba(25,30,28,.57)');
+            for(const dx of [.025,.375])for(const dy of [.028,.33])rivet(x+dx,y+dy,.005,'rgba(21,26,24,.55)');
+          }
+        }else if(style==='prison-interior-slab'){
+          for(let i=0;i<4;i++){
+            const t=i/4;rect(t,0,.004,1,'rgba(29,36,32,.28)');rect(0,t,1,.004,'rgba(29,36,32,.28)');
+            rect(t+.004,0,.002,1,'rgba(200,206,186,.18)');rect(0,t+.004,1,.002,'rgba(200,206,186,.18)');
+          }
+          for(let i=0;i<28;i++){const x=rand()*.95,y=rand()*.98;stroke(x,y,x+.035,y+.004,'rgba(36,43,39,.20)',1);}
+        }else throw Error('Unknown prison finish '+style);
+        ctx.restore();tex.needsUpdate=true;return tex;
+      }
+      function foE311PrisonFinish(concrete,steel){
+        foE311Paint(concrete.map,'prison-concrete');
+        foE311Paint(steel.map,'prison-steel');
+      }
+      function foE311PrisonVariant(base,style){
+        const source=base.map,image=document.createElement('canvas');
+        image.width=source.image.width;image.height=source.image.height;
+        image.getContext('2d').drawImage(source.image,0,0);
+        const oldRandom=Math.random;let seed=0xE311;
+        for(const ch of style)seed=Math.imul(seed^ch.charCodeAt(0),16777619)>>>0;
+        let tex,mat;
+        try{
+          Math.random=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+          tex=source.clone();mat=base.clone();
+        }finally{Math.random=oldRandom;}
+        tex.image=image;foE311Paint(tex,style);
+        if(style==='prison-interior-slab')tex.repeat.set(2,3);
+        mat.name='FO_E311:'+style;mat.map=tex;mat.needsUpdate=true;return mat;
+      }
+      function foE311PrisonInterior(wall,metal,dark){
+        const wallFinish=foE311PrisonVariant(wall,'prison-interior-wall');
+        const crateFinish=foE311PrisonVariant(metal,'prison-interior-crate');
+        const slabFinish=foE311PrisonVariant(dark,'prison-interior-slab');
+        const near=(m,x,z)=>Math.abs(m.position.x-x)<.015&&Math.abs(m.position.z-z)<.015;
+        const crateCenters=[];
+        for(const x of [-18,18]){
+          const d=Math.sign(x);
+          crateCenters.push([x-d*5.5,-43],[x+d*5.5,-30.2],[x+d*12.8,-41.7],[x+d*12.8,-32]);
+        }
+        crateCenters.push([4,-38]);
+        // Existing opaque meshes only; no new volume, lighting, shader or alpha.
+        foE306UseInterior(mapEnvironmentMeshes,wall,wallFinish,m=>m.geometry.type==='BoxGeometry'&&m.position.z<=-27&&m.position.z>=-45&&m.geometry.parameters.height>=2.5);
+        foE306UseInterior(mapEnvironmentMeshes,metal,crateFinish,m=>crateCenters.some(([x,z])=>near(m,x,z))&&m.geometry.type==='BoxGeometry'&&m.geometry.parameters.height>=.9&&m.geometry.parameters.height<=1.8);
+        foE306UseInterior(mapEnvironmentMeshes,dark,slabFinish,m=>Math.abs(m.position.y-4.98)<.015&&m.geometry.type==='BoxGeometry'&&Math.abs(m.geometry.parameters.height-.36)<.015);
+      }
+
+      // FO_E311_END helper
       function buildMarienCQCMap() {
         const texAsphalt = makeProceduralTextureSet('asphalt', 16, 24);
         const texConcrete = makeProceduralTextureSet('concrete', 4, 2);
@@ -2979,6 +3376,17 @@
         const texContBlue = makeProceduralTextureSet('container_blue', 2, 1);
         const texContRust = makeProceduralTextureSet('container_rust', 2, 1);
 
+      // FO_E306_BEGIN marien-exterior
+      // FO_E311_BEGIN marien-share
+        foE311ShareBumps([['concrete_weathered:3:2',texWeathered],['steel:2:2',texSteel],['wood:2:2',texWood]]);
+      // FO_E311_END marien-share
+        // V303: outdoor surface weathering, baked into the original texture allocations.
+        foE306FinishSet(texAsphalt,'marien-road');
+        foE306FinishSet(texConcrete,'marien-wall');
+        foE306FinishSet(texWeathered,'marien-wall');
+        foE306FinishSet(texSteel,'marien-metal');
+        for(const set of [texContRed,texContBlue,texContRust])foE306FinishSet(set,'cargo');
+      // FO_E306_END marien-exterior
         const matAsphalt = new THREE.MeshStandardMaterial({
           map: texAsphalt.map, bumpMap: texAsphalt.bumpMap, bumpScale: 0.042, roughness: 0.93, metalness: 0.02
         });
@@ -3596,6 +4004,15 @@
     scene.add(mesh);
   }
 
+      // FO_E306_BEGIN marien-interior
+        // V304: existing warehouse machinery and storage only; no new props.
+        const warehouseMachine=foE306InteriorMaterial(matSteel,'marien-machine');
+        const warehouseCrate=foE306InteriorMaterial(matWood,'marien-storage');
+        const inWarehouse=m=>m.position.x<-18&&m.position.x>-40&&Math.abs(m.position.z)<42;
+        const machine=m=>inWarehouse(m)&&Math.abs(m.position.x+24)<.01&&Math.abs(m.position.y-.75)<.01&&Math.abs(Math.abs(m.position.z)-8)<.01;
+        foE306UseInterior(mapEnvironmentMeshes,matSteel,warehouseMachine,machine);
+        foE306UseInterior(mapEnvironmentMeshes,matWood,warehouseCrate,inWarehouse);
+      // FO_E306_END marien-interior
         const dustCount = 140;
         const dustGeo = new THREE.BufferGeometry();
         const dustPos = new Float32Array(dustCount * 3);
@@ -3622,7 +4039,70 @@
       // graph are captured on startup and restored without reconstruction.
       const FO_MAPS = {};
       let foActiveMap = 'deathmatch';
+      // FO_H328_BEGIN helper
+      // V326–V328: immutable map geometry reuse; do not change construction RNG,
+      // object identity, material, raycast flags, draw order or gameplay colliders.
+      const foH328GeometryCache=new Map(),foH328MapStats=new Map();
+      function foH328GeometryKey(g){
+        if(!g||!['BoxGeometry','PlaneGeometry','CylinderGeometry','CircleGeometry','SphereGeometry','RingGeometry','OctahedronGeometry'].includes(g.type)||
+          !g.parameters||g.isInstancedBufferGeometry||Object.keys(g.morphAttributes||{}).length||g.userData&&Object.keys(g.userData).length)return null;
+        // Factory parameters alone are insufficient: modified vertices or UVs
+        // are rejected by the byte comparison below.
+        return g.type+':'+JSON.stringify(g.parameters)+':'+JSON.stringify(g.groups)+':'+JSON.stringify(g.drawRange);
+      }
+      function foH328SameAttribute(a,b){
+        if(a===b)return true;
+        if(!a||!b||a.isInterleavedBufferAttribute||b.isInterleavedBufferAttribute||a.itemSize!==b.itemSize||
+          a.normalized!==b.normalized||a.count!==b.count||a.array.constructor!==b.array.constructor||a.array.byteLength!==b.array.byteLength)return false;
+        const x=new Uint8Array(a.array.buffer,a.array.byteOffset,a.array.byteLength),y=new Uint8Array(b.array.buffer,b.array.byteOffset,b.array.byteLength);
+        for(let i=0;i<x.length;i++)if(x[i]!==y[i])return false;
+        return true;
+      }
+      function foH328SameGeometry(a,b){
+        if(foH328GeometryKey(a)!==foH328GeometryKey(b)||!foH328SameAttribute(a.index,b.index))return false;
+        const keys=Object.keys(a.attributes),other=Object.keys(b.attributes);
+        return keys.length===other.length&&keys.every(k=>foH328SameAttribute(a.attributes[k],b.attributes[k]));
+      }
+      function foH328OptimizeMap(meshes,dust,bombSites,rescuePoints,world,mode){
+        const dynamic=new Set([dust,...bombSites.map(s=>s.beacon),...rescuePoints.flatMap(p=>(p.parts||[]).map(q=>q.mesh))]);
+        const before=new Set(meshes.map(m=>m.geometry).filter(Boolean)),replacement=new Map(),discard=new Set();
+        let frozen=0,reused=0;
+        for(const m of meshes){
+          if(!m.isMesh||m.parent!==world||dynamic.has(m))continue;
+          const original=m.geometry,key=foH328GeometryKey(original);
+          if(key){
+            if(!replacement.has(original)){
+              let pool=foH328GeometryCache.get(key);
+              if(!pool){pool=[];foH328GeometryCache.set(key,pool);}
+              const known=pool.find(g=>foH328SameGeometry(g,original));
+              if(known){replacement.set(original,known);if(known!==original)discard.add(original);}
+              else{pool.push(original);replacement.set(original,original);}
+            }
+            const shared=replacement.get(original);
+            if(shared!==original){m.geometry=shared;reused++;}
+          }
+          // Static local TRS only; world matrix propagation and raycasts remain normal.
+          if(m.matrixAutoUpdate){m.updateMatrix();m.matrixAutoUpdate=false;frozen++;}
+        }
+        // Never dispose a geometry still referenced by a dynamic marker, any
+        // current map mesh or a prior cached arena.
+        const retained=new Set(meshes.map(m=>m.geometry));
+        for(const arena of Object.values(FO_MAPS))for(const m of arena.meshes)retained.add(m.geometry);
+        let disposed=0,bytes=0;
+        for(const geo of discard)if(!retained.has(geo)){
+          const arrays=[geo.index,...Object.values(geo.attributes)].filter(Boolean);
+          bytes+=arrays.reduce((n,a)=>n+a.array.byteLength,0);
+          geo.dispose();disposed++;
+        }
+        const stats={before:before.size,after:new Set(meshes.map(m=>m.geometry).filter(Boolean)).size,reused,frozen,disposed,attributeBytesRemoved:bytes};
+        foH328MapStats.set(mode,stats);return stats;
+      }
+
+      // FO_H328_END helper
       function captureFoMap(before) {
+      // FO_H328_BEGIN capture
+        foH328OptimizeMap(mapEnvironmentMeshes,dustParticles,FO_BOMB_SITES,FO_RESCUE_POINTS,scene,foActiveMap);
+      // FO_H328_END capture
         return {objects:scene.children.filter(m=>!before.has(m)),
           meshes:mapEnvironmentMeshes.slice(),colliders:mapColliders.slice(),
           ramps:mapRamps.slice(),dust:dustParticles,
@@ -3737,6 +4217,15 @@
         const asphalt=makeProceduralTextureSet('asphalt',12,18);
         const steel=makeProceduralTextureSet('steel',2,2);
         const wood=makeProceduralTextureSet('wood',2,2);
+      // FO_E306_BEGIN depot-exterior
+      // FO_E311_BEGIN depot-share
+        foE311ShareBumps([['concrete_weathered:3:2',concrete],['steel:2:2',steel],['wood:2:2',wood]]);
+      // FO_E311_END depot-share
+        // V305: port-specific mineral staining, pavement wear and brushed metal.
+        foE306FinishSet(concrete,'depot-wall');
+        foE306FinishSet(asphalt,'depot-road');
+        foE306FinishSet(steel,'depot-metal');
+      // FO_E306_END depot-exterior
         const mat=(t,color,metalness=.12)=>new THREE.MeshStandardMaterial({map:t.map,
           bumpMap:t.bumpMap,bumpScale:.035,color,roughness:.84,metalness});
         const wall=mat(concrete,0xb8b5a8),darkWall=mat(concrete,0x797d78),
@@ -4056,6 +4545,17 @@
           deco(x,2.55,z,.035,4.7,.065,seal);
           deco(x,5.18,z,.19,.11,2.0,galv);
         }
+      // FO_E306_BEGIN depot-interior
+        // V306: distinguish maintenance machinery, storage and existing interior floor slabs.
+        const machineFinish=foE306InteriorMaterial(metal,'depot-machine');
+        const storageFinish=foE306InteriorMaterial(crate,'depot-storage');
+        const interiorFloorFinish=foE306InteriorMaterial(darkFloor,'depot-interior-floor',asphalt.map);
+        const near=(m,x,z,t=.02)=>Math.abs(m.position.x/FO_TERSANE_X-x)<t&&Math.abs(m.position.z/FO_TERSANE_Z-z)<t;
+        const at=(m,points)=>points.some(([x,z])=>near(m,x,z));
+        foE306UseInterior(mapEnvironmentMeshes,metal,machineFinish,m=>at(m,[[-21,-22]])&&Math.abs(m.position.y-.775)<.02);
+        foE306UseInterior(mapEnvironmentMeshes,crate,storageFinish,m=>at(m,[[-11,-34],[-35.3,10],[-35.3,30],[35,-7]]));
+        foE306UseInterior(mapEnvironmentMeshes,darkFloor,interiorFloorFinish,m=>at(m,[[-16,-28],[-32,20],[32,-5]])&&m.geometry.type==='PlaneGeometry');
+      // FO_E306_END depot-interior
         // Objective markers stay purely game-specific and visually restrained.
         for(const site of FO_BOMB_SITES){
           const accent=site.id==='A'?0xd4aa63:0x77aab0;
@@ -4188,9 +4688,61 @@
         const remap=new Map(),kept=[];nodes.forEach((n,i)=>{if(seen.has(i)){remap.set(i,kept.length);kept.push(n);}});
         return {nodes:kept,edges:edges.filter(([a,b])=>seen.has(a)&&seen.has(b)).map(([a,b])=>[remap.get(a),remap.get(b)])};
       }
+
+      // FO_CIV01_BEGIN - two lightweight civilian outfits, one worried face.
+      function foMakeRescueCivilianParts(p,variant){
+        const clothes=variant===0
+          ? {shirt:0x566a78,pants:0x363e49,shoe:0x34383b,hair:0x302922}
+          : {shirt:0xbab19e,pants:0x45443c,shoe:0x514438,hair:0x382f28};
+        const mat=c=>new THREE.MeshStandardMaterial({color:c,roughness:.95});
+        const shirt=mat(clothes.shirt),pants=mat(clothes.pants),shoes=mat(clothes.shoe);
+        const skin=mat(0xbe9580),hair=mat(clothes.hair),eye=mat(0x242021);
+        const eyeWhite=mat(0xe8e0d3),indicator=mat(0x82bba2);
+        const parts=[];
+        const attach=(geo,material,dx,y,dz,rz=0,isIndicator=false)=>{
+          const mesh=addDecoMesh(geo,material,p.x+dx,y,p.z+dz,0,0,rz);
+          parts.push({mesh,dx,y,dz,isIndicator});
+          return mesh;
+        };
+        const cube=(dx,y,dz,w,h,d,material,rz=0)=>
+          attach(new THREE.BoxGeometry(w,h,d),material,dx,y,dz,rz);
+        const sphere=(dx,y,dz,r,material)=>
+          attach(new THREE.SphereGeometry(r,10,8),material,dx,y,dz);
+        // Simple civilian clothes: T-shirt / everyday button-up shirt.
+        cube(0,1.14,0,.54,.67,.32,shirt);
+        cube(0,1.51,0,.13,.12,.13,skin);
+        for(const side of [-1,1]){
+          cube(side*.145,.48,0,.20,.76,.24,pants);
+          cube(side*.145,.082,.075,.22,.14,.36,shoes);
+          cube(side*.35,1.19,0,.18,.32,.28,shirt,side*.11);
+          cube(side*.38,.93,0,.14,.27,.16,skin,side*.08);
+          sphere(side*.38,.76,0,.085,skin);
+        }
+        if(variant===1){
+          const buttons=mat(0x77746a);
+          for(const y of [1.33,1.16,1.0])sphere(.012,y,.17,.016,buttons);
+        }
+        // Worried expression: wide eyes, raised inner brows, small open mouth.
+        sphere(0,1.69,0,.215,skin);
+        cube(0,1.886,-.015,.34,.074,.31,hair);
+        for(const side of [-1,1]){
+          sphere(side*.082,1.742,.192,.041,eyeWhite);
+          sphere(side*.082,1.74,.224,.022,eye);
+          cube(side*.085,1.813,.196,.12,.026,.028,hair,-side*.23);
+        }
+        sphere(0,1.622,.218,.042,eye);
+        // Keep the old objective locator, without making it part of the outfit.
+        attach(new THREE.OctahedronGeometry(.18),indicator,0,2.16,0,0,true);
+        return parts;
+      }
+      // FO_CIV01_END
       function buildFoPrisonMap(){
         const solids=[],ramps=[];
         const concrete=makeProceduralTextureSet('concrete_weathered',3,2),steel=makeProceduralTextureSet('steel',2,2);
+      // FO_E311_BEGIN prison-exterior
+        foE311ShareBumps([['concrete_weathered:3:2',concrete],['steel:2:2',steel]]);
+        foE311PrisonFinish(concrete,steel);
+      // FO_E311_END prison-exterior
         const mat=(t,color)=>new THREE.MeshStandardMaterial({map:t.map,bumpMap:t.bumpMap,bumpScale:.035,color,roughness:.88});
         const wall=mat(concrete,0xa5a69e),dark=mat(concrete,0x666f70),metal=mat(steel,0x57676b);
         const floor=mat(concrete,0x858983);
@@ -4358,16 +4910,13 @@
         for(const [x,z,w,d] of [[-32,33,3.1,1.2],[32,33,3.1,1.2],[-5,46,2.2,1.1],[5,46,2.2,1.1]]){
           box(x,z,w,d,1.05,metal);deco(x,1.10,z,w+.08,.1,d+.08,trim);
         }
+      // FO_E311_BEGIN prison-interior
+        foE311PrisonInterior(wall,metal,dark);
+      // FO_E311_END prison-interior
         const exitMat=new THREE.MeshBasicMaterial({color:0x82bba2,transparent:true,opacity:.75,side:THREE.DoubleSide});
         addDecoMesh(new THREE.RingGeometry(5.8,6,48),exitMat,0,.035,50,-Math.PI/2);
-        const cloth=new THREE.MeshStandardMaterial({color:0xd0b37c,roughness:1});
-        const skin=new THREE.MeshStandardMaterial({color:0xb49b83,roughness:1});
-        for(const p of FO_RESCUE_POINTS){
-          p.parts=[
-            {mesh:deco(p.x,.64,p.z,.48,.85,.35,cloth),y:.64},
-            {mesh:addDecoMesh(new THREE.SphereGeometry(.19,10,8),skin,p.x,1.25,p.z),y:1.25},
-            {mesh:addDecoMesh(new THREE.OctahedronGeometry(.24),exitMat,p.x,1.8,p.z),y:1.8}
-          ];
+        for(const [index,p] of FO_RESCUE_POINTS.entries()){
+          p.parts=foMakeRescueCivilianParts(p,index);
         }
         dustParticles=null;
         const g=foPrisonGraph(solids,ramps);installFoGraph(g.nodes,g.edges);
@@ -4526,6 +5075,19 @@
           new THREE.CylinderGeometry(0.0135, 0.0135, 0.042, 18, 1, true),
           WEAPON_MATS.gunmetal
         );
+        // FO_V342_BEGIN mp7-housing
+        // A closed annular housing with continuous inner wall, bevels and both end rims.
+        // Keep the original mesh, material, reticle and lens; isolate the replacement geometry UUID.
+        const savedRandom=Math.random;
+        let housingSeed=0x3420f19d;
+        try{
+          Math.random=()=>((housingSeed=(Math.imul(housingSeed,1664525)+1013904223)>>>0)/4294967296);
+          const outline=[[.0148,-.023],[.0160,-.0215],[.0153,-.017],[.0148,-.016],[.0148,.016],[.0153,.017],[.0160,.0215],[.0148,.023],[.0128,.023],[.0125,.021],[.0125,-.021],[.0128,-.023],[.0148,-.023]];
+          const housing=new THREE.LatheGeometry(outline.map(p=>new THREE.Vector2(...p)),24);
+          housing.userData.v342OpticHousing=true;
+          housing.uuid=tube.geometry.uuid; tube.geometry.dispose();tube.geometry=housing;
+        }finally{Math.random=savedRandom;}
+        // FO_V342_END mp7-housing
         tube.rotation.x = Math.PI / 2;
         tube.position.set(0, 0.019, 0);
         g.add(tube);
@@ -4972,6 +5534,43 @@
         return geo;
       }
 
+      // FO_V336_BEGIN viewmodel-helper
+      // Extra artwork uses an isolated synchronous UUID stream, never the match RNG.
+      let foV336VisualSeed=0x36a791fd;
+      function foV336WeaponFinish(root,refs,id){
+        if(id!=='minimi'&&id!=='p320')return;
+        const savedRandom=Math.random;
+        try{
+          Math.random=()=>((foV336VisualSeed=(Math.imul(foV336VisualSeed,1664525)+1013904223)>>>0)/4294967296);
+          if(id==='minimi'){
+            const ring=root.children.find(n=>n.isMesh&&n.geometry.type==='TorusGeometry'&&n.position.z===-.355);
+            const post=root.children.find(n=>n.isMesh&&n.material===WEAPON_MATS.tritiumGreen&&n.position.z===-.355);
+            // A continuous, tapered visual silhouette from the existing barrel to the sight.
+            const support=createExtrudedProfile([[-.014,.020],[.014,.020],[.014,.037],[.007,.048],[.005,.066],[.0022,.066],[.0022,.084],[-.0022,.084],[-.0022,.066],[-.005,.066],[-.007,.048],[-.014,.037]],.018,WEAPON_MATS.metalDark);
+            support.name='V336_Minimi_sight_support';support.position.z=-.355;root.add(support);
+            ring.rotation.z=Math.PI*.8;ring.name='V336_Minimi_sight_guard';
+            post.scale.y=.33;post.position.y=.084;post.name='V336_Minimi_sight_tip';
+          }else{
+            const slide=refs.slideMesh,main=slide.children[0],top=slide.children[1];
+            main.material=main.material.clone();main.material.color.copy(WEAPON_MATS.gunmetal.color);
+            main.material.roughness=.55;main.material.metalness=.64;
+            top.material=WEAPON_MATS.gunmetal;top.scale.y=.54;top.position.y=.038;
+            main.name='V336_P320_satin_slide';
+            const ribs=new THREE.InstancedMesh(new THREE.BoxGeometry(.0018,.014,.0018),WEAPON_MATS.metalDark,20);
+            const dummy=new THREE.Object3D();let k=0;
+            for(const side of [-1,1])for(const start of [.038,-.066])for(let i=0;i<5;i++){
+              dummy.position.set(side*.0119,.026,start+i*.0048);dummy.rotation.set(-.22,0,0);dummy.updateMatrix();ribs.setMatrixAt(k++,dummy.matrix);
+            }
+            ribs.instanceMatrix.needsUpdate=true;ribs.name='V336_P320_slide_detail';slide.add(ribs);
+            const port=new THREE.Mesh(new THREE.BoxGeometry(.014,.002,.025),WEAPON_MATS.metalDark);
+            port.position.set(.003,.0395,-.010);port.name='V336_P320_chamber_detail';slide.add(port);
+            const bridge=new THREE.Mesh(new THREE.BoxGeometry(.015,.025,.006),WEAPON_MATS.polymerFDE);
+            bridge.position.set(0,-.014,-.024);bridge.rotation.x=-.16;bridge.name='V336_P320_guard_bridge';root.add(bridge);
+          }
+        }finally{Math.random=savedRandom;}
+      }
+
+      // FO_V336_END viewmodel-helper
       function buildViewmodel(weaponId) {
         if (currentViewmodelMesh) {
           if(typeof clearV271PlayerFlash==='function')clearV271PlayerFlash();
@@ -5202,6 +5801,11 @@
           root.add(buttplate);
 
           const optic = buildMicroRedDot();
+          // FO_V340_BEGIN mp7-mount
+          // Extend the existing mount to the rail teeth; keep the lens and reticle unchanged.
+          optic.children[0].scale.y=2.85;
+          optic.children[0].position.y=-.0111;
+          // FO_V340_END mp7-mount
           optic.position.set(0, 0.066, -0.015);
           root.add(optic);
 
@@ -5633,6 +6237,9 @@
           statusBar.rotation.x = -0.18;
           root.add(statusBar);
 
+      // FO_F316_BEGIN controller-reference
+          vmRefs.foF316DroneStatus=statusBar;
+      // FO_F316_END controller-reference
           [-0.046, 0.046].forEach((ax) => {
             const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.004, 0.075, 8), WEAPON_MATS.gunmetal);
             ant.position.set(ax, 0.072, -0.048);
@@ -5696,6 +6303,9 @@
 
         refineV266GloveSurfaces(root);
         applyV259ViewmodelDetail(root);
+        // FO_V336_BEGIN viewmodel-call
+        foV336WeaponFinish(root,vmRefs,weaponId);
+        // FO_V336_END viewmodel-call
         if(vmRefs.magazineMesh){
           vmRefs.magazineRest={
             position:vmRefs.magazineMesh.position.clone(),
@@ -8086,8 +8696,109 @@
         model.root.userData=model.root.userData||{};model.root.userData.visualVariant=variantId;model.root.userData.v182Role=classId;
         return model;
       }
+      // FO_MILIS01_BEGIN - red team civilian-militia look, original soldier rig preserved.
+      let FO_MILIS01_ASSETS=null;
+      function foMilis01Assets(){
+        if(FO_MILIS01_ASSETS)return FO_MILIS01_ASSETS;
+        const make=c=>new THREE.MeshStandardMaterial({color:c,roughness:.96,metalness:0});
+        FO_MILIS01_ASSETS={
+          cloth:[make(0x3b4951),make(0x877a66),make(0x5c5546)],
+          seams:[make(0x2a363b),make(0x665a4b),make(0x413d34)],
+          pants:[make(0x373c3f),make(0x494640),make(0x41443c)],
+          headwear:[make(0x292c2c),make(0x3b342d),make(0x5b5448)],
+          beard:make(0x2d2724),eyes:make(0x25201e),skin:make(0xa98068),
+          box:new THREE.BoxGeometry(1,1,1),
+          round:new THREE.SphereGeometry(1,10,8),
+          cap:new THREE.SphereGeometry(1,12,8,0,Math.PI*2,0,Math.PI*.52),
+          rim:new THREE.CylinderGeometry(1,1,1,12)
+        };
+        return FO_MILIS01_ASSETS;
+      }
+      function foApplyMilis01Visual(model,classId,variant){
+        const v=((Math.floor(variant)||0)%3+3)%3,A=foMilis01Assets(),hidden=[];
+        const vestNames=new Set(['v99_carrier','v99_close_rig','v105_role_vest']);
+        const hide=n=>{n.visible=false;hidden.push(n);};
+        // No military helmets or face armour; retain the sculpted V106 human face.
+        for(const n of model.head.children.slice())if(n.name!=='v106_face')hide(n);
+        // Take the hard plate-carrier silhouette off the torso without touching class kit.
+        for(const n of model.upperBody.children){
+          if(vestNames.has(n.name)||n.userData?.v139Carrier||n.userData?.v251Carrier||
+              ['pouch','admin'].includes(n.userData?.v176Equipment))hide(n);
+        }
+        for(const knee of [model.leftKnee,model.rightKnee])for(const n of knee.children){
+          if(n.userData?.v176Equipment==='kneepad')hide(n);
+        }
+        // Recolor the inherited uniform's fabric only. Excludes weapons, bare skin,
+        // medic/engineer packs, class badges and team-identification material.
+        const uniformColors=[0x563536,0x634547,0x3d292d],trouserColors=[0x3e2c2e];
+        const nearColor=(hex,palette)=>palette.some(k=>
+          Math.abs((hex>>16&255)-(k>>16&255))<24&&
+          Math.abs((hex>>8&255)-(k>>8&255))<24&&
+          Math.abs((hex&255)-(k&255))<24);
+        const repaint=(root,palette,material)=>{
+          const visit=n=>{
+            if(n===model.head||n===model.weaponPivot)return;
+            if(n.isMesh&&n.material&&!Array.isArray(n.material)){
+              const color=n.material.color;
+              if(color&&typeof color.getHex==='function'&&nearColor(color.getHex(),palette))n.material=material;
+            }
+            for(const child of n.children||[])visit(child);
+          };
+          visit(root);
+        };
+        repaint(model.upperBody,uniformColors,A.cloth[v]);
+        for(const hip of [model.leftHip,model.rightHip])repaint(hip,[...trouserColors,...uniformColors],A.pants[v]);
+        // Cloth bridges keep the same civilian fabric at animated joints.
+        model.root.traverse(n=>{
+          const joint=n.userData?.v154Joint;
+          if(joint)n.material=(joint==='hip'||joint==='knee')?A.pants[v]:A.cloth[v];
+        });
+        // Plain civilian jacket/shirt: narrow lapels and soft chest pockets.
+        const jacket=new THREE.Group();jacket.name='fo_milis01_jacket';model.upperBody.add(jacket);
+        const add=(parent,geo,mat,x,y,z,sx,sy,sz,rz=0)=>{
+          const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);
+          m.scale.set(sx,sy,sz);m.rotation.z=rz;m.castShadow=false;
+          parent.add(m);return m;
+        };
+        for(const sign of [-1,1]){
+          add(jacket,A.box,A.cloth[v],sign*.085,.285,.158,.164,.302,.048);
+          add(jacket,A.box,A.seams[v],sign*.085,.432,.190,.095,.125,.021,-sign*.27);
+        }
+        add(jacket,A.box,A.seams[v],0,.146,.189,.31,.018,.023);
+        if(v!==0)add(jacket,A.box,A.seams[v],.085,.265,.192,.072,.083,.018);
+        // Open, readable face; one knit beanie, one bare head, one light head wrap.
+        const face=new THREE.Group();face.name='fo_milis01_face';model.head.add(face);
+        const beanie=v!==1;
+        if(beanie){
+          add(face,A.cap,A.headwear[v],0,.069,-.008,.127,.095,.126);
+          add(face,A.rim,A.headwear[v],0,.046,-.008,.129,.035,.129);
+        }else{
+          add(face,A.cap,A.headwear[v],0,.084,-.014,.112,.038,.118);
+        }
+        for(const side of [-1,1]){
+          add(face,A.round,A.eyes,side*.042,.013,.103,.010,.009,.005);
+          add(face,A.box,A.headwear[v],side*.043,.041,.103,.054,.009,.009,-side*.08);
+        }
+        if(v!==1){
+          // Short beard, not a tactical balaclava.
+          add(face,A.round,A.beard,0,-.073,.052,.081,.032,.058);
+        }else{
+          add(face,A.round,A.skin,0,-.026,.099,.019,.031,.019);
+        }
+        // Preserve distance-LOD behaviour and never re-enable hidden armour.
+        const oldLod=model.setVisualDetailDistance;
+        if(typeof oldLod==='function')model.setVisualDetailDistance=d=>{
+          oldLod(d);for(const n of hidden)n.visible=false;
+        };
+        model.root.userData=model.root.userData||{};
+        model.root.userData.foFaction='milis';
+        model.root.userData.foMilisOutfit=v;
+        return model;
+      }
+      // FO_MILIS01_END
       function createEnhancedBotSoldierMesh(team, classId, variant=0) {
-        return enhanceV25SoldierWithV11Details(createBotSoldierMesh(team, classId), team, classId,variant);
+        const model=enhanceV25SoldierWithV11Details(createBotSoldierMesh(team,classId),team,classId,variant);
+        return team==='red'?foApplyMilis01Visual(model,classId,variant):model;
       }
 
       function createBotSoldierMesh(team, classId) {
@@ -8559,11 +9270,11 @@
           Math.hypot(actor.pos.x-site.x,actor.pos.z-site.z)<=FO_BOMB_RULES.radius);
       }
       // Pure objective state transition; no wall clock, RNG or weapon logic.
-      function stepFoBomb(state,dt,remaining,blue,red,eligible) {
+      function stepFoBomb(state,dt,remaining,blue,red,eligible,clockDt=dt) {
         if(state.phase==='ended')return null;
         const planted=state.phase==='planted';
         if(planted){
-          state.seconds=Math.max(0,state.seconds-dt);
+          state.seconds=Math.max(0,state.seconds-clockDt);
           if(state.seconds<=0)return {winner:'blue',reason:'Bomba patladı'};
           if(red===0)return {winner:'blue',reason:'Savunan takım elendi'};
         }else{
@@ -8589,13 +9300,16 @@
       }
       function foBombCanInteract(actor,site){
         if(!foBombInside(actor,site))return false;
-        if(actor.player)return !droneSystem.isPlayerControlling()&&!player.reloading&&
+        // FO_INTERACT_F_BEGIN bomb: only a held F key lets the player plant.
+        if(actor.player)return !!keys['KeyF']&&gameplayInputAllowed()&&
+          !droneSystem.isPlayerControlling()&&!player.reloading&&
           !mouseDownLeft&&!player.rollTimer&&Math.hypot(player.vel.x,player.vel.z)<1.3;
+        // FO_INTERACT_F_END bomb
         return !actor.visibleEnemy&&!actor.activeDroneId&&!(actor.unstuckTimer>0)&&
           Math.hypot(actor.moveVelX||0,actor.moveVelZ||0)<1.0&&
           (foBomb.actor===actor.id||foBotPlan.operators.get(site.id)===actor.id);
       }
-      function updateFoBomb(dt){
+      function updateFoBomb(dt,clockDt=dt){
         if(!isFoBombMode()||matchState.ended)return;
         const actors=foBombActors(),planted=foBomb.phase==='planted';
         const team=planted?'red':'blue';
@@ -8603,20 +9317,30 @@
         const eligible=[];
         for(const a of actors)if(a.team===team)for(const site of sites)
           if(foBombCanInteract(a,site))eligible.push({id:a.id,site});
-        const chosen=eligible.find(e=>e.id===foBomb.actor&&e.site.id===foBomb.actionSite)||eligible[0]||null;
+        // An actively interacting player takes precedence over an AI operator.
+        const chosen=eligible.find(e=>e.id==='player')||
+          eligible.find(e=>e.id===foBomb.actor&&e.site.id===foBomb.actionSite)||eligible[0]||null;
         const blue=actors.filter(a=>a.team==='blue'&&a.alive).length,
           red=actors.filter(a=>a.team==='red'&&a.alive).length;
-        const result=stepFoBomb(foBomb,dt,matchState.timeRemaining,blue,red,chosen);
+        const result=stepFoBomb(foBomb,dt,matchState.timeRemaining,blue,red,chosen,clockDt);
         const status=document.getElementById('fo-bomb-status');
         const active=foBomb.phase==='planted';
         for(const site of FO_BOMB_SITES)if(site.beacon){
           site.beacon.visible=active&&site===foBomb.site;
           if(site.beacon.visible){site.beacon.rotation.y+=dt*2.4;site.beacon.position.y=1.0+Math.sin(foBomb.seconds*3)*.16;}
         }
+        const playerAtPlantZone=player.alive&&!active&&
+          FO_BOMB_SITES.some(site=>foBombInside({alive:true,pos:player.pos},site));
         status.textContent=blue+' / '+red+' CANLI • '+(active
           ?'BOMBA '+foBomb.site.id+' '+Math.ceil(foBomb.seconds)+' sn'
-          :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%':'A / B • BÖLGEDE DUR');
+          :foBomb.actor?'KURULUYOR '+foBomb.actionSite+' '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.plantSeconds*100))+'%'
+          :playerAtPlantZone?'F BASILI TUT • BOMBA KUR':'A / B BÖLGESİNE GİT • F BASILI TUT');
         if(active&&foBomb.actor)status.textContent+=' • ÇÖZÜLÜYOR '+Math.min(100,Math.floor(foBomb.progress/FO_BOMB_RULES.defuseSeconds*100))+'%';
+        // FO_V343_BEGIN c4-visual
+        if(result?.reason==='Bomba patladı'&&foBomb.site){
+          foV343SpawnBlast(new THREE.Vector3(foBomb.site.x,.25,foBomb.site.z),'C4');
+        }
+        // FO_V343_END c4-visual
         if(result){foBomb.phase='ended';foBomb.reason=result.reason;endMatch(result.winner);}
       }
       // V11: bomb-specific mission roles; combat perception and difficulty
@@ -9076,15 +9800,37 @@
         foRescue.captives=FO_RESCUE_POINTS.map((p,i)=>({id:p.id,x:room.x+(i===0?-2.5:2.5),z:room.z,carrier:null,actor:null,progress:0,saved:false,discovered:false}));
         syncFoRescueMarkers();
       }
-      function syncFoRescueMarkers(){
+      // FO_INTERACT_F_BEGIN escort: keep the civilian visible next to the carrier.
+      function syncFoRescueMarkers(dt=0){
         for(const p of foRescue.captives){
           const marker=FO_RESCUE_POINTS.find(q=>q.id===p.id);
+          let visibleX=p.x,visibleZ=p.z;
+          if(p.carrier&&!p.saved){
+            const actor=foBombActors().find(a=>a.id===p.carrier&&a.alive);
+            const vx=actor?(actor.player?player.vel.x:(actor.moveVelX||0)):0;
+            const vz=actor?(actor.player?player.vel.z:(actor.moveVelZ||0)):0;
+            const v=Math.hypot(vx,vz);
+            if(v>.35)p.followDir={x:vx/v,z:vz/v};
+            const dir=p.followDir||{x:0,z:-1};
+            // Visual-only escort offset: game objectives still use carrier position.
+            const targetX=p.x-dir.x*1.0,targetZ=p.z-dir.z*1.0;
+            if(!Number.isFinite(p.visualX)){p.visualX=p.x;p.visualZ=p.z;}
+            const t=dt>0?Math.min(1,dt*7):1;
+            p.visualX+=(targetX-p.visualX)*t;
+            p.visualZ+=(targetZ-p.visualZ)*t;
+            visibleX=p.visualX;visibleZ=p.visualZ;
+          }else{
+            p.visualX=p.x;p.visualZ=p.z;
+            p.followDir=null;
+          }
           for(const part of marker.parts||[]){
-            part.mesh.visible=!p.saved&&(!p.carrier||part.y>1.5);
-            part.mesh.position.set(p.x,part.y,p.z);
+            // The rescue icon is hidden while escorted, but the person remains.
+            part.mesh.visible=!p.saved&&(!part.isIndicator||!p.carrier);
+            part.mesh.position.set(visibleX+(part.dx||0),part.y,visibleZ+(part.dz||0));
           }
         }
       }
+      // FO_INTERACT_F_END escort
       function stepFoRescue(state,dt,remaining,actors,canPickup){
         if(state.captives.every(p=>p.saved))return {winner:'blue',reason:'İki esir kurtarıldı'};
         if(!actors.some(a=>a.alive&&a.team==='blue'))return {winner:'red',reason:'Kurtarma ekibi elendi'};
@@ -9103,7 +9849,7 @@
           const candidates=actors.filter(a=>a.alive&&a.team==='blue'&&Math.abs(a.pos.y)<1.5&&
             !state.captives.some(q=>q.carrier===a.id)&&
             Math.hypot(a.pos.x-p.x,a.pos.z-p.z)<=FO_RESCUE_RULES.pickupRadius&&canPickup(a,p));
-          const a=candidates.find(a=>a.id===p.actor)||candidates[0];
+          const a=candidates.find(a=>a.player)||candidates.find(a=>a.id===p.actor)||candidates[0];
           if(!a){p.actor=null;p.progress=0;continue;}
           if(p.actor!==a.id){p.actor=a.id;p.progress=0;}
           p.progress+=dt;
@@ -9122,13 +9868,20 @@
         }
         const result=stepFoRescue(foRescue,dt,matchState.timeRemaining,actors,(a,p)=>{
           if(!hasLineOfSight(new THREE.Vector3(a.pos.x,a.pos.y+1.3,a.pos.z),new THREE.Vector3(p.x,1.1,p.z)))return false;
-          return a.player?!droneSystem.isPlayerControlling()&&!mouseDownLeft&&Math.hypot(player.vel.x,player.vel.z)<1.3:
+          return a.player?!!keys['KeyF']&&gameplayInputAllowed()&&
+            !droneSystem.isPlayerControlling()&&!mouseDownLeft&&Math.hypot(player.vel.x,player.vel.z)<1.3:
             !a.visibleEnemy&&!a.activeDroneId&&Math.hypot(a.moveVelX||0,a.moveVelZ||0)<1;
         });
-        syncFoRescueMarkers();
+        syncFoRescueMarkers(dt);
         const saved=foRescue.captives.filter(p=>p.saved).length;
         const carrying=foRescue.captives.some(p=>p.carrier==='player');
-        document.getElementById('fo-bomb-status').textContent='ESİR '+saved+'/2 • '+(carrying?'TAHLİYE BÖLGESİNE DÖN':foRescue.captives.some(p=>p.actor==='player')?'KURTARILIYOR':'ESİRİN YANINDA DUR');
+        const pickingUp=foRescue.captives.find(p=>p.actor==='player');
+        const closeToCaptive=player.alive&&foRescue.captives.some(p=>!p.saved&&!p.carrier&&
+          Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<=FO_RESCUE_RULES.pickupRadius);
+        document.getElementById('fo-bomb-status').textContent='ESİR '+saved+'/2 • '+
+          (carrying?'ESİR SENİ TAKİP EDİYOR • TAHLİYE BÖLGESİNE DÖN':
+          pickingUp?'F • KURTARILIYOR '+Math.min(100,Math.floor(pickingUp.progress/FO_RESCUE_RULES.holdSeconds*100))+'%':
+          closeToCaptive?'F BASILI TUT • ESİRİ AL':'ESİRİ BUL • YAKLAŞ VE F BASILI TUT');
         if(result){foRescue.reason=result.reason;endMatch(result.winner);}
       }
       function getFoRescueBotOrder(bot,dt){
@@ -9201,6 +9954,9 @@
         document.getElementById('fo-score-map-name').textContent=rescue?'CEZAEVİ • 6v6 • TEK CAN':bomb?'TERSANE • 6v6 • TEK CAN':'MARIEN • 6v6 • HEDEF 50';
         document.getElementById('fo-score-rule').textContent=bomb||rescue?'TEK CAN':'HEDEF: 50';
         document.getElementById('fo-bomb-status').classList.toggle('hidden',!bomb&&!rescue);
+      // FO_G324_BEGIN start
+        foG324RefreshStart(matchState,foBomb,document);
+      // FO_G324_END start
         const hint=document.getElementById('fo-death-hint');
         hint.innerHTML=bomb||rescue?'Bu maçta yeniden doğuş yok. Takımının sonucunu bekle.':'Sınıf değiştirmek için <span class="mono font-bold text-amber-300">[1-5]</span> veya <span class="mono font-bold text-amber-300">[B]</span> tuşuna bas';
       }
@@ -12249,11 +13005,45 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
         }
       }
+      // FO_V344_BEGIN soldier-release
+      // Match-reset ownership: keep cached and still-visible assets, release retired private GPU resources.
+      function foV344SoldierResources(root, resources){
+        if(!root)return;
+        root.traverse(node=>{
+          if(node.geometry)resources.add(node.geometry);
+          if(node.material)for(const m of (Array.isArray(node.material)?node.material:[node.material]))if(m)resources.add(m);
+        });
+      }
+      function foV344ReleaseRetiredSoldiers(roots,liveScene){
+        const shared=new Set(),seen=new Set(),retired=new Set();
+        const visit=value=>{
+          if(!value||typeof value!=='object'||seen.has(value))return;
+          seen.add(value);
+          if(value.isBufferGeometry||value.isGeometry||value.isMaterial||value.isTexture){shared.add(value);return;}
+          if(value instanceof Map){for(const [key,item] of value){visit(key);visit(item);}return;}
+          if(value instanceof Set||Array.isArray(value)){for(const item of value)visit(item);return;}
+          const proto=Object.getPrototypeOf(value);
+          if(proto===Object.prototype||proto===null)for(const item of Object.values(value))visit(item);
+        };
+        visit(SOLDIER_SHARED);visit(SOLDIER_V11_DETAIL_GEOMETRIES);visit(V273_MUZZLE_ASSETS);
+        foV344SoldierResources(liveScene,shared);
+        for(const root of roots)foV344SoldierResources(root,retired);
+        let released=0;
+        for(const resource of retired)if(!shared.has(resource)&&typeof resource.dispose==='function'){
+          resource.dispose();released++;
+        }
+        return released;
+      }
+      // FO_V344_END soldier-release
       function initBots() {
         resetTeamIntel();
         resetBotNoiseEvents();
         resetBotMetrics();
         bots.forEach((b) => {b.experimentalRigController?.reset();b.experimentalRig?.dispose();scene.remove(b.mesh.root);});
+        // FO_V344_BEGIN reset-hook
+        // Experimental rig teardown and scene removal have already restored original meshes.
+        foV344ReleaseRetiredSoldiers(bots.map(b=>b.mesh.root),scene);
+        // FO_V344_END reset-hook
         bots.length = 0;
         // A fresh match starts a fresh per-five/per-fifteen spawn cycle.
         botLifeSequence = 0;
@@ -13181,10 +13971,10 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         badge.classList.remove('hidden');
         if (winnerTeam === 'blue') {
-          resTxt.textContent = `DERBARAN KAZANDI (${matchState.scoreBlue} - ${matchState.scoreRed})`;
+          resTxt.textContent = `ASKER KAZANDI (${matchState.scoreBlue} - ${matchState.scoreRed})`;
           resTxt.className = 'text-lg font-black text-sky-400';
         } else if (winnerTeam === 'red') {
-          resTxt.textContent = `N.I.U. KAZANDI (${matchState.scoreRed} - ${matchState.scoreBlue})`;
+          resTxt.textContent = `MİLİS KAZANDI (${matchState.scoreRed} - ${matchState.scoreBlue})`;
           resTxt.className = 'text-lg font-black text-rose-400';
         } else {
           resTxt.textContent = `BERABERE (${matchState.scoreBlue} - ${matchState.scoreRed})`;
@@ -13201,6 +13991,12 @@ return {createExperimentalRig,createAdaptiveRigController};
         titleEl.textContent = 'MAÇ TAMAMLANDI';
         subEl.textContent = `Senin skorun: ${player.kills} eleme / ${player.deaths} ölüm • Yeni maç için sınıfını seç.`;
         subEl.classList.remove('hidden');
+      // FO_G324_BEGIN result
+        const presentation=foG324ResultPresentation(matchState,winnerTeam,foBomb,foRescue,player,MATCH_TARGET_SCORE);
+        titleEl.textContent=presentation.title;resTxt.textContent=presentation.result;subEl.textContent=presentation.summary;
+        foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
+        foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document,foBomb);
+      // FO_G324_END result
         btn.textContent = 'YENİ MAÇ BAŞLAT';
         document.getElementById('menu-overlay').classList.remove('hidden');
       }
@@ -13316,6 +14112,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         if (player.hp <= 0) {
           player.alive = false;
+          clearGameplayInputs();
           player.deaths++;
           player.ads = false;
           player.scopeStage = 0;
@@ -13330,6 +14127,14 @@ return {createExperimentalRig,createAdaptiveRigController};
           document.getElementById('respawn-overlay').classList.remove('hidden');
           if(foSingleLife())startFoSpectator();
 
+          // FO_V344_BEGIN self-death
+          // Self-inflicted explosive damage counts as a death, never an enemy kill.
+          if(isBlast&&attackerName===player.name){
+            clearDeadTargetMemory('player');
+            addKillfeedEntry(player.name,player.team,player.name,player.team,weaponLabel,false);
+            return;
+          }
+          // FO_V344_END self-death
           const killerBot = bots.find((b) => b.name === attackerName);
           if (killerBot) {
             killerBot.kills++;
@@ -13388,6 +14193,16 @@ return {createExperimentalRig,createAdaptiveRigController};
         glock18c:  {tile:5,form:'split',  length:.078,width:.056,planes:2,cap:.034,hot:.90,green:113,blue:28,opacity:.87,life:.037,light:.78,roll:.20,fade:1.22},
         carlgustaf:{tile:6,form:'bloom',  length:.195,width:.148,planes:3,cap:.095,hot:.96,green:104,blue:22,opacity:.90,life:.060,light:1.75,roll:.08,fade:.95}
       });
+      // FO_V339_BEGIN profiles
+      // Preserve the user's V338 flash changes; no viewmodel size adjustments.
+      Object.assign(V273_FLASH_PROFILES.mrad,{length:.204,width:.058,cap:.039,green:154,blue:66,opacity:.90,life:.049,light:1.48,roll:.09,fade:1.26});
+      Object.assign(V273_FLASH_PROFILES.minimi,{length:.190,width:.116,planes:3,cap:.075,hot:.94,green:101,blue:20,opacity:.91,life:.052,light:1.48,roll:.20,fade:1.02});
+      Object.assign(V273_FLASH_PROFILES.p320,{length:.074,width:.054,cap:.036,hot:.86,green:138,blue:38,opacity:.89,life:.036,light:.76,roll:.10,fade:1.30});
+      Object.assign(V273_FLASH_PROFILES.glock18c,{length:.086,width:.061,cap:.036,hot:.92,green:118,blue:30,opacity:.89,life:.038,light:.82,roll:.18,fade:1.18});
+      // The player's flash must survive until one renderer submission, even when several simulation steps occur first.
+      let v339FlashPending=false;
+      function foV339AcknowledgePlayerFlash(){v339FlashPending=false;}
+      // FO_V339_END profiles
       let V273_MUZZLE_ASSETS=null;
       let v271PlayerFlash=null,v271FlashLeft=0,v271FlashSequence=0;
       const v271LightPosition=new THREE.Vector3();
@@ -13462,6 +14277,9 @@ return {createExperimentalRig,createAdaptiveRigController};
         V273_MUZZLE_ASSETS={map,geometries,material};return V273_MUZZLE_ASSETS;
       }
       function clearV271PlayerFlash(){
+        // FO_V339_BEGIN reset
+        v339FlashPending=false;
+        // FO_V339_END reset
         v271FlashLeft=0;
         if(v271PlayerFlash){
           v271PlayerFlash.visible=false;
@@ -13479,18 +14297,31 @@ return {createExperimentalRig,createAdaptiveRigController};
         if(v271PlayerFlash.parent!==vmRefs.muzzlePoint)vmRefs.muzzlePoint.add(v271PlayerFlash);
         v271PlayerFlash.userData.profile=p;
         v271PlayerFlash.rotation.set(0,Math.PI,((++v271FlashSequence%7)-3)*p.roll);
+        // FO_V339_BEGIN trigger
+        v339FlashPending=true;
+        // FO_V339_END trigger
         v271FlashLeft=p.life;v271PlayerFlash.visible=true;
         updateV273PlayerFlash(0);
       }
       function updateV273PlayerFlash(dt){
         if(!v271PlayerFlash||v271FlashLeft<=0)return;
         if(!matchState.started||matchState.ended||!player.alive){clearV271PlayerFlash();return;}
+        // FO_V339_BEGIN age
+        if(v339FlashPending)dt=0;
+        // FO_V339_END age
         v271FlashLeft=Math.max(0,v271FlashLeft-dt);
         if(v271FlashLeft<=0){clearV271PlayerFlash();return;}
         const p=v271PlayerFlash.userData.profile,t=v271FlashLeft/p.life;
         const spread=.63+.37*t,reach=.52+.48*t;
         v271PlayerFlash.scale.set(spread,spread,reach);
         v271PlayerFlash.material.opacity=p.opacity*Math.min(1,Math.pow(t,p.fade)*2.5);
+        // FO_V339_BEGIN ads
+        // Only the player's Minimi ADS flash is narrowed. Keep the bright core off the sight line.
+        if(p===V273_FLASH_PROFILES.minimi&&player.ads){
+          v271PlayerFlash.scale.set(spread*.68,spread*.68,reach);
+          v271PlayerFlash.material.opacity*=.84;
+        }
+        // FO_V339_END ads
         vmRefs.muzzlePoint.getWorldPosition(v271LightPosition);
         viewmodelGroup.worldToLocal(v271LightPosition);
         muzzleLight.position.copy(v271LightPosition);
@@ -13543,6 +14374,48 @@ return {createExperimentalRig,createAdaptiveRigController};
       const V279_CASING_MAT=VFX_SHARED.casingMat.clone();
       V279_CASING_MAT.color.setHex(0xffffff);
       V279_CASING_MAT.vertexColors=true;V279_CASING_MAT.roughness=.42;V279_CASING_MAT.metalness=.72;
+      // FO_H332_BEGIN helper
+      // H329: bounded visual vector reuse. Mesh IDs, UUIDs and RNG draws stay
+      // unchanged, preserving transparent sort order and simulation sequence.
+      const foH332VectorPool=[],foH332LeasedVectors=new WeakSet();
+      const foH332VfxStats={created:0,reused:0,released:0,discarded:0,geoCreated:0,geoReused:0};
+      function foH332TakeVector(x=0,y=0,z=0){
+        let v=foH332VectorPool.pop();
+        if(v){foH332VfxStats.reused++;v.set(x,y,z);}
+        else{v=new THREE.Vector3(x,y,z);foH332VfxStats.created++;}
+        foH332LeasedVectors.add(v);return v;
+      }
+      function foH332ReleaseVisual(record){
+        if(!record)return;
+        for(const v of [record.vel,record.rotVel,record.start,record.end,record.dir]){
+          if(!v||!foH332LeasedVectors.has(v))continue;
+          foH332LeasedVectors.delete(v);foH332VfxStats.released++;
+          if(foH332VectorPool.length<256)foH332VectorPool.push(v);
+          else foH332VfxStats.discarded++;
+        }
+      }
+      // H330: keep a small set of immutable equipment geometry buffers resident.
+      // Original constructors run in their original order (including UUID RNG).
+      const foH332EquipmentGeometry=new Map();
+      function foH332ShareEquipmentGeometry(root){
+        const retired=new Set();
+        root.traverse(m=>{
+          if(!m.isMesh||!m.geometry)return;
+          const g=m.geometry,key=foH328GeometryKey(g);
+          if(!key)return;
+          const prior=foH332EquipmentGeometry.get(key);
+          if(prior&&foH328SameGeometry(prior,g)){
+            if(prior!==g){m.geometry=prior;retired.add(g);foH332VfxStats.geoReused++;}
+          }else if(!prior&&foH332EquipmentGeometry.size<16){
+            foH332EquipmentGeometry.set(key,g);g.foH332Shared=true;foH332VfxStats.geoCreated++;
+          }
+        });
+        const retained=new Set();root.traverse(m=>{if(m.geometry)retained.add(m.geometry);});
+        for(const g of retired)if(!retained.has(g)&&!g.foH332Shared)g.dispose();
+      }
+
+      // FO_H332_END helper
+      // FO_H332_BEGIN tracer
       function spawnTracer(startVec, endVec, category = 'rifle') {
         if (!Number.isFinite(startVec.x) || !Number.isFinite(endVec.x)) return;
         const delta = new THREE.Vector3().subVectors(endVec, startVec);
@@ -13551,7 +14424,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         while (activeTracers.length >= VFX_CAPS.maxTracers) {
           const old = activeTracers.shift();
-          scene.remove(old.mesh);
+          scene.remove(old.mesh);foH332ReleaseVisual(old);
         }
 
         const isSniper = category === 'sniper';
@@ -13562,7 +14435,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         );
         const visualWidth=isSniper?.68:category==='pistol'?.54:category==='smg'?.60:.75;
         mesh.scale.set(visualWidth, streakLen, visualWidth);
-        const dir = delta.clone().divideScalar(totalDist);
+        const dir = foH332TakeVector().copy(delta).divideScalar(totalDist);
         mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
         mesh.position.copy(startVec).addScaledVector(dir, streakLen * 0.5);
         scene.add(mesh);
@@ -13571,8 +14444,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         const life = Math.min(0.24, Math.max(0.045, totalDist / speed));
         activeTracers.push({
           mesh,
-          start: startVec.clone(),
-          end: endVec.clone(),
+          start: foH332TakeVector().copy(startVec),
+          end: foH332TakeVector().copy(endVec),
           dir,
           totalDist,
           streakLen,
@@ -13581,7 +14454,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           maxLife: life
         });
       }
-
+      // FO_H332_END tracer
       // V276–V277: deterministic cosmetic textures and shared fade materials.
       // Existing counts, lifetimes, RNG draws and removal timing stay identical.
       let V277_IMPACT_ASSETS=null;
@@ -13665,6 +14538,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
       // V14 2B body/headshot feedback adapted to the V25 pooled particle engine.
       // Visual only: damage, ballistics and collision detection are not modified.
+      // FO_H332_BEGIN particle-casing
       function spawnCharacterHitFX(pos, isHead = false, distance = 10) {
         if (!pos || ![pos.x, pos.y, pos.z].every(Number.isFinite)) return;
         const distScale = Math.max(0.75, Math.min(1.55, 0.75 + distance * 0.018));
@@ -13680,7 +14554,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           const life = 0.24 + Math.random() * 0.10;
           activeParticles.push({
             mesh,
-            vel: new THREE.Vector3(
+            vel: foH332TakeVector(
               (Math.random() - 0.5) * 3.8,
               0.9 + Math.random() * 2.4,
               (Math.random() - 0.5) * 3.8
@@ -13712,7 +14586,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             scene.add(flash);
             activeParticles.push({
               mesh: flash,
-              vel: new THREE.Vector3(0, 0, 0),
+              vel: foH332TakeVector(0, 0, 0),
               gravity: 0,
               growRate: 3.5,
               alignVel: false,
@@ -13730,7 +14604,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             m.userData.v277Impact=i<3?'sparkHot':'sparkWarm';
             m.position.copy(pos).addScaledVector(n, 0.03);
             m.scale.set(.68*distScale,.68*distScale,distScale);
-            const vel = new THREE.Vector3(
+            const vel = foH332TakeVector(
               n.x * (2.6 + Math.random() * 3.8) + (Math.random() - 0.5) * 4.2,
               n.y * (2.2 + Math.random() * 3.6) + Math.random() * 2.4,
               n.z * (2.6 + Math.random() * 3.8) + (Math.random() - 0.5) * 4.2
@@ -13759,7 +14633,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             const life = 0.36 + d * 0.10;
             activeParticles.push({
               mesh: dust,
-              vel: new THREE.Vector3(
+              vel: foH332TakeVector(
                 n.x * 0.8 + (Math.random() - 0.5) * 0.9,
                 0.55 + Math.random() * 0.65,
                 n.z * 0.8 + (Math.random() - 0.5) * 0.9
@@ -13777,7 +14651,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             const chip = new THREE.Mesh(VFX_SHARED.chipGeo, VFX_SHARED.chipMat);
             chip.position.copy(pos).addScaledVector(n, 0.04);
             chip.scale.setScalar((0.75 + Math.random() * 0.5) * distScale);
-            const vel = new THREE.Vector3(
+            const vel = foH332TakeVector(
               n.x * (1.8 + Math.random() * 2.6) + (Math.random() - 0.5) * 3.0,
               n.y * (1.6 + Math.random() * 2.4) + 1.4 + Math.random() * 1.6,
               n.z * (1.8 + Math.random() * 2.6) + (Math.random() - 0.5) * 3.0
@@ -13801,25 +14675,25 @@ return {createExperimentalRig,createAdaptiveRigController};
         if (category === 'melee' || category === 'rocket' || category === 'grenade' || category === 'medkit' || category === 'claymore' || category === 'drone') return;
         while (activeShellCasings.length >= VFX_CAPS.maxCasings) {
           const old = activeShellCasings.shift();
-          scene.remove(old.mesh);
+          scene.remove(old.mesh);foH332ReleaseVisual(old);
         }
         const mesh = new THREE.Mesh(V279_CASING_GEO,V279_CASING_MAT);
         mesh.position.copy(ejectPos);
         mesh.quaternion.copy(camQuat);
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camQuat);
         const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camQuat);
-        const vel = new THREE.Vector3()
+        const vel = foH332TakeVector()
           .addScaledVector(right, 1.5 + Math.random() * 0.9)
           .addScaledVector(up, 1.1 + Math.random() * 0.7);
         scene.add(mesh);
         activeShellCasings.push({
           mesh,
           vel,
-          rotVel: new THREE.Vector3(12 + Math.random() * 14, 10 + Math.random() * 12, 8),
+          rotVel: foH332TakeVector(12 + Math.random() * 14, 10 + Math.random() * 12, 8),
           life: 1.35
         });
       }
-
+      // FO_H332_END particle-casing
       function getSafeDeployPosition(originPos, flatDir, maxDist, itemRadius = 0.24) {
         const dir2D = new THREE.Vector3(flatDir.x, 0, flatDir.z);
         if (dir2D.lengthSq() < 0.0001) {
@@ -13865,11 +14739,89 @@ return {createExperimentalRig,createAdaptiveRigController};
         damageFlashTimeouts.clear();
       }
 
+      // FO_H332_BEGIN equipment
+      function foReleaseEquipment(entity,scene){
+       if(!entity||!entity.mesh||entity.foReleased)return;
+       entity.foReleased=true;
+       const root=entity.mesh,geometries=new Set();
+       const collect=n=>{if(n.geometry)geometries.add(n.geometry);};
+       if(typeof root.traverse==='function')root.traverse(collect);else collect(root);
+       scene.remove(root);
+       for(const geo of geometries)if(!geo.foH332Shared&&typeof geo.dispose==='function')geo.dispose();
+       for(const mat of new Set(entity.ownedMaterials||[]))if(typeof mat?.dispose==='function')mat.dispose();
+      }
+
+      // FO_V343_BEGIN blast-pool
+      // Presentation-only bounded pool. No match RNG, physics, damage or AI queries.
+      const foV343Blasts=[];
+      let foV343Maps=null;
+      function foV343MakeMap(smoke){
+        const n=64,data=new Uint8Array(n*n*4);
+        for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+          const u=(x+.5)/n*2-1,v=(y+.5)/n*2-1,r=Math.hypot(u,v),angle=Math.atan2(v,u);
+          const edge=Math.max(0,1-r*(1+.12*Math.sin(angle*5)+.07*Math.cos(angle*9)));
+          const grain=.82+.18*Math.sin(x*.73+y*.91)*Math.cos(x*.35-y*.41);
+          const h=Math.exp(-r*r*7),i=(y*n+x)*4;
+          data[i]=smoke?105:255;data[i+1]=smoke?100:Math.round(90+165*h);data[i+2]=smoke?94:Math.round(22+220*h);
+          data[i+3]=Math.round(255*Math.min(1,(smoke?1.1:1.8)*edge**(smoke?2:1.6)*grain));
+        }
+        const tex=new THREE.DataTexture(data,n,n,THREE.RGBAFormat);tex.minFilter=tex.magFilter=THREE.LinearFilter;tex.needsUpdate=true;return tex;
+      }
+      function foV343CreateSlot(){
+        const saved=Math.random;let seed=0x343bd8a1+foV343Blasts.length;
+        try{
+          Math.random=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+          if(!foV343Maps)foV343Maps=[foV343MakeMap(false),foV343MakeMap(true)];
+          const root=new THREE.Group(),sprites=[];
+          for(let i=0;i<6;i++){
+            const mat=new THREE.SpriteMaterial({map:foV343Maps[i<2?0:1],transparent:true,depthWrite:false,depthTest:true,opacity:0,blending:i<2?THREE.AdditiveBlending:THREE.NormalBlending,toneMapped:false});
+            const sprite=new THREE.Sprite(mat);root.add(sprite);sprites.push(sprite);
+          }
+          const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(18*3),3));
+          const sparks=new THREE.Points(geo,new THREE.PointsMaterial({color:0xffc36b,size:.055,transparent:true,opacity:0,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending}));
+          sparks.frustumCulled=false;root.add(sparks);root.visible=false;
+          const slot={root,sprites,sparks,age:0,size:1,active:false,fresh:false};foV343Blasts.push(slot);return slot;
+        }finally{Math.random=saved;}
+      }
+      function foV343SpawnBlast(pos,label){
+        let slot=foV343Blasts.find(s=>!s.active);
+        if(!slot)slot=foV343Blasts.length<4?foV343CreateSlot():foV343Blasts.reduce((a,b)=>a.age>=b.age?a:b);
+        slot.age=0;slot.fresh=true;slot.active=true;slot.size=label==='C4'?1.55:label==='KAMIKAZE DRONE'?.68:label==='CLAYMORE'?.85:1;
+        slot.root.position.copy(pos);slot.root.visible=true;scene.add(slot.root);
+      }
+      function foV343RenderBlasts(dt){
+        for(const s of foV343Blasts){
+          if(!s.active)continue;
+          if(s.fresh)s.fresh=false;else s.age+=Math.max(0,dt);
+          const t=s.age,k=s.size;
+          if(t>=1.05){s.active=false;s.root.visible=false;scene.remove(s.root);continue;}
+          const distance=s.root.position.distanceTo(camera.position),near=Math.min(1,Math.max(.12,distance/2.2));
+          for(let i=0;i<6;i++){
+            const p=s.sprites[i],fire=i<2,angle=i*2.399963;
+            const scale=k*(fire?(i===0?.75:1.5)+t*4.8:.55+t*1.8);
+            p.scale.set(scale,scale,1);p.position.set(Math.cos(angle)*t*.8*k,(fire?.12:.20+t*.85)*k,Math.sin(angle)*t*.8*k);
+            p.material.opacity=near*(fire?(i===0?.92:.48)*Math.max(0,1-t/(i===0?.13:.25)):.30*Math.min(1,.15+t*7)*Math.max(0,1-t/1.05));
+            p.visible=p.material.opacity>.001;
+          }
+          const a=s.sparks.geometry.attributes.position;
+          for(let i=0;i<18;i++){const angle=i*2.399963,reach=(1.2+(i%5)*.27)*t*k;a.setXYZ(i,Math.cos(angle)*reach,Math.max(.02,(1.5+(i%4)*.5)*t-2.6*t*t)*k,Math.sin(angle)*reach);}
+          a.needsUpdate=true;s.sparks.material.opacity=near*.85*Math.max(0,1-t/.43);s.sparks.visible=t<.43;
+        }
+      }
+      function foV343ClearBlasts(){for(const s of foV343Blasts){s.active=false;s.root.visible=false;scene.remove(s.root);}}
+
+      // FO_V343_END blast-pool
       function clearAllMatchEntities() {
+        // FO_V343_BEGIN blast-clear
+        foV343ClearBlasts();
+        // FO_V343_END blast-clear
         resetV278DamageFlash();
         [activeGrenades, activeRockets, activeMedkits, activeClaymores, activeTracers, activeParticles, activeImpactMarks, activeShellCasings].forEach((list) => {
           for (let i = list.length - 1; i >= 0; i--) {
-            if (list[i] && list[i].mesh) scene.remove(list[i].mesh);
+            if(list[i]&&list[i].mesh){
+              if(list===activeGrenades||list===activeRockets||list===activeMedkits||list===activeClaymores)foReleaseEquipment(list[i],scene);
+              else {scene.remove(list[i].mesh);foH332ReleaseVisual(list[i]);}
+            }
           }
           list.length = 0;
         });
@@ -13896,6 +14848,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
         const floorY = getFloorHeightAt(pos.x, pos.z, pos.y + 0.5);
         g.position.set(pos.x, floorY, pos.z);
+        foH332ShareEquipmentGeometry(g);
         scene.add(g);
 
         activeMedkits.push({
@@ -13904,7 +14857,8 @@ return {createExperimentalRig,createAdaptiveRigController};
           pos: g.position.clone(),
           team,
           life: 18.0,
-          healTick: 0.4
+          healTick: 0.4,
+          ownedMaterials:[ring.material]
         });
       }
 
@@ -13929,6 +14883,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         const floorY = getFloorHeightAt(pos.x, pos.z, pos.y + 0.5);
         g.position.set(pos.x, floorY, pos.z);
         g.rotation.y = yaw;
+        foH332ShareEquipmentGeometry(g);
         scene.add(g);
 
         activeClaymores.push({
@@ -13938,13 +14893,74 @@ return {createExperimentalRig,createAdaptiveRigController};
           ownerName,
           team,
           armTimer: 0.85,
-          life: 45.0
+          life: 45.0,
+          ownedMaterials:[laserMat]
         });
       }
+      // FO_H332_END equipment
+      function foGrenadeSweep(pos,dx,dy,dz,colliders,radius=.085){
+       let best=null;
+       for(const c of colliders){
+        const loX=c.minX-radius,hiX=c.maxX+radius,loY=c.minY-radius,hiY=c.maxY+radius,loZ=c.minZ-radius,hiZ=c.maxZ+radius;
+        if(Math.max(pos.x,pos.x+dx)<loX||Math.min(pos.x,pos.x+dx)>hiX||
+           Math.max(pos.y,pos.y+dy)<loY||Math.min(pos.y,pos.y+dy)>hiY||
+           Math.max(pos.z,pos.z+dz)<loZ||Math.min(pos.z,pos.z+dz)>hiZ)continue;
+        // Existing overlap: choose nearest escape face rather than tunnelling.
+        if(pos.x>loX&&pos.x<hiX&&pos.y>loY&&pos.y<hiY&&pos.z>loZ&&pos.z<hiZ){
+         const faces=[[pos.x-loX,-1,0,0],[hiX-pos.x,1,0,0],[pos.y-loY,0,-1,0],[hiY-pos.y,0,1,0],[pos.z-loZ,0,0,-1],[hiZ-pos.z,0,0,1]];
+         let face=faces[0];for(const v of faces)if(v[0]<face[0])face=v;
+         const hit={t:0,nx:face[1],ny:face[2],nz:face[3],push:face[0]+.0001};
+         if(!best||best.t>0||hit.push>best.push)best=hit;
+         continue;
+        }
+        let enter=0,exit=1,nx=0,ny=0,nz=0,valid=true;
+        const axes=[[pos.x,dx,loX,hiX],[pos.y,dy,loY,hiY],[pos.z,dz,loZ,hiZ]];
+        for(let i=0;i<3;i++){
+         const [p,d,lo,hi]=axes[i];
+         if(Math.abs(d)<1e-12){if(p<lo||p>hi){valid=false;break;}continue;}
+         let near=(lo-p)/d,far=(hi-p)/d,normal=-1;
+         if(near>far){[near,far]=[far,near];normal=1;}
+         if(near>=enter){enter=near;nx=i===0?normal:0;ny=i===1?normal:0;nz=i===2?normal:0;}
+         exit=Math.min(exit,far);
+         if(enter>exit){valid=false;break;}
+        }
+        if(valid&&enter>=0&&enter<=1&&exit>=0&&(nx||ny||nz)&&dx*nx+dy*ny+dz*nz<0&&(!best||enter<best.t))
+         best={t:enter,nx,ny,nz,push:.0001};
+       }
+       return best;
+      }
+      function foAdvanceGrenade(g,dt,colliders,floorAt){
+       g.vel.y-=18*dt;
+       let remaining=dt;
+       for(let i=0;i<4&&remaining>1e-8;i++){
+        const dx=g.vel.x*remaining,dy=g.vel.y*remaining,dz=g.vel.z*remaining;
+        const hit=foGrenadeSweep(g.pos,dx,dy,dz,colliders);
+        if(!hit){g.pos.addScaledVector(g.vel,remaining);break;}
+        g.pos.x+=dx*hit.t+hit.nx*hit.push;g.pos.y+=dy*hit.t+hit.ny*hit.push;g.pos.z+=dz*hit.t+hit.nz*hit.push;
+        const inward=g.vel.x*hit.nx+g.vel.y*hit.ny+g.vel.z*hit.nz;
+        if(inward<0){
+         if(hit.ny){g.vel.y=-g.vel.y*.38;if(hit.ny>0){g.vel.x*=.68;g.vel.z*=.68;}}
+         else{g.vel.x-=1.5*inward*hit.nx;g.vel.z-=1.5*inward*hit.nz;}
+        }
+        remaining*=1-hit.t;
+       }
+       const floorY=floorAt(g.pos.x,g.pos.z,g.pos.y+.3);
+       if(g.pos.y<=floorY+.08){g.pos.y=floorY+.08;g.vel.y=Math.abs(g.vel.y)*.38;g.vel.x*=.68;g.vel.z*=.68;}
+      }
 
+      // FO_H332_BEGIN grenade
       function throwGrenade(origin, dir, ownerName, team) {
         const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), WEAPON_MATS.olivePaint);
+        // The caller supplies a short forward spawn offset; sweep it too.
+        const launchOffset=ownerName===player.name?.55:.5;
+        const launchDir=dir.clone().normalize(),launchBase=origin.clone().addScaledVector(launchDir,-launchOffset);
+        const launchHit=foGrenadeSweep(launchBase,launchDir.x*launchOffset,launchDir.y*launchOffset,launchDir.z*launchOffset,mapColliders);
+        if(launchHit){
+          origin=launchBase.addScaledVector(launchDir,launchOffset*launchHit.t);
+          origin.x+=launchHit.nx*launchHit.push;origin.y+=launchHit.ny*launchHit.push;origin.z+=launchHit.nz*launchHit.push;
+        }
         mesh.position.copy(origin);
+        foH332ShareEquipmentGeometry(mesh);
         scene.add(mesh);
 
         const vel = dir.clone().normalize().multiplyScalar(17.5);
@@ -13959,7 +14975,52 @@ return {createExperimentalRig,createAdaptiveRigController};
           fuse: 2.3
         });
       }
+      // FO_H332_END grenade
+      function foRocketSurface(pos,dx,dy,dz,colliders,boundX,boundZ){
+       let best=foGrenadeSweep(pos,dx,dy,dz,colliders,0);
+       const offer=(t,nx,ny,nz)=>{
+        if(t>=0&&t<=1&&(!best||t<best.t))best={t,nx,ny,nz,push:.0001};
+       };
+       if(dy<0&&pos.y+dy<=.05)offer(Math.max(0,(.05-pos.y)/dy),0,1,0);
+       if(dx>0&&pos.x+dx>=boundX)offer(Math.max(0,(boundX-pos.x)/dx),-1,0,0);
+       if(dx<0&&pos.x+dx<=-boundX)offer(Math.max(0,(-boundX-pos.x)/dx),1,0,0);
+       if(dz>0&&pos.z+dz>=boundZ)offer(Math.max(0,(boundZ-pos.z)/dz),0,0,-1);
+       if(dz<0&&pos.z+dz<=-boundZ)offer(Math.max(0,(-boundZ-pos.z)/dz),0,0,1);
+       return best;
+      }
+      function foPlaceRocketContact(out,pos,dx,dy,dz,hit){
+       const push=Math.max(.005,hit.push||0);
+       out.set(pos.x+dx*hit.t+hit.nx*push,pos.y+dy*hit.t+hit.ny*push,pos.z+dz*hit.t+hit.nz*push);
+       return out;
+      }
+      function foAdvanceCasing(sc,dt,colliders,floorAt){
+       const p=sc.mesh.position,v=sc.vel;
+       v.y-=14.5*dt;
+       const dx=v.x*dt,dy=v.y*dt,dz=v.z*dt,oldY=p.y;
+       let t=1,land=null;
+       if(dy<0){
+        // Sweep the descending casing against the tops of actual solid decks.
+        for(const c of colliders){
+         const y=c.maxY+.02,k=(y-oldY)/dy;
+         if(k<0||k>t)continue;
+         const x=p.x+dx*k,z=p.z+dz*k;
+         if(x>=c.minX&&x<=c.maxX&&z>=c.minZ&&z<=c.maxZ){t=k;land=y;}
+        }
+        const y=floorAt(p.x+dx,p.z+dz,oldY)+.02;
+        const k=(y-oldY)/dy;
+        if(k>=0&&k<=t){t=k;land=y;}
+        if(land===null&&oldY+dy<=.02){t=Math.max(0,Math.min(1,(.02-oldY)/dy));land=.02;}
+       }
+       p.x+=dx*t;p.y+=dy*t;p.z+=dz*t;
+       if(land!==null){p.y=land;v.y=Math.abs(v.y)*.35;v.x*=.6;v.z*=.6;}
+      }
+      function foMedkitReachable(mk,actor,colliders){
+       if(Math.hypot(actor.x-mk.x,actor.y-mk.y,actor.z-mk.z)>2.5)return false;
+       const start={x:mk.x,y:mk.y+.25,z:mk.z};
+       return !foGrenadeSweep(start,actor.x-start.x,actor.y+.9-start.y,actor.z-start.z,colliders,0);
+      }
 
+      // FO_H332_BEGIN rocket
       function fireRocket(origin, dir, ownerName, team) {
         const g = new THREE.Group();
         const body = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.34, 8), WEAPON_MATS.olivePaint);
@@ -13970,9 +15031,14 @@ return {createExperimentalRig,createAdaptiveRigController};
         nose.position.z = 0.22;
         g.add(nose);
 
-        g.position.copy(origin);
         const nDir = dir.clone().normalize();
+        const offset=ownerName===player.name?.75:.7;
+        const launchBase=origin.clone().addScaledVector(nDir,-offset);
+        const launchHit=foRocketSurface(launchBase,nDir.x*offset,nDir.y*offset,nDir.z*offset,mapColliders,foWorldX(39.5),foWorldZ(60.5));
+        if(launchHit)origin=foPlaceRocketContact(origin.clone(),launchBase,nDir.x*offset,nDir.y*offset,nDir.z*offset,launchHit);
+        g.position.copy(origin);
         g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nDir);
+        foH332ShareEquipmentGeometry(g);
         scene.add(g);
 
         activeRockets.push({
@@ -13981,13 +15047,22 @@ return {createExperimentalRig,createAdaptiveRigController};
           vel: nDir.multiplyScalar(44.0),
           ownerName,
           team,
-          life: 3.5
+          life: 3.5,
+          launchBlocked:!!launchHit
         });
       }
-
+      // FO_H332_END rocket
+      // FO_H332_BEGIN explosion
       function triggerExplosion(pos, radius, maxDamage, ownerName, team, weaponLabel, allowSelfDamage = true) {
         const distToPlayer = pos.distanceTo(player.pos);
+        // FO_V343_BEGIN explosion-dispatch
+        if(weaponLabel==='KAMIKAZE DRONE'&&typeof sound.playV343DroneExplosion==='function')sound.playV343DroneExplosion(distToPlayer);
+        else
+        // FO_V343_END explosion-dispatch
         sound.playExplosion(distToPlayer);
+        // FO_V343_BEGIN blast-spawn
+        foV343SpawnBlast(pos,weaponLabel);
+        // FO_V343_END blast-spawn
         emitBotNoise(team, pos, 'explosion', ownerName);
 
         for (let i = 0; i < 16 && activeParticles.length < VFX_CAPS.maxParticles; i++) {
@@ -14001,7 +15076,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           scene.add(m);
           activeParticles.push({
             mesh: m,
-            vel: new THREE.Vector3(
+            vel: foH332TakeVector(
               (Math.random() - 0.5) * 9,
               2.5 + Math.random() * 6.5,
               (Math.random() - 0.5) * 9
@@ -14013,7 +15088,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             maxLife: isSmoke ? 0.65 : 0.32
           });
         }
-
+      // FO_H332_END explosion
         const blastEye = pos.clone().add(new THREE.Vector3(0, 0.35, 0));
         const isLinearZeroEdge = !allowSelfDamage && radius <= 3.1;
 
@@ -14490,6 +15565,12 @@ return {createExperimentalRig,createAdaptiveRigController};
         camera.position.copy(foSpectator.pos);camera.rotation.set(pitch,yaw,0);
         name.textContent='SERBEST KAMERA';
       }
+      function foResetLifeState(p){
+       for(const k of ['respawnTimer','fireCooldown','reloadTimer','reloadDuration','scopeStage','recoilResetTimer','sprintStopTimer','slideKick','knifeSwingTimer','rollTimer','rollDir','bobTimer','stepTimer','smoothMoveIntensity','recoilKickZ','recoilRotX','recoilVelPitch','recoilVelYaw','recoilRecoveryPitch','recoilRecoveryYaw','recoilRecoveryDelayTimer','consecutiveShots','fovKickCurrent','vmOffsetZ','vmOffsetY','vmRotX','vmRotY','vmRotZ','vmVelZ','vmVelY','vmVelRotX','vmVelRotY','vmVelRotZ','boltAnimTimer','switchAnim'])p[k]=0;
+       for(const k of ['crouching','sprinting','wasSprinting','ads','reloading'])p[k]=false;
+       p.grounded=true;p.spreadCurrent=.005;p.reloadStageTriggered={mid:false,end:false};
+      }
+
       function respawnPlayer() {
         if(document.body.classList.contains('fo-spectating'))stopFoSpectator();
         droneSystem.onOperatorInterrupted('player');
@@ -14504,7 +15585,15 @@ return {createExperimentalRig,createAdaptiveRigController};
         player.reloading = false;
         player.ads = false;
         player.scopeStage = 0;
-        player.rollTimer = 0;
+        foResetLifeState(player);
+        clearGameplayInputs();
+        clearV271PlayerFlash();
+        resetV278DamageFlash();
+        clearTimeout(damageDirTimeout);
+        document.getElementById('damage-dir').style.opacity='0';
+        camera.position.set(player.pos.x,player.pos.y+1.62,player.pos.z);
+        camera.rotation.set(0,0,0);
+        camera.fov=74;camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
         initPlayerLoadout(player.classId);
         document.getElementById('respawn-overlay').classList.add('hidden');
         document.getElementById('reload-indicator').classList.add('hidden');
@@ -15827,6 +16916,14 @@ return {createExperimentalRig,createAdaptiveRigController};
           leftKnee:Math.max(0,-a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,-b)*Math.abs(side)*.20+stance*.43+Math.max(0,-a)*reverseLift+Math.max(0,-b)*sideLift,
           rightKnee:Math.max(0,a)*(.34+.36*run)*Math.abs(forward)+Math.max(0,b)*Math.abs(side)*.20+stance*.43+Math.max(0,a)*reverseLift+Math.max(0,b)*sideLift};
       }
+      // V292: bounded local pose correction, zero at established stance endpoints.
+      function botVisualCrouchV292(crouch,speed,role){
+       const c=Math.max(0,Math.min(1,Number.isFinite(crouch)?crouch:0));
+       const moving=Math.max(0,Math.min(1,(Number.isFinite(speed)?speed:0)/2.8));
+       const envelope=16*c*c*(1-c)*(1-c);
+       const weight=role==='heavy'?.85:role==='sniper'?.94:1;
+       return {flex:envelope*(.14-.055*moving)*weight,spread:envelope*.022*(1-.55*moving)*weight};
+      }
       // V58: derive map awareness from static, validated geometry, never enemy coordinates.
       let botMapAwarenessCache=null;
       function buildBotMapAwareness(nodes,adj,walk){
@@ -15992,6 +17089,18 @@ return {createExperimentalRig,createAdaptiveRigController};
         }else old.lastSeen=now;
         return bot.contactOpportunity;
       }
+      // FO_BOT02_BEGIN heavy-helper
+      // BOT02: retain one real contact briefly through a blocked muzzle lane.
+      // This is movement intent only; actual fire still requires the real lane.
+      function foBot02ContactCommit(bot,enemy,now,direct,previousTarget,hasAmmo,mode){
+        if(mode!=='deathmatch'||bot.classId!=='heavy')return direct;
+        const c=bot.contactOpportunity;
+        if(!c||!enemy||c.id!==enemy.id)return direct;
+        if(direct){c.lastClearAt=now;return true;}
+        if(previousTarget!==enemy.id||!hasAmmo||bot.hp<52){c.lastClearAt=null;return false;}
+        return Number.isFinite(c.lastClearAt)&&now>=c.lastClearAt&&now-c.lastClearAt<=.65;
+      }
+      // FO_BOT02_END heavy-helper
       function botShouldHoldContact(bot,enemy,now,clearLane,wounded,tooClose){
         const contact=bot.contactOpportunity;
         if(!enemy||!contact||contact.id!==enemy.id||wounded||tooClose||bot.coverNode>=0||
@@ -16455,8 +17564,12 @@ return {createExperimentalRig,createAdaptiveRigController};
             const initialFireLane=isBotFireLaneClear(bot,bestEnemy.eye);
             const activeAmmo=botAmmoSlot(bot,botWeaponId);
             const standToFire=botCanStandForContact(bot,bestEnemy,initialFireLane,isBotFireLaneClear);
-            const directCombat=botMustContinueContact(bestEnemy,initialFireLane||standToFire,
+            let directCombat=botMustContinueContact(bestEnemy,initialFireLane||standToFire,
               !!activeAmmo&&(activeAmmo.mag>0||activeAmmo.reserve>0));
+            // FO_BOT02_BEGIN heavy-commit
+            directCombat=foBot02ContactCommit(bot,bestEnemy,nowSec,directCombat,previousTarget,
+              !!activeAmmo&&(activeAmmo.mag>0||activeAmmo.reserve>0),matchState.mode);
+            // FO_BOT02_END heavy-commit
             const isWounded = !directCombat && bot.hp < woundedThreshold;
             const isSniperTooClose = !directCombat && bot.classId === 'sniper' && distToEnemy < 11.5;
             const pressure=botObservedPressure(bot,bestEnemy,distToEnemy);
@@ -16464,8 +17577,12 @@ return {createExperimentalRig,createAdaptiveRigController};
               bot.coverNode=-1;bot.coverPhase='NONE';bot.coverThreatAnchor=null;
               resetBotCoverCycle(bot);bot.coverSearchCooldown=Math.max(bot.coverSearchCooldown,1.2);
             }
-            const openingPriority=botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
-            const followThrough=botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
+            // FO_BOT02_BEGIN contact-shortcircuit
+            // Direct combat already wins both decisions; skip the duplicate checks.
+            // These helpers are pure. Only the previously effective value is needed.
+            const openingPriority=!directCombat&&botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
+            const followThrough=!directCombat&&!openingPriority&&botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
+            // FO_BOT02_END contact-shortcircuit
             if((directCombat||openingPriority&&!pressure)&&bot.teamFlankGoalNode>=0){
               bot.teamFlankGoalNode=-1;bot.teamFlankRoute=[];bot.teamFlankPathIndex=0;
             }
@@ -16575,7 +17692,9 @@ return {createExperimentalRig,createAdaptiveRigController};
                 // or the situation changes; no per-frame random zig-zag.
                 bot.strafeTimer -= dt;
                 const changedThreat = bot.combatStrafeTargetId !== bot.targetId;
-                if(!botObservedPressure(bot,bestEnemy,distToEnemy)){
+                // FO_BOT02_BEGIN pressure-cache-strafe
+                if(!pressure){
+                // FO_BOT02_END pressure-cache-strafe
                   bot.combatStrafeGoal=null;bot.dodgeMode='HOLD';
                 }
                 if (changedThreat || bot.strafeTimer <= 0) {
@@ -16625,7 +17744,9 @@ return {createExperimentalRig,createAdaptiveRigController};
               const allowed=!isWounded&&!isSniperTooClose&&!holdContact&&
                 behaviorHint==='ENGAGE'&&bot.coverNode<0&&bot.teamFlankGoalNode<0&&
                 !bot.activeDroneId&&foBomb.actor!==bot.id&&
-                !botObservedPressure(bot,bestEnemy,distToEnemy)&&distToEnemy>12;
+                // FO_BOT02_BEGIN pressure-cache-objective
+                !pressure&&distToEnemy>12;
+                // FO_BOT02_END pressure-cache-objective
               if(foShouldRetryObjective(bot,order,nowSec,allowed,
                   moveSpeed<=.2&&Math.hypot(bot.moveVelX||0,bot.moveVelZ||0)<.6)){
                 const retry=getFoBombBotOrder(bot,dt,true);
@@ -16908,7 +18029,12 @@ return {createExperimentalRig,createAdaptiveRigController};
                 bot.coverNode = -1;
                 bot.coverPhase = 'NONE';
 
-                const injuredAlly = bot.classId === 'medic' ? selectBotMedicPatient(bot) : null;
+                // FO_BOT02_BEGIN medic-ready-pursuit
+                // A Medic with an unavailable medkit keeps moving with the squad.
+                // Only resume patient pursuit shortly before treatment is ready.
+                const injuredAlly = bot.classId === 'medic' && bot.abilityCooldown <= 1.5
+                  ? selectBotMedicPatient(bot) : null;
+                // FO_BOT02_END medic-ready-pursuit
                 const nextPatientId = injuredAlly ? injuredAlly.id : null;
                 if (bot.supportAllyId !== nextPatientId) {
                   bot.supportGoalNode = -1;
@@ -17058,15 +18184,29 @@ return {createExperimentalRig,createAdaptiveRigController};
                   const isSquadLeader = squadLeaderId[rallyKey] === bot.id;
                   const rallyPt = squadRallyPos[rallyKey];
 
-                  if (!isSquadLeader && rallyPt && bot.classId !== 'sniper' && bot.classId !== 'engineer') {
+                  // FO_BOT02_BEGIN rally-stuck-fallback
+                  // After an actual blocked-route recovery, pursue the bot's own
+                  // tactical path until movement succeeds; do not chase a blocked
+                  // moving formation waypoint on every frame.
+                  if (!isSquadLeader && !(bot.stuckFailures>0) && rallyPt && bot.classId !== 'sniper' && bot.classId !== 'engineer') {
+                  // FO_BOT02_END rally-stuck-fallback
                     const dRally = bot.pos.distanceTo(rallyPt);
                     if (dRally > 6.5 && dRally < 28 && Math.abs(rallyPt.y - bot.pos.y) < 1.5) {
-                      behaviorHint='SUPPORT';
-                      setBotState(bot, 'SUPPORT_ALLY', 0.8);
+                      // FO_BOT02_BEGIN rally-advance
+                      // Squad formation is movement, not a Medic SUPPORT task.
+                      // Preserve rally target, class eligibility and movement speed.
+                      behaviorHint='ADVANCE';
+                      setBotState(bot, 'ADVANCE', 0.8);
+                      // FO_BOT02_END rally-advance
                       const members=squadMembers[rallyKey]||[];
                       const leader=members.find(b=>b.id===squadLeaderId[rallyKey]);
                       const slot=leader?chooseBotFormationPoint(bot,leader,members,isPositionWalkable):null;
-                      if(slot){
+                      // FO_BOT02_BEGIN rally-direct-clear
+                      // V352 helped Heavy/Assault unstuck, but increased Medic
+                      // plan changes and idle time. Keep the V351 Medic path.
+                      const bot02NeedsSlotClear=bot.classId==='heavy'||bot.classId==='assault';
+                      if(slot && (!bot02NeedsSlotClear || isBotDirectWalkingLineClear(bot.pos,slot))){
+                      // FO_BOT02_END rally-direct-clear
                         const formationPoint=new THREE.Vector3(slot.x,slot.y,slot.z);
                         moveTargetPos = selectBotRallyWaypoint(bot, formationPoint);
                         if(!moveTargetPos)moveSpeed=0;
@@ -17491,6 +18631,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           } else {
             bot.stepDistance = 0;
           }
+          const crouchPose=botVisualCrouchV292(bot.crouchAmt,actualSpeed,bot.classId);
           if (actualSpeed > 0.4) {
             bot.mesh.upperBody.position.y = 0.93;
             bot.animPhase += dt * actualSpeed * 2.35;
@@ -17501,9 +18642,9 @@ return {createExperimentalRig,createAdaptiveRigController};
             const grade=(bot.pos.y-beforeMoveY)/Math.max(.04,actualSpeed*dt);
             const ground=botVisualGroundMotion(bot.visualGaitPhase,actualSpeed,pose.forward,pose.side,bot.crouchAmt,grade,bot.classId);
             // Lower-body and ankle details move; the combat torso/aim direction remains unchanged.
-            gait.leftHip+=ground.leftHip+visualMotion.hipBias;gait.rightHip+=ground.rightHip+visualMotion.hipBias;
-            gait.leftKnee+=ground.leftKnee+visualMotion.kneeBias;gait.rightKnee+=ground.rightKnee+visualMotion.kneeBias;
-            gait.leftSide+=ground.weightShift;gait.rightSide+=ground.weightShift;
+            gait.leftHip+=ground.leftHip+visualMotion.hipBias-crouchPose.flex*.5;gait.rightHip+=ground.rightHip+visualMotion.hipBias-crouchPose.flex*.5;
+            gait.leftKnee+=ground.leftKnee+visualMotion.kneeBias+crouchPose.flex;gait.rightKnee+=ground.rightKnee+visualMotion.kneeBias+crouchPose.flex;
+            gait.leftSide+=ground.weightShift-crouchPose.spread;gait.rightSide+=ground.weightShift+crouchPose.spread;
             // V151: damp ankle orientation across movement/stop boundaries.
             const ankleBlend=1-Math.exp(-Math.max(0,dt)*18);
             bot.visualAnkleLeft=(bot.visualAnkleLeft||0)+(ground.leftFoot*visualMotion.footDamp-(bot.visualAnkleLeft||0))*ankleBlend;
@@ -17522,14 +18663,14 @@ return {createExperimentalRig,createAdaptiveRigController};
             if(bot.mesh.setVisualFootPose)bot.mesh.setVisualFootPose(bot.visualAnkleLeft,bot.visualAnkleRight);
             bot.visualDirection=botVisualDirection(bot.visualDirection,0,0,dt);
             const stanceBlend=1-Math.exp(-dt*12);
-            bot.mesh.leftHip.rotation.z+=(-visualStance.stanceWidth-bot.mesh.leftHip.rotation.z)*stanceBlend;
-            bot.mesh.rightHip.rotation.z+=(visualStance.stanceWidth-bot.mesh.rightHip.rotation.z)*stanceBlend;
+            bot.mesh.leftHip.rotation.z+=(-visualStance.stanceWidth-crouchPose.spread-bot.mesh.leftHip.rotation.z)*stanceBlend;
+            bot.mesh.rightHip.rotation.z+=(visualStance.stanceWidth+crouchPose.spread-bot.mesh.rightHip.rotation.z)*stanceBlend;
             const breath=visualStance.breath;
-            bot.mesh.leftHip.rotation.x+=(visualMotion.hipBias-bot.mesh.leftHip.rotation.x)*(1-Math.exp(-10*dt));
-            bot.mesh.rightHip.rotation.x+=(visualMotion.hipBias-bot.mesh.rightHip.rotation.x)*(1-Math.exp(-10*dt));
+            bot.mesh.leftHip.rotation.x+=(visualMotion.hipBias-crouchPose.flex*.5-bot.mesh.leftHip.rotation.x)*(1-Math.exp(-10*dt));
+            bot.mesh.rightHip.rotation.x+=(visualMotion.hipBias-crouchPose.flex*.5-bot.mesh.rightHip.rotation.x)*(1-Math.exp(-10*dt));
             const kneeBlend=1-Math.exp(-dt*13);
-            bot.mesh.leftKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnLeft+visualStance.kneeBias+visualMotion.kneeBias-bot.mesh.leftKnee.rotation.x)*kneeBlend;
-            bot.mesh.rightKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnRight+visualStance.kneeBias+visualMotion.kneeBias-bot.mesh.rightKnee.rotation.x)*kneeBlend;
+            bot.mesh.leftKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnLeft+visualStance.kneeBias+visualMotion.kneeBias+crouchPose.flex-bot.mesh.leftKnee.rotation.x)*kneeBlend;
+            bot.mesh.rightKnee.rotation.x += (bot.crouchAmt*.45+visualStance.turnRight+visualStance.kneeBias+visualMotion.kneeBias+crouchPose.flex-bot.mesh.rightKnee.rotation.x)*kneeBlend;
             bot.visualBob=quietCarry?oldBob+(breath-oldBob)*(1-Math.exp(-dt*12)):0;
             bot.mesh.upperBody.position.y = .93+bot.visualBob;
           }
@@ -17585,20 +18726,12 @@ return {createExperimentalRig,createAdaptiveRigController};
         return dx * dx + dy * dy + dz * dz;
       }
 
+      // FO_H332_BEGIN expiry
       function updateEntitiesAndFX(dt) {
         for (let i = activeGrenades.length - 1; i >= 0; i--) {
           const g = activeGrenades[i];
           g.fuse -= dt;
-          g.vel.y -= 18.0 * dt;
-          g.pos.addScaledVector(g.vel, dt);
-
-          const floorY = getFloorHeightAt(g.pos.x, g.pos.z, g.pos.y + 0.3);
-          if (g.pos.y <= floorY + 0.08) {
-            g.pos.y = floorY + 0.08;
-            g.vel.y = Math.abs(g.vel.y) * 0.38;
-            g.vel.x *= 0.68;
-            g.vel.z *= 0.68;
-          }
+          foAdvanceGrenade(g,dt,mapColliders,getFloorHeightAt);
 
           if (Math.abs(g.pos.x) > foWorldX(39)) g.vel.x *= -0.5;
           if (Math.abs(g.pos.z) > foWorldZ(60)) g.vel.z *= -0.5;
@@ -17609,7 +18742,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
           if (g.fuse <= 0) {
             triggerExplosion(g.pos, 6.0, 115, g.ownerName, g.team, 'M67 BOMBA');
-            scene.remove(g.mesh);
+            foReleaseEquipment(g,scene);
             activeGrenades.splice(i, 1);
           }
         }
@@ -17620,9 +18753,11 @@ return {createExperimentalRig,createAdaptiveRigController};
           const step = r.vel.clone().multiplyScalar(dt);
           const nextPos = r.pos.clone().add(step);
 
-          let detonated = r.life <= 0 || nextPos.y <= 0.05 || Math.abs(nextPos.x) > foWorldX(39.5) || Math.abs(nextPos.z) > foWorldZ(60.5);
-          if (!detonated && !hasLineOfSight(r.pos, nextPos)) {
-            detonated = true;
+          let detonated = r.life<=0||r.launchBlocked;
+          if(r.launchBlocked)nextPos.copy(r.pos);
+          else{
+            const hit=foRocketSurface(r.pos,step.x,step.y,step.z,mapColliders,foWorldX(39.5),foWorldZ(60.5));
+            if(hit){foPlaceRocketContact(nextPos,r.pos,step.x,step.y,step.z,hit);detonated=true;}
           }
           if (!detonated && player.alive && player.team !== r.team) {
             const pCenter = new THREE.Vector3(player.pos.x, player.pos.y + (player.crouching ? 0.65 : 0.95), player.pos.z);
@@ -17667,7 +18802,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             scene.add(smoke);
             activeParticles.push({
               mesh: smoke,
-              vel: new THREE.Vector3((Math.random() - 0.5) * 0.6, 0.4, (Math.random() - 0.5) * 0.6),
+              vel: foH332TakeVector((Math.random() - 0.5) * 0.6, 0.4, (Math.random() - 0.5) * 0.6),
               gravity: -0.2,
               growRate: 3.2,
               alignVel: false,
@@ -17678,7 +18813,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
           if (detonated) {
             triggerExplosion(r.pos, 6.5, 125, r.ownerName, r.team, 'CARL GUSTAF');
-            scene.remove(r.mesh);
+            foReleaseEquipment(r,scene);
             activeRockets.splice(i, 1);
           }
         }
@@ -17692,7 +18827,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
           if (mk.healTick <= 0) {
             mk.healTick = 0.5;
-            if (player.alive && player.team === mk.team && player.hp < player.maxHp && player.pos.distanceTo(mk.pos) <= 2.5) {
+            if (player.alive && player.team === mk.team && player.hp < player.maxHp && foMedkitReachable(mk.pos,player.pos,mapColliders)) {
               player.hp = Math.min(player.maxHp, player.hp + 10);
               sound.playHeal();
               const hf = document.getElementById('heal-flash');
@@ -17702,14 +18837,14 @@ return {createExperimentalRig,createAdaptiveRigController};
             }
             for (let b = 0; b < bots.length; b++) {
               const ally = bots[b];
-              if (ally.alive && ally.team === mk.team && ally.hp < ally.maxHp && ally.pos.distanceTo(mk.pos) <= 2.5) {
+              if (ally.alive && ally.team === mk.team && ally.hp < ally.maxHp && foMedkitReachable(mk.pos,ally.pos,mapColliders)) {
                 ally.hp = Math.min(ally.maxHp, ally.hp + 10);
               }
             }
           }
 
           if (mk.life <= 0) {
-            scene.remove(mk.mesh);
+            foReleaseEquipment(mk,scene);
             activeMedkits.splice(i, 1);
           }
         }
@@ -17752,10 +18887,10 @@ return {createExperimentalRig,createAdaptiveRigController};
 
           if (triggered) {
             triggerExplosion(cm.pos, 4.2, 120, cm.ownerName, cm.team, 'CLAYMORE');
-            scene.remove(cm.mesh);
+            foReleaseEquipment(cm,scene);
             activeClaymores.splice(i, 1);
           } else if (cm.life <= 0) {
-            scene.remove(cm.mesh);
+            foReleaseEquipment(cm,scene);
             activeClaymores.splice(i, 1);
           }
         }
@@ -17772,7 +18907,7 @@ return {createExperimentalRig,createAdaptiveRigController};
             tr.mesh.material=V279_TRACER_MATS[tr.visualTracerKind][t>.65?0:t>.38?1:t>.13?2:3];
           }
           if (tr.life <= 0) {
-            scene.remove(tr.mesh);
+            scene.remove(tr.mesh);foH332ReleaseVisual(tr);
             activeTracers.splice(i, 1);
           }
         }
@@ -17791,7 +18926,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
           if(p.mesh.userData.v277Impact&&p.life>0)applyV277ParticleVisual(p);
           if (p.life <= 0) {
-            scene.remove(p.mesh);
+            scene.remove(p.mesh);foH332ReleaseVisual(p);
             activeParticles.splice(i, 1);
           }
         }
@@ -17812,18 +18947,11 @@ return {createExperimentalRig,createAdaptiveRigController};
         for (let i = activeShellCasings.length - 1; i >= 0; i--) {
           const sc = activeShellCasings[i];
           sc.life -= dt;
-          sc.vel.y -= 14.5 * dt;
-          sc.mesh.position.addScaledVector(sc.vel, dt);
+          foAdvanceCasing(sc,dt,mapColliders,getFloorHeightAt);
           sc.mesh.rotation.x += sc.rotVel.x * dt;
           sc.mesh.rotation.y += sc.rotVel.y * dt;
-          if (sc.mesh.position.y <= 0.02) {
-            sc.mesh.position.y = 0.02;
-            sc.vel.y = Math.abs(sc.vel.y) * 0.35;
-            sc.vel.x *= 0.6;
-            sc.vel.z *= 0.6;
-          }
           if (sc.life <= 0) {
-            scene.remove(sc.mesh);
+            scene.remove(sc.mesh);foH332ReleaseVisual(sc);
             activeShellCasings.splice(i, 1);
           }
         }
@@ -17838,13 +18966,252 @@ return {createExperimentalRig,createAdaptiveRigController};
           posAttr.needsUpdate = true;
         }
       }
-
+      // FO_H332_END expiry
       // =========================================================================
       // 16. HUD, 2D RADAR, SCOREBOARD, INPUTS & MAIN ANIMATION LOOP
       // =========================================================================
       const radarCanvas = document.getElementById('radar-canvas');
       const rctx = radarCanvas.getContext('2d');
 
+      // FO_F316_BEGIN helper
+      // V313–V314: presentation-only class identity and equipment state.
+      const FO_F316_IDENTITIES=Object.freeze({
+        assault:Object.freeze({label:'Hücum',color:'#c4c9b1'}),
+        medic:Object.freeze({label:'Sıhhiye',color:'#c3b4a9'}),
+        engineer:Object.freeze({label:'Drone operatörü',color:'#a9c5c8'}),
+        sniper:Object.freeze({label:'Keskin nişancı',color:'#b3c3aa'}),
+        heavy:Object.freeze({label:'Ağır piyade',color:'#cabd9e'})
+      });
+      function foF316EquipmentStatus(actor,classes,weapons,droneCharges=0,droneActive=false){
+        const id=classes[actor.classId]?.slots[4],w=id&&weapons[id];
+        if(!w)return {id:null,label:'—',state:'none',hint:'Bu sınıfta özel ekipman yok',opacity:.35};
+        if(w.category==='drone'){
+          const max=w.magSize,remaining=Math.max(0,Math.min(max,Number.isFinite(droneCharges)?droneCharges:0));
+          return {id,label:droneActive?'AKTİF':remaining>0?remaining+'/'+max:'0/'+max,
+            state:droneActive?'active':remaining>0?'ready':'empty',
+            hint:droneActive?'Drone aktif':remaining>0?'Drone hazır':'Yeni canda tekrar hazır',opacity:remaining>0||droneActive?1:.68};
+        }
+        const ammo=actor.ammoState?.[id];
+        if(!ammo||!Number.isFinite(ammo.mag)||!Number.isFinite(ammo.reserve))
+          return {id,label:'—',state:'unknown',hint:'Ekipman bilgisi hazır değil',opacity:.68};
+        const mag=Math.max(0,ammo.mag),reserve=Math.max(0,ammo.reserve);
+        if(w.category==='rocket'){
+          const loading=actor.slot===4&&actor.reloading;
+          const state=loading?'loading':mag>0?'ready':reserve>0?'reload':'empty';
+          return {id,label:loading?'DOLUYOR':mag+'+'+reserve,state,
+            hint:loading?'Yeniden dolduruluyor':mag>0?'Hazır / yedek mühimmat':reserve>0?'Yeniden doldur':'Mühimmat kalmadı',
+            opacity:state==='empty'?.68:1};
+        }
+        return {id,label:mag+'/'+w.magSize,state:mag>0?'ready':'empty',hint:mag>0?'Kalan ekipman: '+mag:'Ekipman tükendi',opacity:mag>0?1:.68};
+      }
+      function foF316ApplyHud(actor,classes,weapons,drone,doc){
+        const badge=doc.getElementById('hud-class-badge'),identity=FO_F316_IDENTITIES[actor.classId];
+        if(badge&&identity){
+          badge.style.color=identity.color;badge.style.borderColor=identity.color+'66';
+          badge.title=identity.label;
+        }
+        const isDrone=classes[actor.classId]?.slots[4]==='drone';
+        const status=foF316EquipmentStatus(actor,classes,weapons,isDrone?drone.getRemainingCharges('player'):0,isDrone&&drone.isPlayerControlling());
+        const box=doc.getElementById('slot-box-4'),sub=doc.getElementById('slot-sub-4');
+        if(!box||!sub)return;
+        // Preserve the established drone label and controls; improve other class slots.
+        if(!isDrone){
+          sub.textContent=status.label;
+          sub.style.color=status.state==='empty'||status.state==='reload'||status.state==='loading'?'#d3b786':'';
+          sub.className='';
+          box.style.opacity=String(status.opacity);
+        }else sub.style.color='';
+        box.title=status.hint;
+      }
+      const foF316RenderRestore=[];
+      function foF316BeginEquipmentRender(actor,refs,medkits,drone){
+        if(foF316RenderRestore.length)foF316RestoreEquipmentRender();
+        // Existing local controller bar only; no drone geometry or collision changes.
+        const bar=refs?.foF316DroneStatus;
+        if(bar&&actor.alive&&actor.classId==='engineer'&&actor.slot===4){
+          const available=drone.getRemainingCharges('player')>0;
+          foF316RenderRestore.push([bar.scale,'x',bar.scale.x]);
+          bar.scale.x*=available?1:.16;
+        }
+        // Existing friendly healing ring fades near expiration but remains readable.
+        for(const kit of medkits){
+          const mat=kit.ring?.material;
+          if(!mat||kit.team!==actor.team||!Number.isFinite(kit.life))continue;
+          const factor=.45+.55*Math.max(0,Math.min(1,kit.life/4));
+          if(factor===1)continue;
+          foF316RenderRestore.push([mat,'opacity',mat.opacity]);mat.opacity*=factor;
+        }
+      }
+      function foF316RestoreEquipmentRender(){
+        for(let i=foF316RenderRestore.length-1;i>=0;i--){
+          const [obj,key,value]=foF316RenderRestore[i];obj[key]=value;
+        }
+        foF316RenderRestore.length=0;
+      }
+
+      // FO_F316_END helper
+      // FO_G320_BEGIN helper
+      // V317–V320: mode-specific presentation, never an objective state transition.
+      function foG320DeathmatchPresentation(state,target,team){
+        const own=team==='red'?state.scoreRed:state.scoreBlue,other=team==='red'?state.scoreBlue:state.scoreRed;
+        const diff=own-other,remaining=Math.max(0,target-own);
+        const lead=diff>0?'ÖNDE +'+diff:diff<0?'GERİDE '+Math.abs(diff):'BERABERE';
+        const label=state.ended?'MAÇ BİTTİ':remaining<=5&&remaining>0?lead+' · '+remaining+' KALDI':lead;
+        return {label,remaining,color:diff>0?'#a9c4b3':diff<0?'#d1b6a0':'#b9c5ca',
+          hint:'Takımının hedefe kalan elemesi: '+remaining+' / '+target};
+      }
+      function foG320BombPresentation(bomb,rules,blue,red){
+        const alive=blue+'–'+red+' CANLI';
+        if(bomb.phase==='ended')return {label:alive+' · TUR BİTTİ',hint:bomb.reason||'Tur bitti',color:'#b9c5ca',planted:false,seconds:null};
+        const planted=bomb.phase==='planted',site=bomb.site?.id||'',actionSite=bomb.actionSite||'';
+        const limit=planted?rules.defuseSeconds:rules.plantSeconds;
+        const pct=Math.max(0,Math.min(100,Math.floor((Number.isFinite(bomb.progress)?bomb.progress:0)/limit*100)));
+        const secs=planted?Math.max(0,Math.ceil(bomb.seconds)):null;
+        const action=planted?(bomb.actor?'ÇÖZME %'+pct:'BOMBA '+site):bomb.actor?'KURMA '+actionSite+' %'+pct:'A / B · BÖLGEDE DUR';
+        const label=alive+' · '+action;
+        const hint=planted?'Bomba '+site+' · '+secs+' sn kaldı'+(bomb.actor?' · Çözme %'+pct:''):bomb.actor?'Bomba '+actionSite+' kuruluyor: %'+pct:'A veya B bölgesine gir ve dur';
+        return {label,hint,planted,seconds:secs,color:planted&&secs<=10?'#e2b3a2':planted?'#d8c39d':'#b9c5ca'};
+      }
+      const foG320DefaultSpectatorHint='[C] Serbest / Takım · [Sol/Sağ tık] Önceki / Sonraki · WASD / Space / Ctrl';
+      function foG320Write(el,key,value){
+        if(el&&el[key]!==value)el[key]=value;
+      }
+      function foG320SyncModePresentation(state,bomb,rules,target,actor,teamBots,spectator,doc){
+        const status=doc.getElementById('fo-bomb-status'),timer=doc.getElementById('match-timer');
+        if(!status||!timer)return;
+        const mode=state.mode,owned=mode==='deathmatch'||mode==='bomb';
+        if(owned){
+          let p;
+          if(mode==='deathmatch')p=foG320DeathmatchPresentation(state,target,actor.team);
+          else{
+            let blue=actor.alive?1:0,red=0;
+            for(const b of teamBots)if(b.alive){if(b.team==='blue')blue++;else if(b.team==='red')red++;}
+            p=foG320BombPresentation(bomb,rules,blue,red);
+          }
+          const show=state.started||mode==='bomb';
+          status.classList.toggle('hidden',!show);
+          foG320Write(status,'textContent',show?p.label:'');
+          foG320Write(status,'title',p.hint);
+          foG320Write(status.style,'color',p.color);
+          foG320Write(status.dataset,'foG320Owned','1');
+          foG320Write(status.dataset,'foG320Last',show?p.label:'');
+          foG320Write(timer.style,'color',p.planted?p.color:'');
+          foG320Write(timer,'title',p.planted?'Bombanın kalan süresi':'Maçın kalan süresi');
+          if(p.planted){
+            const t=p.seconds;
+            foG320Write(timer,'textContent',String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'));
+          }
+        }else if(status.dataset.foG320Owned==='1'){
+          // Leave rescue's own live text alone; clear only our stale text/styles.
+          if(status.textContent===status.dataset.foG320Last)status.textContent='';
+          status.style.color='';status.title='';timer.style.color='';timer.title='';
+          delete status.dataset.foG320Owned;delete status.dataset.foG320Last;
+        }
+        const watching=mode==='bomb'&&state.started&&!state.ended&&!actor.alive;
+        const hud=doc.getElementById('hud'),spectatorHud=doc.getElementById('fo-spectator-hud');
+        const hint=spectatorHud?.lastElementChild;
+        if(hud){
+          const panels=[hud.querySelector('.fo-status-panel'),doc.getElementById('slot-bar'),hud.querySelector('.fo-ammo-panel')];
+          // Avoid showing the eliminated player's stale ammo/health while watching.
+          for(const el of panels)if(el){
+            if(watching&&el.dataset.foG320Hidden!=='1'){el.dataset.foG320Hidden='1';el.dataset.foG320Prior=el.style.visibility;el.style.visibility='hidden';}
+            else if(!watching&&el.dataset.foG320Hidden==='1'){el.style.visibility=el.dataset.foG320Prior||'';delete el.dataset.foG320Hidden;delete el.dataset.foG320Prior;}
+          }
+        }
+        if(hint&&watching){
+          const text=spectator.mode==='free'?'[C] Takım takibi · WASD / Space / Ctrl · Shift: hızlı':'[C] Serbest kamera · [Sol/Sağ tık] Önceki / sonraki';
+          foG320Write(hint,'textContent',text);hint.dataset.foG320Hint='1';
+        }else if(hint?.dataset.foG320Hint==='1'){
+          hint.textContent=foG320DefaultSpectatorHint;delete hint.dataset.foG320Hint;
+        }
+      }
+
+      // FO_G320_END helper
+      // FO_G324_BEGIN helper
+      // V321–V324: read-only rescue, spectator and match summary presentation.
+      function foG324RescuePresentation(state,rescue,rules,actor){
+        const captives=rescue.captives||[],total=captives.length||2;
+        let saved=0,carrying=0,knownCarried=0,known=0,ownPickup=null;
+        for(const p of captives){
+          if(p.saved){saved++;continue;}
+          if(p.carrier==='player')carrying++;
+          if(p.discovered){known++;if(p.carrier)knownCarried++;}
+          if(p.actor==='player')ownPickup=p;
+        }
+        let action,color='#b9c5ca';
+        if(state.ended){action=saved===total?'GÖREV TAMAM':'TUR BİTTİ';}
+        else if(!actor.alive){action='TAKIMINI İZLE';}
+        else if(carrying){action='TAHLİYEYE DÖN';color='#a9c4b3';}
+        else if(ownPickup){
+          const pct=Math.max(0,Math.min(100,Math.floor((Number.isFinite(ownPickup.progress)?ownPickup.progress:0)/rules.holdSeconds*100)));
+          action='KURTARMA %'+pct;color='#d8c39d';
+        }else if(knownCarried){action='TAKIM TAHLİYEDE';color='#a9c4b3';}
+        else if(known){action='ESİRİN YANINDA DUR';}
+        else action='ESİRLERİ BUL';
+        // No hidden room, coordinates, carrier identity or undiscovered enemy data.
+        return {label:'ESİR '+saved+'/'+total+' · '+action,color,
+          hint:state.ended?(rescue.reason||action):action,saved,total};
+      }
+      function foG324Clock(seconds,ceil=false){
+        const n=Math.max(0,(ceil?Math.ceil:Math.floor)(Number.isFinite(seconds)?seconds:0));
+        return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+      }
+      function foG324ResultPresentation(state,winner,bomb,rescue,actor,target){
+        const name=winner==='blue'?'ASKER KAZANDI':winner==='red'?'MİLİS KAZANDI':'BERABERE';
+        const score=state.scoreBlue+' – '+state.scoreRed;
+        const mode=state.mode;
+        let reason,modeName;
+        if(mode==='bomb'){modeName='BOMBA';reason=bomb.reason||'Tur tamamlandı';}
+        else if(mode==='rescue'){modeName='KURTARMA';reason=rescue.reason||'Tur tamamlandı';}
+        else{modeName='ÖLÜM MAÇI';reason=Math.max(state.scoreBlue,state.scoreRed)>=target?'Hedefe ulaşıldı':'Maç süresi doldu';}
+        return {title:modeName+' TAMAMLANDI',result:name+' · '+reason,
+          summary:'Asker – Milis eleme: '+score+' · Sen: '+actor.kills+' eleme / '+actor.deaths+' ölüm',
+          score,modeName};
+      }
+      function foG324SyncModePresentation(state,rescue,rules,actor,spectator,doc,bomb){
+        const status=doc.getElementById('fo-bomb-status'),timer=doc.getElementById('match-timer');
+        if(!status||!timer)return;
+        if(state.mode==='rescue'){
+          const p=foG324RescuePresentation(state,rescue,rules,actor);
+          status.classList.toggle('hidden',false);
+          foG320Write(status,'textContent',p.label);foG320Write(status,'title',p.hint);
+          foG320Write(status.style,'color',p.color);
+          status.dataset.foG324Owned='1';
+          foG320Write(timer.style,'color','');foG320Write(timer,'title','Kurtarma süresi');
+          foG320Write(timer,'textContent',foG324Clock(state.timeRemaining));
+        }else if(status.dataset.foG324Owned==='1'){
+          // G320 has already written the new mode's status and timer style.
+          delete status.dataset.foG324Owned;
+        }
+        if(state.mode==='bomb'&&state.ended&&state.started){
+          // Once the planted phase ends, preserve the actual objective clock
+          // rather than falling back to the earlier round countdown.
+          const hadPlant=!!bomb?.site;
+          foG320Write(timer,'textContent',foG324Clock(hadPlant?bomb.seconds:state.timeRemaining,hadPlant));
+          foG320Write(timer,'title',hadPlant?'Bomba süresi (tur sonu)':'Maç süresi (tur sonu)');
+        }
+        if(state.mode!=='rescue')return;
+        const watching=state.started&&!state.ended&&!actor.alive;
+        const hud=doc.getElementById('hud'),hint=doc.getElementById('fo-spectator-hud')?.lastElementChild;
+        if(hud)for(const el of [hud.querySelector('.fo-status-panel'),doc.getElementById('slot-bar'),hud.querySelector('.fo-ammo-panel')])if(el){
+          // Same ownership token as G320; no double restore on mode change.
+          if(watching&&el.dataset.foG320Hidden!=='1'){el.dataset.foG320Hidden='1';el.dataset.foG320Prior=el.style.visibility;el.style.visibility='hidden';}
+          else if(!watching&&el.dataset.foG320Hidden==='1'){el.style.visibility=el.dataset.foG320Prior||'';delete el.dataset.foG320Hidden;delete el.dataset.foG320Prior;}
+        }
+        if(hint&&watching){
+          foG320Write(hint,'textContent',spectator.mode==='free'?'[C] Takım takibi · WASD / Space / Ctrl · Shift: hızlı':'[C] Serbest kamera · [Sol/Sağ tık] Önceki / sonraki');
+          hint.dataset.foG320Hint='1';
+        }else if(hint?.dataset.foG320Hint==='1'){hint.textContent=foG320DefaultSpectatorHint;delete hint.dataset.foG320Hint;}
+      }
+      function foG324RefreshStart(state,bomb,doc){
+        const planted=state.mode==='bomb'&&bomb.phase==='planted';
+        const t=doc.getElementById('match-timer');
+        if(t){t.textContent=foG324Clock(planted?bomb.seconds:state.timeRemaining,planted);t.style.color=planted?(bomb.seconds<=10?'#e2b3a2':'#d8c39d'):'';}
+        const rule=doc.getElementById('fo-score-rule');
+        if(rule)rule.title=state.mode==='deathmatch'?'50 eleme hedefi':state.mode==='bomb'?'Bomba görevi · tek can':'Kurtarma görevi · tek can';
+      }
+
+      // FO_G324_END helper
       function updateHUD() {
         document.getElementById('hp-value').textContent = player.hp;
         const hpBar = document.getElementById('hp-bar');
@@ -17935,6 +19302,15 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
         }
 
+      // FO_F316_BEGIN hud
+        foF316ApplyHud(player,CLASSES,WEAPONS,droneSystem,document);
+      // FO_F316_END hud
+      // FO_G320_BEGIN hud
+        foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
+      // FO_G320_END hud
+      // FO_G324_BEGIN hud
+        foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document,foBomb);
+      // FO_G324_END hud
         let zoneText = 'ORTA MEYDAN (MID)';
         if (player.pos.z > 38) zoneText = 'DERBARAN ÜSSÜ (GÜNEY)';
         else if (player.pos.z < -38) zoneText = 'N.I.U. ÜSSÜ (KUZEY)';
@@ -18102,11 +19478,22 @@ return {createExperimentalRig,createAdaptiveRigController};
       let scoreboardReturnToPause = false;
       let mapSwitchPending = false;
       let suppressUnlockPauseUntil = 0;
+      function foGameplayInputAllowed(state,paused,menuHidden,scoreHidden){
+       return state.started&&!state.ended&&!paused&&menuHidden&&scoreHidden;
+      }
+      function gameplayInputAllowed(){
+        return foGameplayInputAllowed(matchState,gamePaused,
+          document.getElementById('menu-overlay').classList.contains('hidden'),
+          document.getElementById('scoreboard-overlay').classList.contains('hidden'));
+      }
+      function clearGameplayInputs(){
+        Object.keys(keys).forEach(key=>{keys[key]=false;});
+        mouseDownLeft=false;mouseDownRight=false;isDraggingLook=false;
+        resetTouchControls();
+      }
       function resetPausedInputs() {
-        Object.keys(keys).forEach((key) => { keys[key] = false; });
-        mouseDownLeft = false;
-        mouseDownRight = false;
-        isDraggingLook = false;
+        foTimeDebt=0;lastFrameTime=performance.now();
+        clearGameplayInputs();
       }
       function updatePauseSummary() {
         document.getElementById('fo-pause-map-name').textContent='FRONT OPERATION · '+foMapName(matchState.mode);
@@ -18338,7 +19725,7 @@ return {createExperimentalRig,createAdaptiveRigController};
 
       canvas.addEventListener('click', () => {
         sound.init();
-        if (matchState.started && !matchState.ended && !gamePaused && document.getElementById('menu-overlay').classList.contains('hidden')) {
+        if (gameplayInputAllowed()) {
           if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
             try { canvas.requestPointerLock(); } catch (e) {}
           }
@@ -18348,7 +19735,9 @@ return {createExperimentalRig,createAdaptiveRigController};
       window.addEventListener('keydown', (e) => {
         const menuHidden = document.getElementById('menu-overlay').classList.contains('hidden');
         if (matchState.started && !matchState.ended && menuHidden) {
-          if (e.code === 'Space' || (droneSystem.isPlayerControlling() && (e.code === 'ControlLeft' || e.code === 'ControlRight'))) {
+          if (e.code === 'Space' ||
+              (e.code === 'KeyF' && (isFoBombMode()||isFoRescueMode())) ||
+              (droneSystem.isPlayerControlling() && (e.code === 'ControlLeft' || e.code === 'ControlRight'))) {
             e.preventDefault();
           }
         }
@@ -18373,6 +19762,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           if (matchState.started && !matchState.ended && menuHidden && !e.repeat) {
             if (gamePaused) openPauseScoreboard();
             else {
+              clearGameplayInputs();
               updateScoreboardUI();
               document.getElementById('scoreboard-overlay').classList.remove('hidden');
             }
@@ -18393,6 +19783,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           return;
         }
 
+        if(scoreboardVisible){keys[e.code]=false;return;}
         if (e.code === 'KeyB' && matchState.started && !matchState.ended && !e.repeat) {
           if(foSingleLife()){keys[e.code]=false;return;}
           if (menuHidden) openClassMenu();
@@ -18464,12 +19855,8 @@ return {createExperimentalRig,createAdaptiveRigController};
         if (e.code === 'Tab') closeScoreboard();
       });
 
-      window.addEventListener('blur', () => {
-        Object.keys(keys).forEach((k) => { keys[k] = false; });
-        mouseDownLeft = false;
-        mouseDownRight = false;
-        isDraggingLook = false;
-      });
+      window.addEventListener('blur',clearGameplayInputs);
+      document.addEventListener('visibilitychange',()=>{if(document.hidden)clearGameplayInputs();});
 
       document.addEventListener('pointerlockchange', () => {
         if (document.pointerLockElement !== canvas) {
@@ -18493,8 +19880,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       let prevDragY = 0;
 
       window.addEventListener('mousedown', (e) => {
-        if (!matchState.started || matchState.ended || gamePaused ||
-            !document.getElementById('menu-overlay').classList.contains('hidden')) return;
+        if(!gameplayInputAllowed()||(e.target!==canvas&&document.pointerLockElement!==canvas))return;
         sound.init();
         if(isFoSpectating()){
           if(foSpectator.mode==='follow'&&(e.button===0||e.button===2))
@@ -18546,6 +19932,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       window.addEventListener('contextmenu', (e) => e.preventDefault());
 
       window.addEventListener('mousemove', (e) => {
+        if(!gameplayInputAllowed())return;
         if(isFoSpectating()){
           if(gamePaused||foSpectator.mode!=='free')return;
           let dx=0,dy=0;
@@ -18587,7 +19974,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       });
 
       window.addEventListener('wheel', (e) => {
-        if (!player.alive || !matchState.started || droneSystem.isPlayerControlling()) return;
+        if (!gameplayInputAllowed() || !player.alive || droneSystem.isPlayerControlling()) return;
         const order = CLASSES[player.classId].slots[4] ? [1, 2, 3, 4] : [1, 2, 3];
         const idx = order.indexOf(player.slot);
         const nextIdx = (idx + (e.deltaY > 0 ? 1 : -1) + order.length) % order.length;
@@ -18602,15 +19989,26 @@ return {createExperimentalRig,createAdaptiveRigController};
       let lookTouchId = null;
       let lastLookTouchX = 0;
       let lastLookTouchY = 0;
+      let fireTouchId=null,upTouchId=null,downTouchId=null;
+      function foChangedTouchHas(event,id){
+       return id!==null&&Array.from(event.changedTouches||[]).some(t=>t.identifier===id);
+      }
+      function foTouchAltitude(up,down){return (up!==null?1:0)-(down!==null?1:0);}
+      function resetTouchControls(){
+        moveTouchId=null;lookTouchId=null;fireTouchId=null;upTouchId=null;downTouchId=null;
+        lastLookTouchX=0;lastLookTouchY=0;touchDroneAlt=0;
+        touchMoveVec.x=0;touchMoveVec.y=0;touchKnob.style.transform='translate(0px, 0px)';
+      }
 
       touchZone.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        const t = e.changedTouches[0];
-        moveTouchId = t.identifier;
+        if(!gameplayInputAllowed()||moveTouchId!==null)return;
+        const t=e.changedTouches[0];if(t)moveTouchId=t.identifier;
       }, { passive: false });
 
       touchZone.addEventListener('touchmove', (e) => {
         e.preventDefault();
+        if(!gameplayInputAllowed())return;
         for (let i = 0; i < e.changedTouches.length; i++) {
           const t = e.changedTouches[i];
           if (t.identifier === moveTouchId) {
@@ -18646,9 +20044,10 @@ return {createExperimentalRig,createAdaptiveRigController};
       touchZone.addEventListener('touchcancel', resetTouchMove);
 
       canvas.addEventListener('touchstart', (e) => {
+        if(!gameplayInputAllowed())return;
         sound.init();
         const t = e.changedTouches[0];
-        if (lookTouchId === null) {
+        if (t&&lookTouchId === null) {
           lookTouchId = t.identifier;
           lastLookTouchX = t.clientX;
           lastLookTouchY = t.clientY;
@@ -18656,6 +20055,7 @@ return {createExperimentalRig,createAdaptiveRigController};
       }, { passive: true });
 
       canvas.addEventListener('touchmove', (e) => {
+        if(!gameplayInputAllowed())return;
         for (let i = 0; i < e.changedTouches.length; i++) {
           const t = e.changedTouches[i];
           if (t.identifier === lookTouchId && player.alive) {
@@ -18677,20 +20077,22 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
       }, { passive: true });
 
-      canvas.addEventListener('touchend', (e) => {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          if (e.changedTouches[i].identifier === lookTouchId) lookTouchId = null;
-        }
-      });
+      const resetTouchLook=e=>{if(foChangedTouchHas(e,lookTouchId))lookTouchId=null;};
+      canvas.addEventListener('touchend',resetTouchLook);
+      canvas.addEventListener('touchcancel',resetTouchLook);
 
-      document.getElementById('btn-touch-fire').addEventListener('touchstart', (e) => {
+      const touchFire=document.getElementById('btn-touch-fire');
+      touchFire.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        sound.init();
-        mouseDownLeft = true;
-        playerPrimaryAction();
-      });
-      document.getElementById('btn-touch-fire').addEventListener('touchend', () => { mouseDownLeft = false; });
+        if(!gameplayInputAllowed()||!player.alive||fireTouchId!==null)return;
+        const t=e.changedTouches[0];if(!t)return;
+        fireTouchId=t.identifier;sound.init();mouseDownLeft=true;playerPrimaryAction();
+      },{passive:false});
+      const resetTouchFire=e=>{if(foChangedTouchHas(e,fireTouchId)){fireTouchId=null;mouseDownLeft=false;}};
+      touchFire.addEventListener('touchend',resetTouchFire);
+      touchFire.addEventListener('touchcancel',resetTouchFire);
       document.getElementById('btn-touch-ads').addEventListener('click', () => {
+        if(!gameplayInputAllowed()||!player.alive)return;
         if (droneSystem.isPlayerControlling()) {
           droneSystem.handlePlayerRightClick();
           return;
@@ -18706,24 +20108,37 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
       });
       document.getElementById('btn-touch-reload').addEventListener('click', () => {
+        if(!gameplayInputAllowed()||!player.alive)return;
         if (droneSystem.isPlayerControlling()) droneSystem.handlePlayerRecall();
         else startReload();
       });
-      document.getElementById('btn-touch-roll').addEventListener('click', () => triggerCombatRoll(1));
+      document.getElementById('btn-touch-roll').addEventListener('click', () => {if(gameplayInputAllowed()&&player.alive)triggerCombatRoll(1);});
       document.getElementById('btn-touch-jump').addEventListener('click', () => {
+        if(!gameplayInputAllowed()||!player.alive)return;
         if (droneSystem.isPlayerControlling()) return;
         if (player.grounded) { player.vel.y = 7.4; player.grounded = false; }
       });
-      document.getElementById('btn-touch-class').addEventListener('click', () => {
-        if(foSingleLife()&&matchState.started&&!matchState.ended)return;
-        droneSystem.onOperatorInterrupted('player');
-        document.getElementById('menu-overlay').classList.remove('hidden');
-      });
-      document.getElementById('btn-touch-drone-up').addEventListener('touchstart', (e) => { e.preventDefault(); touchDroneAlt = 1; });
-      document.getElementById('btn-touch-drone-up').addEventListener('touchend', () => { touchDroneAlt = 0; });
-      document.getElementById('btn-touch-drone-down').addEventListener('touchstart', (e) => { e.preventDefault(); touchDroneAlt = -1; });
-      document.getElementById('btn-touch-drone-down').addEventListener('touchend', () => { touchDroneAlt = 0; });
+      document.getElementById('btn-touch-class').addEventListener('click',openClassMenu);
+      for(const direction of ['up','down']){
+        const button=document.getElementById('btn-touch-drone-'+direction);
+        button.addEventListener('touchstart',e=>{
+          e.preventDefault();
+          if(!gameplayInputAllowed()||!player.alive||!droneSystem.isPlayerControlling())return;
+          const t=e.changedTouches[0];if(!t)return;
+          if(direction==='up'&&upTouchId===null)upTouchId=t.identifier;
+          if(direction==='down'&&downTouchId===null)downTouchId=t.identifier;
+          touchDroneAlt=foTouchAltitude(upTouchId,downTouchId);
+        },{passive:false});
+        const release=e=>{
+          if(direction==='up'&&foChangedTouchHas(e,upTouchId))upTouchId=null;
+          if(direction==='down'&&foChangedTouchHas(e,downTouchId))downTouchId=null;
+          touchDroneAlt=foTouchAltitude(upTouchId,downTouchId);
+        };
+        button.addEventListener('touchend',release);
+        button.addEventListener('touchcancel',release);
+      }
       document.getElementById('btn-touch-drone-spot').addEventListener('click', () => {
+        if(!gameplayInputAllowed()||!player.alive)return;
         if (droneSystem.isPlayerControlling()) droneSystem.handlePlayerSpotKey();
       });
 
@@ -18738,50 +20153,177 @@ return {createExperimentalRig,createAdaptiveRigController};
       // =========================================================================
       let lastFrameTime = performance.now();
       let hudSyncTimer = 0;
+      let foClockVisibilityChanged=false,foTimeDebt=0;
+      document.addEventListener('visibilitychange',()=>{foClockVisibilityChanged=true;});
+      function foMatchElapsed(rawDt,hidden,visibilityChanged){
+       return hidden||visibilityChanged?0:Number.isFinite(rawDt)&&rawDt>=0?rawDt:0;
+      }
+
+      function foFrameBudget(elapsed,debt){
+       const total=Math.max(0,Number.isFinite(elapsed)?elapsed:0)+Math.max(0,Number.isFinite(debt)?debt:0);
+       const span=Math.min(total,.5),count=Math.ceil(span/.05-1e-10);
+       return {count,dt:count>0?span/count:0,debt:Math.max(0,total-span)};
+      }
+
+      // V289/V290/V293/V294/V295: render-only local pose layer. No simulation
+      // writes, no new geometry and no change to the established rig factory.
+      const FO_C295_VISUAL_PROFILES=Object.freeze({
+        assault:Object.freeze({walk:1,run:1,turn:1,kit:.78,fall:1}),
+        medic:Object.freeze({walk:1.04,run:1.03,turn:1.05,kit:1,fall:.94}),
+        engineer:Object.freeze({walk:.96,run:.96,turn:.92,kit:.80,fall:1.03}),
+        sniper:Object.freeze({walk:.92,run:.94,turn:.86,kit:.64,fall:.90}),
+        heavy:Object.freeze({walk:.78,run:.82,turn:.72,kit:.52,fall:.80})
+      });
+      function foC295Clamp(v,lo=0,hi=1){return Math.max(lo,Math.min(hi,Number.isFinite(v)?v:0));}
+      function foC295Ease(v){const x=foC295Clamp(v);return x*x*(3-2*x);}
+      function foC295Pose(phase,speed,forward,side,crouch,turn,leftPlant,rightPlant,role,carry,death,detail){
+        const p=FO_C295_VISUAL_PROFILES[role]||FO_C295_VISUAL_PROFILES.assault;
+        const s=foC295Clamp(speed,0,7),f=foC295Clamp(forward),c=foC295Clamp(crouch),a=Math.sin(phase||0),b=Math.cos(phase||0);
+        const fade=foC295Clamp(detail)*(1-c*.72),d=foC295Clamp(death),remain=(1-d)*(1-d);
+        const move=foC295Ease((s-.4)/.65),run=foC295Ease((s-2.35)/2.4);
+        // V289: continuous stride growth and heel/toe roll through the walking range.
+        const walk=move*(1-run)*(.018+.038*foC295Ease((s-.65)/1.75))*p.walk*f;
+        // V290: faster swing and a distinct recovery phase at running speed.
+        const sprint=move*run*(.025+.040*foC295Ease((s-3.0)/3.4))*p.run*f;
+        const swingL=foC295Clamp(-a),swingR=foC295Clamp(a);
+        const freeL=1-.72*foC295Clamp(leftPlant),freeR=1-.72*foC295Clamp(rightPlant);
+        const hipL=(a*walk+a*sprint+.014*run*b*f)*freeL;
+        const hipR=(-a*walk-a*sprint-.014*run*b*f)*freeR;
+        const kneeL=(swingL*(walk*.8+sprint*1.20))*freeL;
+        const kneeR=(swingR*(walk*.8+sprint*1.20))*freeR;
+        // V293: supporting foot opens during turns; vest and equipment follow
+        // the existing visual turn signal without moving the upperBody/weapon.
+        const t=foC295Clamp(turn,-1,1)*p.turn;
+        const turnStep=t*(.015+.020*(1-move)),lean=-t*.019-foC295Clamp(side,-1,1)*move*.009;
+        const kit=foC295Clamp(carry),settle=16*d*d*(1-d)*(1-d);
+        // V294: decay the last locomotion correction through the existing fall;
+        // a restrained secondary knee/boot and load-settle arc, zero at ends.
+        const fall=settle*p.fall;
+        const k=fade*remain;
+        return {leftHip:hipL*k-fall*.018*fade,rightHip:hipR*k-fall*.010*fade,
+          leftKnee:kneeL*k+fall*.055*fade,rightKnee:kneeR*k+fall*.038*fade,
+          leftSide:Math.min(0,turnStep)*k,rightSide:Math.max(0,turnStep)*k,
+          leftFoot:-(hipL+kneeL)*k*.60+fall*.018*fade,rightFoot:-(hipR+kneeR)*k*.60-fall*.018*fade,
+          torso:lean*k,kitPitch:(b*move*.018+kit*.018)*p.kit*k+fall*.028*fade,
+          kitRoll:(lean*.65+a*move*.012)*p.kit*k-fall*.022*fade};
+      }
+      function foC295Detail(distance,level){
+        return level>=2?0:1-foC295Ease((distance-20)/20);
+      }
+      const foC295RigCache=new WeakMap(),foC295Restore=[];
+      function foC295Rig(model){
+        let cached=foC295RigCache.get(model);if(cached)return cached;
+        const ankle=k=>k?.children?.find(n=>n.name==='v132_ankle');
+        // Only independent decorative body meshes; never head, hands, weapon or root.
+        const torso=model.upperBody?.children?.filter(n=>n.name==='v105_role_vest'||n.userData?.v139Carrier)||[];
+        const kit=model.upperBody?.children?.filter(n=>n.userData?.v149Pack||['pouch','admin'].includes(n.userData?.v176Equipment))||[];
+        cached={leftFoot:ankle(model.leftKnee),rightFoot:ankle(model.rightKnee),torso,kit};
+        foC295RigCache.set(model,cached);return cached;
+      }
+      function foC295Apply(node,dx,dz){
+        if(!node?.rotation||(!dx&&!dz))return;
+        const r=node.rotation;foC295Restore.push(r,r.x,r.z);r.x+=dx;r.z+=dz;
+      }
+      function beginFoC295Render(actors,view){
+        const scale=Math.max(.5,Math.min(8,Math.tan(74*Math.PI/360)/Math.tan(Math.max(10,Math.min(120,view.fov||74))*Math.PI/360)*(view.zoom||1)));
+        for(const actor of actors){
+          const model=actor.mesh;
+          if(!model?.root?.visible||(!actor.alive&&!actor.dying)||actor.experimentalRigController)continue;
+      // FO_H328_BEGIN far-pose
+          // Existing far LOD always produces zero secondary pose contribution.
+          if((model.visualDetailLevel||0)>=2)continue;
+      // FO_H328_END far-pose
+          const dist=Math.hypot(actor.pos.x-view.position.x,actor.pos.y-view.position.y,actor.pos.z-view.position.z)/scale;
+          const detail=foC295Detail(dist,model.visualDetailLevel||0);
+          if(detail<=0)continue;
+          const plant=actor.visualFootPlants||{},dir=actor.visualDirection||{};
+          const pose=foC295Pose(actor.visualGaitPhase??actor.animPhase??0,actor.visualTransition?.speed??actor.locomotionSpeed??0,
+            dir.forward??0,dir.side??0,actor.crouchAmt,plant.turn,plant.left,plant.right,actor.classId,actor.visualCarry,
+            actor.dying?1-actor.deathAnimTimer/.65:0,detail);
+          const rig=foC295Rig(model);
+          foC295Apply(model.leftHip,pose.leftHip,pose.leftSide);foC295Apply(model.rightHip,pose.rightHip,pose.rightSide);
+          foC295Apply(model.leftKnee,pose.leftKnee,0);foC295Apply(model.rightKnee,pose.rightKnee,0);
+          foC295Apply(rig.leftFoot,pose.leftFoot,0);foC295Apply(rig.rightFoot,pose.rightFoot,0);
+          for(const n of rig.torso)foC295Apply(n,0,pose.torso);
+          for(const n of rig.kit)foC295Apply(n,pose.kitPitch,pose.kitRoll);
+        }
+      }
+      function restoreFoC295Render(){
+        for(let i=foC295Restore.length-3;i>=0;i-=3){
+          const r=foC295Restore[i];r.x=foC295Restore[i+1];r.z=foC295Restore[i+2];
+        }
+        foC295Restore.length=0;
+      }
 
       function animate(now) {
         requestAnimationFrame(animate);
         const rawDt = (now - lastFrameTime) / 1000;
         lastFrameTime = now;
-        const dt = Number.isFinite(rawDt) ? Math.min(0.05, Math.max(0.001, rawDt)) : 0.016;
-
-        if(gamePaused||!matchState.started||matchState.ended||!player.alive)clearV271PlayerFlash();
-        else updateV273PlayerFlash(dt);
-        if (matchState.started && !matchState.ended && !gamePaused) {
+        const elapsed=foMatchElapsed(rawDt,document.hidden,foClockVisibilityChanged);
+        const visibilityChanged=foClockVisibilityChanged;
+        foClockVisibilityChanged=false;
+        const active=matchState.started&&!matchState.ended&&!gamePaused&&!document.hidden&&!visibilityChanged;
+        const budget=active?foFrameBudget(elapsed,foTimeDebt):foFrameBudget(0,0);
+        foTimeDebt=budget.debt;
+        const renderDt=Math.min(.05,elapsed);
+        if(!active||!player.alive)clearV271PlayerFlash();
+        if(active){
           recordBotFrameTiming(rawDt);
-          matchState.timeRemaining = Math.max(0, matchState.timeRemaining - dt);
+          for(let sub=0;sub<budget.count&&!matchState.ended&&!gamePaused;sub++){
+            const dt=budget.dt,clockDt=dt;
+            if(player.alive)updateV273PlayerFlash(dt);
+            else clearV271PlayerFlash();
+            matchState.timeRemaining = Math.max(0, matchState.timeRemaining - clockDt);
+            if (matchState.timeRemaining <= 0 && !foSingleLife()) {
+              const winner = matchState.scoreBlue > matchState.scoreRed ? 'blue' : (matchState.scoreRed > matchState.scoreBlue ? 'red' : 'draw');
+              endMatch(winner);break;
+            }
+            updatePlayer(dt);
+            droneSystem.update(dt);
+            updateBots(dt);
+            updateEntitiesAndFX(dt);
+            updateFoBomb(dt,clockDt);
+            updateFoRescue(dt);
+            hudSyncTimer+=dt;
+          }
+          if(matchState.ended||gamePaused)foTimeDebt=0;
           const displayedTime=matchState.mode==='bomb'&&foBomb.phase==='planted'?foBomb.seconds:matchState.timeRemaining;
-          const mins = Math.floor(displayedTime / 60);
-          const secs = Math.floor(displayedTime % 60);
+          const mins=Math.floor(displayedTime/60),secs=Math.floor(displayedTime%60);
           document.getElementById('match-timer').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-
-          if (matchState.timeRemaining <= 0 && !foSingleLife()) {
-            const winner = matchState.scoreBlue > matchState.scoreRed ? 'blue' : (matchState.scoreRed > matchState.scoreBlue ? 'red' : 'draw');
-            endMatch(winner);
-          }
-
-          updatePlayer(dt);
-          droneSystem.update(dt);
-          updateBots(dt);
-          updateEntitiesAndFX(dt);
-          updateFoBomb(dt);
-          updateFoRescue(dt);
-
-          hudSyncTimer += dt;
-          if (hudSyncTimer >= 0.12) {
-            hudSyncTimer = 0;
-            updateHUD();
-            renderRadar();
-          }
+      // FO_G320_BEGIN frame
+          // Sync after simulation's objective text and timer updates, before drawing.
+          if(matchState.mode==='bomb')foG320SyncModePresentation(matchState,foBomb,FO_BOMB_RULES,MATCH_TARGET_SCORE,player,bots,foSpectator,document);
+      // FO_G320_END frame
+      // FO_G324_BEGIN frame
+          if(matchState.mode==='rescue'||(matchState.mode==='bomb'&&matchState.ended))foG324SyncModePresentation(matchState,foRescue,FO_RESCUE_RULES,player,foSpectator,document,foBomb);
+      // FO_G324_END frame
+          if(hudSyncTimer>=.12){hudSyncTimer%=.12;updateHUD();renderRadar();}
         }
 
         // V287: isolate presentation transforms from simulation and all aim queries.
         try{
+          // FO_V339_BEGIN pre-render
+          if(!active||matchState.ended||gamePaused||!player.alive)clearV271PlayerFlash();
+          // FO_V339_END pre-render
           if(matchState.started&&!matchState.ended&&!gamePaused&&!droneSystem.isPlayerControlling())
-            beginV287RenderPose(vmRefs,player,dt,!!v271PlayerFlash?.visible);
+            beginV287RenderPose(vmRefs,player,renderDt,!!v271PlayerFlash?.visible);
           else if(vmRefs.v287Pose)vmRefs.v287Pose.sprint=0;
+          if(matchState.started)beginFoC295Render(bots,camera);
+      // FO_F316_BEGIN render
+          if(matchState.started)foF316BeginEquipmentRender(player,vmRefs,activeMedkits,droneSystem);
+      // FO_F316_END render
+          // FO_V343_BEGIN blast-render
+          if(!document.hidden)foV343RenderBlasts(gamePaused?0:renderDt);
+          // FO_V343_END blast-render
           renderer.render(scene, camera);
+        // FO_V339_BEGIN render-ack
+          foV339AcknowledgePlayerFlash();
+        // FO_V339_END render-ack
         }finally{
+      // FO_F316_BEGIN restore
+          foF316RestoreEquipmentRender();
+      // FO_F316_END restore
+          restoreFoC295Render();
           restoreV287RenderPose(vmRefs);
         }
       }

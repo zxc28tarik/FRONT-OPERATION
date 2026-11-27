@@ -1,0 +1,929 @@
+{
+  "reference": "V344",
+  "blob": "969432fb88c61b824ee6836df40006a64cdd3065",
+  "completed": 15,
+  "expected": 15,
+  "modes": {
+    "deathmatch": {
+      "matches": 5,
+      "aliveSec": 27817.55,
+      "movingFraction": 0.3625,
+      "quietNonMissionIdleFraction": 0.0843,
+      "visibleSec": 15547.4,
+      "shots": 44250,
+      "hits": 3069,
+      "accuracy": 0.0694,
+      "directShots": 44250,
+      "directShotsPerVisibleSec": 2.8461,
+      "transitionsPer100AliveSec": 29.9164,
+      "stuckPer100AliveSec": 0.1186,
+      "coverSecondsPer100AliveSec": 6.1796,
+      "contactCount": 2537,
+      "contactFiredFraction": 0.7008,
+      "laneContactFiredFraction": 0.8471,
+      "medianFirstShotSec": 0.6,
+      "medianLaneToShotSec": 0.6,
+      "gateFractions": {
+        "reaction": 0.0335,
+        "aim": 0.0336,
+        "ready": 0.1423,
+        "cooldown": 0.5856,
+        "ammo": 0.1845,
+        "lane": 0.0205,
+        "stance": 0
+      },
+      "checkpoint60": {
+        "matches": 5,
+        "aliveSec": 3131,
+        "movingFraction": 0.4313,
+        "quietNonMissionIdleFraction": 0.0827,
+        "visibleSec": 1545.05,
+        "shots": 4759,
+        "hits": 340,
+        "accuracy": 0.0714,
+        "directShots": 4759,
+        "directShotsPerVisibleSec": 3.0802,
+        "transitionsPer100AliveSec": 31.2999,
+        "stuckPer100AliveSec": 0.0319,
+        "coverSecondsPer100AliveSec": 5.1102,
+        "contactCount": 237,
+        "contactFiredFraction": 0.7468,
+        "laneContactFiredFraction": 0.8985,
+        "medianFirstShotSec": 0.65,
+        "medianLaneToShotSec": 0.65,
+        "gateFractions": {
+          "reaction": 0.0386,
+          "aim": 0.0383,
+          "ready": 0.154,
+          "cooldown": 0.6034,
+          "ammo": 0.1367,
+          "lane": 0.029,
+          "stance": 0
+        }
+      },
+      "outcomes": [
+        {
+          "seed": 471001,
+          "elapsed": 600,
+          "winner": "blue",
+          "score": [
+            45,
+            42
+          ],
+          "plantedAt": null,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": null
+        },
+        {
+          "seed": 471002,
+          "elapsed": 470.2,
+          "winner": "red",
+          "score": [
+            43,
+            50
+          ],
+          "plantedAt": null,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": null
+        },
+        {
+          "seed": 471003,
+          "elapsed": 527.75,
+          "winner": "blue",
+          "score": [
+            50,
+            41
+          ],
+          "plantedAt": null,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": null
+        },
+        {
+          "seed": 831017,
+          "elapsed": 502,
+          "winner": "red",
+          "score": [
+            49,
+            50
+          ],
+          "plantedAt": null,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": null
+        },
+        {
+          "seed": 831031,
+          "elapsed": 600,
+          "winner": "blue",
+          "score": [
+            49,
+            42
+          ],
+          "plantedAt": null,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": null
+        }
+      ],
+      "byClass": {
+        "assault": {
+          "matches": 5,
+          "aliveSec": 7508.25,
+          "movingFraction": 0.3648,
+          "quietNonMissionIdleFraction": 0.0596,
+          "visibleSec": 4437.2,
+          "shots": 12453,
+          "hits": 970,
+          "accuracy": 0.0779,
+          "directShots": 12453,
+          "directShotsPerVisibleSec": 2.8065,
+          "transitionsPer100AliveSec": 27.1168,
+          "stuckPer100AliveSec": 0.1332,
+          "coverSecondsPer100AliveSec": 8.8036,
+          "contactCount": 789,
+          "contactFiredFraction": 0.6743,
+          "laneContactFiredFraction": 0.8808,
+          "medianFirstShotSec": 0.6,
+          "medianLaneToShotSec": 0.6,
+          "gateFractions": {
+            "reaction": 0.0351,
+            "aim": 0.0348,
+            "ready": 0.1403,
+            "cooldown": 0.5602,
+            "ammo": 0.2056,
+            "lane": 0.0239,
+            "stance": 0
+          }
+        },
+        "medic": {
+          "matches": 5,
+          "aliveSec": 5150.5,
+          "movingFraction": 0.3632,
+          "quietNonMissionIdleFraction": 0.2025,
+          "visibleSec": 2272.5,
+          "shots": 7857,
+          "hits": 528,
+          "accuracy": 0.0672,
+          "directShots": 7857,
+          "directShotsPerVisibleSec": 3.4574,
+          "transitionsPer100AliveSec": 33.356,
+          "stuckPer100AliveSec": 0.233,
+          "coverSecondsPer100AliveSec": 5.3587,
+          "contactCount": 400,
+          "contactFiredFraction": 0.6125,
+          "laneContactFiredFraction": 0.7585,
+          "medianFirstShotSec": 0.6,
+          "medianLaneToShotSec": 0.6,
+          "gateFractions": {
+            "lane": 0.0223,
+            "reaction": 0.0336,
+            "aim": 0.0332,
+            "ready": 0.1729,
+            "cooldown": 0.577,
+            "ammo": 0.1609,
+            "stance": 0
+          }
+        },
+        "engineer": {
+          "matches": 5,
+          "aliveSec": 5006.15,
+          "movingFraction": 0.354,
+          "quietNonMissionIdleFraction": 0.0829,
+          "visibleSec": 2687.85,
+          "shots": 9763,
+          "hits": 658,
+          "accuracy": 0.0674,
+          "directShots": 9763,
+          "directShotsPerVisibleSec": 3.6323,
+          "transitionsPer100AliveSec": 18.9966,
+          "stuckPer100AliveSec": 0.0599,
+          "coverSecondsPer100AliveSec": 4.854,
+          "contactCount": 394,
+          "contactFiredFraction": 0.7614,
+          "laneContactFiredFraction": 0.8721,
+          "medianFirstShotSec": 0.6,
+          "medianLaneToShotSec": 0.6,
+          "gateFractions": {
+            "reaction": 0.0327,
+            "aim": 0.0333,
+            "ready": 0.1816,
+            "cooldown": 0.5968,
+            "ammo": 0.1438,
+            "lane": 0.0117
+          }
+        },
+        "sniper": {
+          "matches": 5,
+          "aliveSec": 5057.65,
+          "movingFraction": 0.3369,
+          "quietNonMissionIdleFraction": 0.0443,
+          "visibleSec": 3200.05,
+          "shots": 2168,
+          "hits": 213,
+          "accuracy": 0.0982,
+          "directShots": 2168,
+          "directShotsPerVisibleSec": 0.6775,
+          "transitionsPer100AliveSec": 21.0572,
+          "stuckPer100AliveSec": 0.0989,
+          "coverSecondsPer100AliveSec": 5.0814,
+          "contactCount": 498,
+          "contactFiredFraction": 0.747,
+          "laneContactFiredFraction": 0.8532,
+          "medianFirstShotSec": 0.6,
+          "medianLaneToShotSec": 0.55,
+          "gateFractions": {
+            "reaction": 0.027,
+            "aim": 0.0332,
+            "ready": 0.0339,
+            "cooldown": 0.6338,
+            "ammo": 0.2481,
+            "lane": 0.0241
+          }
+        },
+        "heavy": {
+          "matches": 5,
+          "aliveSec": 5095,
+          "movingFraction": 0.392,
+          "quietNonMissionIdleFraction": 0.0424,
+          "visibleSec": 2949.8,
+          "shots": 12009,
+          "hits": 700,
+          "accuracy": 0.0583,
+          "directShots": 12009,
+          "directShotsPerVisibleSec": 4.0711,
+          "transitionsPer100AliveSec": 50.0883,
+          "stuckPer100AliveSec": 0.0589,
+          "coverSecondsPer100AliveSec": 5.5348,
+          "contactCount": 456,
+          "contactFiredFraction": 0.7215,
+          "laneContactFiredFraction": 0.8393,
+          "medianFirstShotSec": 0.7,
+          "medianLaneToShotSec": 0.65,
+          "gateFractions": {
+            "reaction": 0.0389,
+            "aim": 0.0327,
+            "ready": 0.2036,
+            "cooldown": 0.5678,
+            "lane": 0.0182,
+            "ammo": 0.139,
+            "stance": 0
+          }
+        }
+      }
+    },
+    "bomb": {
+      "matches": 5,
+      "aliveSec": 2869.65,
+      "movingFraction": 0.4838,
+      "quietNonMissionIdleFraction": 0.0393,
+      "visibleSec": 324.3,
+      "shots": 918,
+      "hits": 200,
+      "accuracy": 0.2179,
+      "directShots": 918,
+      "directShotsPerVisibleSec": 2.8307,
+      "transitionsPer100AliveSec": 9.6527,
+      "stuckPer100AliveSec": 6.0286,
+      "coverSecondsPer100AliveSec": 0.8363,
+      "contactCount": 141,
+      "contactFiredFraction": 0.7943,
+      "laneContactFiredFraction": 0.7943,
+      "medianFirstShotSec": 0.6,
+      "medianLaneToShotSec": 0.6,
+      "gateFractions": {
+        "reaction": 0.1055,
+        "aim": 0.1031,
+        "ready": 0.1415,
+        "cooldown": 0.5677,
+        "lane": 0.0416,
+        "ammo": 0.0405
+      },
+      "checkpoint60": {
+        "matches": 5,
+        "aliveSec": 2356.4,
+        "movingFraction": 0.556,
+        "quietNonMissionIdleFraction": 0.013,
+        "visibleSec": 324.3,
+        "shots": 918,
+        "hits": 200,
+        "accuracy": 0.2179,
+        "directShots": 918,
+        "directShotsPerVisibleSec": 2.8307,
+        "transitionsPer100AliveSec": 11.7552,
+        "stuckPer100AliveSec": 5.2623,
+        "coverSecondsPer100AliveSec": 1.0185,
+        "contactCount": 141,
+        "contactFiredFraction": 0.7943,
+        "laneContactFiredFraction": 0.7943,
+        "medianFirstShotSec": 0.6,
+        "medianLaneToShotSec": 0.6,
+        "gateFractions": {
+          "reaction": 0.1055,
+          "aim": 0.1031,
+          "ready": 0.1415,
+          "cooldown": 0.5677,
+          "lane": 0.0416,
+          "ammo": 0.0405
+        }
+      },
+      "outcomes": [
+        {
+          "seed": 471001,
+          "elapsed": 70.4,
+          "winner": "red",
+          "score": [
+            5,
+            3
+          ],
+          "plantedAt": 47.65,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": {
+            "phase": "ended",
+            "actor": "red_5",
+            "progress": 4.049999999999994,
+            "site": "B",
+            "reason": "Bomba etkisizleştirildi"
+          }
+        },
+        {
+          "seed": 471002,
+          "elapsed": 150.05,
+          "winner": "red",
+          "score": [
+            3,
+            3
+          ],
+          "plantedAt": null,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": {
+            "phase": "ended",
+            "actor": null,
+            "progress": 0,
+            "site": null,
+            "reason": "Süre doldu"
+          }
+        },
+        {
+          "seed": 471003,
+          "elapsed": 53.35,
+          "winner": "red",
+          "score": [
+            3,
+            4
+          ],
+          "plantedAt": 41.5,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": {
+            "phase": "ended",
+            "actor": "red_5",
+            "progress": 4.049999999999994,
+            "site": "B",
+            "reason": "Bomba etkisizleştirildi"
+          }
+        },
+        {
+          "seed": 831017,
+          "elapsed": 69.9,
+          "winner": "red",
+          "score": [
+            5,
+            3
+          ],
+          "plantedAt": 58.75,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": {
+            "phase": "ended",
+            "actor": "red_5",
+            "progress": 4.049999999999994,
+            "site": "B",
+            "reason": "Bomba etkisizleştirildi"
+          }
+        },
+        {
+          "seed": 831031,
+          "elapsed": 60.7,
+          "winner": "red",
+          "score": [
+            4,
+            4
+          ],
+          "plantedAt": 43.35,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": {
+            "phase": "ended",
+            "actor": "red_5",
+            "progress": 4.049999999999994,
+            "site": "B",
+            "reason": "Bomba etkisizleştirildi"
+          }
+        }
+      ],
+      "byClass": {
+        "assault": {
+          "matches": 5,
+          "aliveSec": 1166.05,
+          "movingFraction": 0.3896,
+          "quietNonMissionIdleFraction": 0.0101,
+          "visibleSec": 45.8,
+          "shots": 135,
+          "hits": 37,
+          "accuracy": 0.2741,
+          "directShots": 135,
+          "directShotsPerVisibleSec": 2.9476,
+          "transitionsPer100AliveSec": 5.7459,
+          "stuckPer100AliveSec": 13.0355,
+          "coverSecondsPer100AliveSec": 0.5146,
+          "contactCount": 27,
+          "contactFiredFraction": 0.5185,
+          "laneContactFiredFraction": 0.5185,
+          "medianFirstShotSec": 0.65,
+          "medianLaneToShotSec": 0.65,
+          "gateFractions": {
+            "reaction": 0.1408,
+            "aim": 0.0895,
+            "ready": 0.1474,
+            "cooldown": 0.5579,
+            "lane": 0.0644
+          }
+        },
+        "medic": {
+          "matches": 5,
+          "aliveSec": 331.45,
+          "movingFraction": 0.7033,
+          "quietNonMissionIdleFraction": 0.018,
+          "visibleSec": 55.35,
+          "shots": 217,
+          "hits": 53,
+          "accuracy": 0.2442,
+          "directShots": 217,
+          "directShotsPerVisibleSec": 3.9205,
+          "transitionsPer100AliveSec": 12.9733,
+          "stuckPer100AliveSec": 4.2239,
+          "coverSecondsPer100AliveSec": 0.3017,
+          "contactCount": 21,
+          "contactFiredFraction": 0.7143,
+          "laneContactFiredFraction": 0.7143,
+          "medianFirstShotSec": 0.55,
+          "medianLaneToShotSec": 0.55,
+          "gateFractions": {
+            "reaction": 0.0831,
+            "aim": 0.084,
+            "ready": 0.196,
+            "cooldown": 0.6206,
+            "lane": 0.0163
+          }
+        },
+        "engineer": {
+          "matches": 5,
+          "aliveSec": 307.1,
+          "movingFraction": 0.4912,
+          "quietNonMissionIdleFraction": 0.0023,
+          "visibleSec": 56.9,
+          "shots": 213,
+          "hits": 35,
+          "accuracy": 0.1643,
+          "directShots": 213,
+          "directShotsPerVisibleSec": 3.7434,
+          "transitionsPer100AliveSec": 4.2331,
+          "stuckPer100AliveSec": 0,
+          "coverSecondsPer100AliveSec": 0,
+          "contactCount": 20,
+          "contactFiredFraction": 1,
+          "laneContactFiredFraction": 1,
+          "medianFirstShotSec": 0.6,
+          "medianLaneToShotSec": 0.6,
+          "gateFractions": {
+            "reaction": 0.0808,
+            "aim": 0.1063,
+            "ready": 0.1872,
+            "cooldown": 0.5949,
+            "ammo": 0.0308
+          }
+        },
+        "sniper": {
+          "matches": 5,
+          "aliveSec": 488.9,
+          "movingFraction": 0.5029,
+          "quietNonMissionIdleFraction": 0.1836,
+          "visibleSec": 86.7,
+          "shots": 53,
+          "hits": 14,
+          "accuracy": 0.2642,
+          "directShots": 53,
+          "directShotsPerVisibleSec": 0.6113,
+          "transitionsPer100AliveSec": 17.5905,
+          "stuckPer100AliveSec": 0.2045,
+          "coverSecondsPer100AliveSec": 2.659,
+          "contactCount": 38,
+          "contactFiredFraction": 0.8158,
+          "laneContactFiredFraction": 0.8158,
+          "medianFirstShotSec": 0.55,
+          "medianLaneToShotSec": 0.5,
+          "gateFractions": {
+            "reaction": 0.0825,
+            "aim": 0.1061,
+            "ready": 0.0306,
+            "cooldown": 0.594,
+            "lane": 0.0554,
+            "ammo": 0.1315
+          }
+        },
+        "heavy": {
+          "matches": 5,
+          "aliveSec": 576.15,
+          "movingFraction": 0.5279,
+          "quietNonMissionIdleFraction": 0.008,
+          "visibleSec": 79.55,
+          "shots": 300,
+          "hits": 61,
+          "accuracy": 0.2033,
+          "directShots": 300,
+          "directShotsPerVisibleSec": 3.7712,
+          "transitionsPer100AliveSec": 11.8025,
+          "stuckPer100AliveSec": 1.0414,
+          "coverSecondsPer100AliveSec": 0.6943,
+          "contactCount": 35,
+          "contactFiredFraction": 0.9143,
+          "laneContactFiredFraction": 0.9143,
+          "medianFirstShotSec": 0.7,
+          "medianLaneToShotSec": 0.7,
+          "gateFractions": {
+            "reaction": 0.1433,
+            "aim": 0.1188,
+            "ready": 0.1886,
+            "cooldown": 0.4884,
+            "lane": 0.061
+          }
+        }
+      }
+    },
+    "rescue": {
+      "matches": 5,
+      "aliveSec": 3119.6,
+      "movingFraction": 0.4706,
+      "quietNonMissionIdleFraction": 0.016,
+      "visibleSec": 690.35,
+      "shots": 1735,
+      "hits": 232,
+      "accuracy": 0.1337,
+      "directShots": 1735,
+      "directShotsPerVisibleSec": 2.5132,
+      "transitionsPer100AliveSec": 8.0138,
+      "stuckPer100AliveSec": 0.577,
+      "coverSecondsPer100AliveSec": 2.9812,
+      "contactCount": 140,
+      "contactFiredFraction": 0.8643,
+      "laneContactFiredFraction": 0.9167,
+      "medianFirstShotSec": 0.65,
+      "medianLaneToShotSec": 0.55,
+      "gateFractions": {
+        "reaction": 0.0465,
+        "aim": 0.0467,
+        "ready": 0.1257,
+        "cooldown": 0.6154,
+        "ammo": 0.123,
+        "lane": 0.0427
+      },
+      "checkpoint60": {
+        "matches": 5,
+        "aliveSec": 2378.45,
+        "movingFraction": 0.5376,
+        "quietNonMissionIdleFraction": 0.0209,
+        "visibleSec": 615.4,
+        "shots": 1558,
+        "hits": 221,
+        "accuracy": 0.1418,
+        "directShots": 1558,
+        "directShotsPerVisibleSec": 2.5317,
+        "transitionsPer100AliveSec": 10.3008,
+        "stuckPer100AliveSec": 0.4204,
+        "coverSecondsPer100AliveSec": 3.5738,
+        "contactCount": 134,
+        "contactFiredFraction": 0.8582,
+        "laneContactFiredFraction": 0.9127,
+        "medianFirstShotSec": 0.65,
+        "medianLaneToShotSec": 0.55,
+        "gateFractions": {
+          "reaction": 0.0515,
+          "aim": 0.0519,
+          "ready": 0.1266,
+          "cooldown": 0.6209,
+          "ammo": 0.1151,
+          "lane": 0.034
+        }
+      },
+      "outcomes": [
+        {
+          "seed": 471001,
+          "elapsed": 180,
+          "winner": "red",
+          "score": [
+            4,
+            5
+          ],
+          "plantedAt": null,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": {
+            "room": "B",
+            "reason": "Kurtarma süresi doldu",
+            "captives": [
+              {
+                "id": "1",
+                "discovered": false,
+                "carrier": null,
+                "saved": false,
+                "progress": 0
+              },
+              {
+                "id": "2",
+                "discovered": false,
+                "carrier": null,
+                "saved": false,
+                "progress": 0
+              }
+            ]
+          }
+        },
+        {
+          "seed": 471002,
+          "elapsed": 91.75,
+          "winner": "blue",
+          "score": [
+            5,
+            3
+          ],
+          "plantedAt": null,
+          "firstPickupAt": 56.35,
+          "firstSavedAt": 83.7,
+          "objective": {
+            "room": "B",
+            "reason": "İki esir kurtarıldı",
+            "captives": [
+              {
+                "id": "1",
+                "discovered": true,
+                "carrier": null,
+                "saved": true,
+                "progress": 0
+              },
+              {
+                "id": "2",
+                "discovered": true,
+                "carrier": null,
+                "saved": true,
+                "progress": 0
+              }
+            ]
+          }
+        },
+        {
+          "seed": 471003,
+          "elapsed": 80.4,
+          "winner": "blue",
+          "score": [
+            4,
+            3
+          ],
+          "plantedAt": null,
+          "firstPickupAt": 49.3,
+          "firstSavedAt": 76.15,
+          "objective": {
+            "room": "B",
+            "reason": "İki esir kurtarıldı",
+            "captives": [
+              {
+                "id": "1",
+                "discovered": true,
+                "carrier": null,
+                "saved": true,
+                "progress": 0
+              },
+              {
+                "id": "2",
+                "discovered": true,
+                "carrier": null,
+                "saved": true,
+                "progress": 0
+              }
+            ]
+          }
+        },
+        {
+          "seed": 831017,
+          "elapsed": 74.2,
+          "winner": "blue",
+          "score": [
+            5,
+            3
+          ],
+          "plantedAt": null,
+          "firstPickupAt": 40.9,
+          "firstSavedAt": 67.35,
+          "objective": {
+            "room": "A",
+            "reason": "İki esir kurtarıldı",
+            "captives": [
+              {
+                "id": "1",
+                "discovered": true,
+                "carrier": null,
+                "saved": true,
+                "progress": 0
+              },
+              {
+                "id": "2",
+                "discovered": true,
+                "carrier": null,
+                "saved": true,
+                "progress": 0
+              }
+            ]
+          }
+        },
+        {
+          "seed": 831031,
+          "elapsed": 180,
+          "winner": "red",
+          "score": [
+            4,
+            5
+          ],
+          "plantedAt": null,
+          "firstPickupAt": null,
+          "firstSavedAt": null,
+          "objective": {
+            "room": "A",
+            "reason": "Kurtarma süresi doldu",
+            "captives": [
+              {
+                "id": "1",
+                "discovered": false,
+                "carrier": null,
+                "saved": false,
+                "progress": 0
+              },
+              {
+                "id": "2",
+                "discovered": false,
+                "carrier": null,
+                "saved": false,
+                "progress": 0
+              }
+            ]
+          }
+        }
+      ],
+      "byClass": {
+        "assault": {
+          "matches": 5,
+          "aliveSec": 727.7,
+          "movingFraction": 0.482,
+          "quietNonMissionIdleFraction": 0.0024,
+          "visibleSec": 193.3,
+          "shots": 572,
+          "hits": 102,
+          "accuracy": 0.1783,
+          "directShots": 572,
+          "directShotsPerVisibleSec": 2.9591,
+          "transitionsPer100AliveSec": 7.1458,
+          "stuckPer100AliveSec": 0.1374,
+          "coverSecondsPer100AliveSec": 1.7865,
+          "contactCount": 36,
+          "contactFiredFraction": 0.8889,
+          "laneContactFiredFraction": 0.8889,
+          "medianFirstShotSec": 0.65,
+          "medianLaneToShotSec": 0.65,
+          "gateFractions": {
+            "reaction": 0.0569,
+            "aim": 0.0481,
+            "ready": 0.148,
+            "cooldown": 0.5807,
+            "ammo": 0.0962,
+            "lane": 0.0701
+          }
+        },
+        "medic": {
+          "matches": 5,
+          "aliveSec": 709.9,
+          "movingFraction": 0.3243,
+          "quietNonMissionIdleFraction": 0.0004,
+          "visibleSec": 42,
+          "shots": 178,
+          "hits": 37,
+          "accuracy": 0.2079,
+          "directShots": 178,
+          "directShotsPerVisibleSec": 4.2381,
+          "transitionsPer100AliveSec": 2.2538,
+          "stuckPer100AliveSec": 0.7043,
+          "coverSecondsPer100AliveSec": 0,
+          "contactCount": 11,
+          "contactFiredFraction": 0.9091,
+          "laneContactFiredFraction": 0.9091,
+          "medianFirstShotSec": 0.55,
+          "medianLaneToShotSec": 0.55,
+          "gateFractions": {
+            "reaction": 0.0595,
+            "aim": 0.0714,
+            "ready": 0.2119,
+            "cooldown": 0.631,
+            "ammo": 0.0262
+          }
+        },
+        "engineer": {
+          "matches": 5,
+          "aliveSec": 518.3,
+          "movingFraction": 0.5627,
+          "quietNonMissionIdleFraction": 0.0363,
+          "visibleSec": 127.15,
+          "shots": 478,
+          "hits": 43,
+          "accuracy": 0.09,
+          "directShots": 478,
+          "directShotsPerVisibleSec": 3.7593,
+          "transitionsPer100AliveSec": 10.9975,
+          "stuckPer100AliveSec": 0.5788,
+          "coverSecondsPer100AliveSec": 6.7528,
+          "contactCount": 27,
+          "contactFiredFraction": 0.6296,
+          "laneContactFiredFraction": 0.7727,
+          "medianFirstShotSec": 0.65,
+          "medianLaneToShotSec": 0.45,
+          "gateFractions": {
+            "lane": 0.0586,
+            "ready": 0.188,
+            "cooldown": 0.584,
+            "reaction": 0.0275,
+            "aim": 0.0275,
+            "ammo": 0.1144
+          }
+        },
+        "sniper": {
+          "matches": 5,
+          "aliveSec": 615.2,
+          "movingFraction": 0.3297,
+          "quietNonMissionIdleFraction": 0.0349,
+          "visibleSec": 238.25,
+          "shots": 130,
+          "hits": 11,
+          "accuracy": 0.0846,
+          "directShots": 130,
+          "directShotsPerVisibleSec": 0.5456,
+          "transitionsPer100AliveSec": 12.1912,
+          "stuckPer100AliveSec": 0.4876,
+          "coverSecondsPer100AliveSec": 6.1769,
+          "contactCount": 41,
+          "contactFiredFraction": 0.9756,
+          "laneContactFiredFraction": 1,
+          "medianFirstShotSec": 0.55,
+          "medianLaneToShotSec": 0.5,
+          "gateFractions": {
+            "reaction": 0.0279,
+            "aim": 0.0407,
+            "ready": 0.0273,
+            "cooldown": 0.673,
+            "ammo": 0.199,
+            "lane": 0.0321
+          }
+        },
+        "heavy": {
+          "matches": 5,
+          "aliveSec": 548.5,
+          "movingFraction": 0.7159,
+          "quietNonMissionIdleFraction": 0.0139,
+          "visibleSec": 89.65,
+          "shots": 377,
+          "hits": 39,
+          "accuracy": 0.1034,
+          "directShots": 377,
+          "directShotsPerVisibleSec": 4.2052,
+          "transitionsPer100AliveSec": 9.1158,
+          "stuckPer100AliveSec": 1.0939,
+          "coverSecondsPer100AliveSec": 1.2762,
+          "contactCount": 25,
+          "contactFiredFraction": 0.88,
+          "laneContactFiredFraction": 0.9565,
+          "medianFirstShotSec": 0.7,
+          "medianLaneToShotSec": 0.7,
+          "gateFractions": {
+            "lane": 0.0095,
+            "reaction": 0.0943,
+            "aim": 0.0753,
+            "ready": 0.2103,
+            "cooldown": 0.5745,
+            "ammo": 0.0363
+          }
+        }
+      }
+    }
+  },
+  "failures": []
+}

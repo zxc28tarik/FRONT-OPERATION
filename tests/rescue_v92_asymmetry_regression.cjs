@@ -4,7 +4,7 @@ const fs=require('node:fs'),html=fs.readFileSync(require('node:path').join(__dir
 const a=html.indexOf('      const FO_RESCUE_POINTS='),b=html.indexOf('      function selectFoMap(mode)',a);
 const solids=[];const mesh=()=>({position:{set(){}},visible:true});
 const three=new Proxy({}, {get:()=>function(){return {}}});
-const sniper=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph',html.slice(a,b)+'\nbuildFoPrisonMap();return FO_RESCUE_SNIPER;')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return mesh()},()=>mesh(),null,()=>{});
+const sniper=new Function('THREE','makeProceduralTextureSet','addSolidBox','addDecoMesh','dustParticles','installFoGraph','const foE311ShareBumps=()=>{},foE311PrisonFinish=()=>{},foE311PrisonInterior=()=>{};\n'+html.slice(a,b)+'\nbuildFoPrisonMap();return FO_RESCUE_SNIPER;')(three,()=>({}),(x,y,z,w,h,d)=>{solids.push({x,y,z,w,h,d});return mesh()},()=>mesh(),null,()=>{});
 const walk=(x,z)=>!solids.some(c=>1.6>c.y-c.h/2+.05&&0<c.y+c.h/2-.25&&x+.48>c.x-c.w/2&&x-.48<c.x+c.w/2&&z+.48>c.z-c.d/2&&z-.48<c.z+c.d/2);
 const clear=(x,z,X,Z)=>!solids.some(c=>{
  if(c.y-c.h/2>=1.48||c.y+c.h/2<=1.48)return false;
