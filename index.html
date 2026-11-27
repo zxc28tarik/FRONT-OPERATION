@@ -17475,9 +17475,16 @@ return {createExperimentalRig,createAdaptiveRigController};
       }
 
       // V68: shared finite ammunition state for every bot firearm path.
+      // Standalone V68 tests still run the original ammo functions in isolation.
+      function foBotOwnedSlots(bot){
+        return typeof foFactionSlots==='function'?foFactionSlots(bot.team,bot.classId):CLASSES[bot.classId]?.slots;
+      }
+      function foBotOwnedWeapon(bot,id){
+        return typeof foFactionWeapon==='function'?foBotOwnedWeapon(bot,id):id;
+      }
       function botAmmoSlot(bot,id){
         // Only the current class's two firearm slots may create inventory.
-        const slots=foFactionSlots(bot.team,bot.classId);
+        const slots=foBotOwnedSlots(bot);
         if(!slots||!id||(id!==slots[1]&&id!==slots[2]))return null;
         const w=WEAPONS[id];
         if(!w||!(w.magSize>0)||!(w.reloadTime>0))return null;
@@ -17485,15 +17492,15 @@ return {createExperimentalRig,createAdaptiveRigController};
         return bot.ammoState[id]||(bot.ammoState[id]={mag:w.magSize,reserve:w.reserveMax});
       }
       function botPreferredInfantryWeapon(bot,distance){
-        return foFactionWeapon(bot.team,bot.classId==='assault'?'hk416':
+        return foBotOwnedWeapon(bot,bot.classId==='assault'?'hk416':
           (bot.classId==='medic'||bot.classId==='engineer')?'mp7':
           bot.classId==='sniper'?(distance<11?'glock18c':'mrad'):'minimi');
       }
       function botAmmoWeapon(bot,preferred){
-        preferred=foFactionWeapon(bot.team,preferred);
+        preferred=foBotOwnedWeapon(bot,preferred);
         const s=botAmmoSlot(bot,preferred);
         if(s&&(s.mag>0||s.reserve>0))return preferred;
-        const slots=foFactionSlots(bot.team,bot.classId);
+        const slots=foBotOwnedSlots(bot);
         for(const id of [slots?.[2],slots?.[1]]){
           const a=botAmmoSlot(bot,id);
           if(a&&(a.mag>0||a.reserve>0))return id;
@@ -17531,7 +17538,7 @@ return {createExperimentalRig,createAdaptiveRigController};
         }
         s.mag--;
         botAmmoAudit(bot,'ammoRounds');
-        if(id===foFactionSlots(bot.team,bot.classId)?.[2])botAmmoAudit(bot,'ammoSidearmRounds');
+        if(id===foBotOwnedSlots(bot)?.[2])botAmmoAudit(bot,'ammoSidearmRounds');
         if(bot.lastAmmoWeapon&&bot.lastAmmoWeapon!==id)botAmmoAudit(bot,'ammoWeaponSwitches');
         bot.lastAmmoWeapon=id;
         return true;
@@ -17555,7 +17562,7 @@ return {createExperimentalRig,createAdaptiveRigController};
           }
         }
         if(operator||context.contact||!context.quiet||!context.stationary)return;
-        const id=bot.lastAmmoWeapon||foFactionSlots(bot.team,bot.classId)?.[1];
+        const id=bot.lastAmmoWeapon||foBotOwnedSlots(bot)?.[1];
         const s=botAmmoSlot(bot,id);
         if(!s)return;
         const guard=context.role==='GUARD'||context.role==='HOLD';
