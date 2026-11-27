@@ -4688,6 +4688,55 @@
         const remap=new Map(),kept=[];nodes.forEach((n,i)=>{if(seen.has(i)){remap.set(i,kept.length);kept.push(n);}});
         return {nodes:kept,edges:edges.filter(([a,b])=>seen.has(a)&&seen.has(b)).map(([a,b])=>[remap.get(a),remap.get(b)])};
       }
+
+      // FO_CIV01_BEGIN - two lightweight civilian outfits, one worried face.
+      function foMakeRescueCivilianParts(p,variant){
+        const clothes=variant===0
+          ? {shirt:0x566a78,pants:0x363e49,shoe:0x34383b,hair:0x302922}
+          : {shirt:0xbab19e,pants:0x45443c,shoe:0x514438,hair:0x382f28};
+        const mat=c=>new THREE.MeshStandardMaterial({color:c,roughness:.95});
+        const shirt=mat(clothes.shirt),pants=mat(clothes.pants),shoes=mat(clothes.shoe);
+        const skin=mat(0xbe9580),hair=mat(clothes.hair),eye=mat(0x242021);
+        const eyeWhite=mat(0xe8e0d3),indicator=mat(0x82bba2);
+        const parts=[];
+        const attach=(geo,material,dx,y,dz,rz=0,isIndicator=false)=>{
+          const mesh=addDecoMesh(geo,material,p.x+dx,y,p.z+dz,0,0,rz);
+          parts.push({mesh,dx,y,dz,isIndicator});
+          return mesh;
+        };
+        const cube=(dx,y,dz,w,h,d,material,rz=0)=>
+          attach(new THREE.BoxGeometry(w,h,d),material,dx,y,dz,rz);
+        const sphere=(dx,y,dz,r,material)=>
+          attach(new THREE.SphereGeometry(r,10,8),material,dx,y,dz);
+        // Simple civilian clothes: T-shirt / everyday button-up shirt.
+        cube(0,1.14,0,.54,.67,.32,shirt);
+        cube(0,1.51,0,.13,.12,.13,skin);
+        for(const side of [-1,1]){
+          cube(side*.145,.48,0,.20,.76,.24,pants);
+          cube(side*.145,.082,.075,.22,.14,.36,shoes);
+          cube(side*.35,1.19,0,.18,.32,.28,shirt,side*.11);
+          cube(side*.38,.93,0,.14,.27,.16,skin,side*.08);
+          sphere(side*.38,.76,0,.085,skin);
+        }
+        if(variant===1){
+          const buttons=mat(0x77746a);
+          for(const y of [1.33,1.16,1.0])sphere(.012,y,.17,.016,buttons);
+        }
+        // Worried expression: wide eyes, raised inner brows, small open mouth.
+        sphere(0,1.69,0,.215,skin);
+        cube(0,1.886,-.015,.34,.074,.31,hair);
+        for(const side of [-1,1]){
+          sphere(side*.082,1.742,.192,.041,eyeWhite);
+          sphere(side*.082,1.74,.224,.022,eye);
+          cube(side*.085,1.813,.196,.12,.026,.028,hair,-side*.23);
+        }
+        const mouth=sphere(0,1.622,.218,.042,eye);
+        mouth.scale.set(.76,1.15,.4);
+        // Keep the old objective locator, without making it part of the outfit.
+        attach(new THREE.OctahedronGeometry(.18),indicator,0,2.16,0,0,true);
+        return parts;
+      }
+      // FO_CIV01_END
       function buildFoPrisonMap(){
         const solids=[],ramps=[];
         const concrete=makeProceduralTextureSet('concrete_weathered',3,2),steel=makeProceduralTextureSet('steel',2,2);
@@ -4867,14 +4916,8 @@
       // FO_E311_END prison-interior
         const exitMat=new THREE.MeshBasicMaterial({color:0x82bba2,transparent:true,opacity:.75,side:THREE.DoubleSide});
         addDecoMesh(new THREE.RingGeometry(5.8,6,48),exitMat,0,.035,50,-Math.PI/2);
-        const cloth=new THREE.MeshStandardMaterial({color:0xd0b37c,roughness:1});
-        const skin=new THREE.MeshStandardMaterial({color:0xb49b83,roughness:1});
-        for(const p of FO_RESCUE_POINTS){
-          p.parts=[
-            {mesh:deco(p.x,.64,p.z,.48,.85,.35,cloth),y:.64},
-            {mesh:addDecoMesh(new THREE.SphereGeometry(.19,10,8),skin,p.x,1.25,p.z),y:1.25},
-            {mesh:addDecoMesh(new THREE.OctahedronGeometry(.24),exitMat,p.x,1.8,p.z),y:1.8}
-          ];
+        for(const [index,p] of FO_RESCUE_POINTS.entries()){
+          p.parts=foMakeRescueCivilianParts(p,index);
         }
         dustParticles=null;
         const g=foPrisonGraph(solids,ramps);installFoGraph(g.nodes,g.edges);
@@ -9653,8 +9696,8 @@
         for(const p of foRescue.captives){
           const marker=FO_RESCUE_POINTS.find(q=>q.id===p.id);
           for(const part of marker.parts||[]){
-            part.mesh.visible=!p.saved&&(!p.carrier||part.y>1.5);
-            part.mesh.position.set(p.x,part.y,p.z);
+            part.mesh.visible=!p.saved&&(part.isIndicator||!p.carrier);
+            part.mesh.position.set(p.x+(part.dx||0),part.y,p.z+(part.dz||0));
           }
         }
       }
