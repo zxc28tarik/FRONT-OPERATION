@@ -8701,7 +8701,35 @@
       let FO_MILIS02_ASSETS=null;
       function foMilis02Assets(){
         if(FO_MILIS02_ASSETS)return FO_MILIS02_ASSETS;
-        const mat=color=>new THREE.MeshStandardMaterial({color,roughness:.94,metalness:0});
+        // FO_MILIS03: shared fine fabric weave replaces lost textile surfaces.
+        // Three tiny maps are created once, reused by all outfits/classes.
+        const makeWeave=(kind)=>{
+          const N=64,data=new Uint8Array(N*N*4);
+          for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+            const i=(y*N+x)*4;
+            const noise=((x*31+y*17+x*y*7)&15)-7;
+            const thread=(x%4===0?3:0)-(y%4===0?2:0);
+            const shade=kind==='bump'?125+thread*4+noise*2:
+              kind==='rough'?233+Math.abs(noise)+thread:237+thread+noise;
+            const value=Math.max(0,Math.min(255,Math.round(shade)));
+            data[i]=data[i+1]=data[i+2]=value;data[i+3]=255;
+          }
+          const tex=new THREE.DataTexture(data,N,N,THREE.RGBAFormat);
+          tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+          tex.repeat.set(3,3);
+          tex.minFilter=THREE.LinearMipmapLinearFilter;
+          tex.magFilter=THREE.LinearFilter;
+          tex.generateMipmaps=true;
+          tex.needsUpdate=true;
+          return tex;
+        };
+        const weave={map:makeWeave('cloth'),bump:makeWeave('bump'),rough:makeWeave('rough')};
+        const mat=color=>{
+          const m=new THREE.MeshStandardMaterial({color,roughness:.94,metalness:0,
+            map:weave.map,bumpMap:weave.bump,roughnessMap:weave.rough,bumpScale:.007});
+          m.name='FO_MILIS03_FABRIC';return m;
+        };
+        const plain=color=>new THREE.MeshStandardMaterial({color,roughness:.94,metalness:0});
         const box=new THREE.BoxGeometry(1,1,1),
           sphere=new THREE.SphereGeometry(1,10,8),
           beanie=new THREE.SphereGeometry(1,14,9,0,Math.PI*2,0,Math.PI*.56),
@@ -8793,7 +8821,7 @@
           piece(box,0,-.043,.112,.055,.010,.011)
         ]);
         FO_MILIS02_ASSETS={outfits,jacketBody,jacketTrim,jacketDetail,headwear,eyes,beard,
-          faceDark:mat(0x292521),stubble:mat(0x40352d)};
+          faceDark:plain(0x292521),stubble:plain(0x40352d)};
         return FO_MILIS02_ASSETS;
       }
       function foApplyMilis02Visual(model,classId,variant){
