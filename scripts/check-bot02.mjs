@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 const s=fs.readFileSync('index.html','utf8'),o=execFileSync('git',['show','5fd037e83cb0aa77a5ff997b610e1b17c04f0486:index.html'],{encoding:'utf8',maxBuffer:4*1024*1024});
 const tag=/^ *\/\/ FO_BOT02_BEGIN (\S+)\n[\s\S]*?^ *\/\/ FO_BOT02_END \1\n/gm;
-const originalContactDecision=`
-            const openingPriority=botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
-            const followThrough=botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);`;
+const originalContactDecision=`            const openingPriority=botOpeningFirePriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose,pressure);
+            const followThrough=botFollowThroughPriority(bot,bestEnemy,nowSec,initialFireLane,isWounded,isSniperTooClose);
+`;
 const restored=s.replace(tag,(_,name)=>name==='contact-shortcircuit'?originalContactDecision:'')
   .replace('let directCombat=botMustContinueContact(','const directCombat=botMustContinueContact(');
 assert.equal(restored,o);
