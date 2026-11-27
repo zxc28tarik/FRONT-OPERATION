@@ -23,8 +23,8 @@ Taban: `art/v292-crouch-transition`. **Main'e merge yapılmadı.**
 
 ## Başarılı sonuç (V3 kumaş + gövde gölgelendirmesi)
 
-WebGL çalışması: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46013899376  
-Sonuç: **PASS**, 15 karakter/varyasyon denetimi, 15 gerçek Chromium görüntüsü, gerçek Three.js/LOD kontrolü.
+WebGL çalışması: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46014184249  
+Sonuç: **PASS**, 15 karakter/varyasyon denetimi, **20** gerçek Chromium görüntüsü (5 sınıf × ön/çeyrek/arka/yüz yakın plan), gerçek Three.js/LOD kontrolü.
 
 | İzole sabit kamera | Görünen mesh | Çizim çağrısı | Üçgen |
 | --- | ---: | ---: | ---: |
@@ -33,10 +33,10 @@ Sonuç: **PASS**, 15 karakter/varyasyon denetimi, 15 gerçek Chromium görüntü
 | Asker, 15 model | 2.040 | 2.041 | 621.428 |
 | Milis, 15 model | 1.516 | 1.517 | 456.342 |
 
-Bu ölçümler *gerçek oyunun FPS'si değildir*. Takım donanımları da farklı olduğu için doğrudan eşit model karşılaştırması sayılmaz. Kare süreleri, düşük donanım ve gerçek maç FPS'i ayrıca ölçülmelidir. Oluşturulmuş görsellerin sanat yönetimi açısından yakın plan insan kontrolü henüz tamamlanmamıştır.
+V316 sınıf ve ekipman gerçek Chromium regresyonu ayrıca başarılı: https://github.com/zxc28tarik/FRONT-OPERATION/actions/runs/46014184100\n\nBu ölçümler *gerçek oyunun FPS'si değildir*. Takım donanımları da farklı olduğu için doğrudan eşit model karşılaştırması sayılmaz. Kare süreleri, düşük donanım ve gerçek maç FPS'i ayrıca ölçülmelidir. Oluşturulmuş görsellerin sanat yönetimi açısından yakın plan insan kontrolü henüz tamamlanmamıştır.
 
 ## Açık işler
 
-- 5 sınıfın ek yakın plan yüz görüntülerinin QA koşusuyla tamamlanması.
+- 5 sınıfın ek yakın plan yüz görüntüsü CI ile oluşturuldu; sanat yönetimi açısından öznel yakın plan kabulü kullanıcı incelemesini bekliyor.
 - PC ve mobil hedef cihazlarda gerçek maç kare süreleri ve kalite incelemesi.
 - GitHub PR #69 taslak durumda; test sonucu ve kullanıcı kabulü olmadan ana dala birleştirme yapılmaz.
