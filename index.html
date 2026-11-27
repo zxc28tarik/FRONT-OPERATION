@@ -9027,9 +9027,9 @@
             if(classId==='assault')receiver.scale.y*=1.05;
           }
         }
-        model.root.userData.foMilisWeapon=foFactionWeapon('red',
-          classId==='assault'?'hk416':classId==='sniper'?'mrad':
-          classId==='heavy'?'minimi':'mp7');
+        model.root.userData.foMilisWeapon={
+          assault:'akm',medic:'uzi',engineer:'uzi',sniper:'svd',heavy:'pkm'
+        }[classId]||'akm';
         return model;
       }
       // FO_MILIS02_END
