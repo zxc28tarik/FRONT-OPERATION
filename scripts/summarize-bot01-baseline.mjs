@@ -32,6 +32,39 @@ function metrics(matches){
  medianFirstShotSec:median(a.flatMap(x=>x.latency)),medianLaneToShotSec:median(a.flatMap(x=>x.laneLatency)),
  gateFractions:Object.fromEntries(Object.entries(gate).map(([k,v])=>[k,ratio(v,visible)]))};
 }
+
+function stuckDiagnostics(matches){
+ const totals={state:{},classId:{},route:{},trigger:{}},sampleRoute={},sampleClear={},sampleMovement={},sampleClass={},sampleLocal={},hotspots={};
+ let sampled=0;
+ const bump=(o,k,n=1)=>{o[k]=(o[k]||0)+n;};
+ for(const report of matches){
+   const data=report.stats||{},breakdown=data.stuckBreakdown||{};
+   for(const field of Object.keys(totals))
+     for(const [key,count] of Object.entries(breakdown[field]||{}))
+       bump(totals[field],key,count);
+   for(const context of data.stuckContexts||[]){
+     sampled++;
+     const k=context.classId||'unknown',motion=context.motion||{};
+     bump(sampleClass,k);
+     bump(sampleRoute,motion.route||'unknown');
+     bump(sampleClear,context.probeClear===true?'walkable':context.probeClear===false?'blocked':'unknown');
+     bump(sampleLocal,motion.local||'none');
+     const move=motion.actualMoved,p=motion.forwardProgress;
+     const mode=typeof move==='number'&&typeof p==='number'&&move>=.55&&p<.275?'moved_without_route_progress':typeof move==='number'&&move<.55?'no_displacement':'other';
+     bump(sampleMovement,mode);
+     const pos=context.position||{};
+     if(Number.isFinite(pos.x)&&Number.isFinite(pos.z))
+       bump(hotspots,String(Math.round(pos.x/5)*5)+','+String(Math.round(pos.z/5)*5));
+   }
+ }
+ const eventCount=Object.values(totals.classId).reduce((n,v)=>n+v,0);
+ const top=(obj,n=12)=>Object.fromEntries(Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n));
+ return {eventCount,breakdown:{state:top(totals.state),classId:top(totals.classId),route:top(totals.route),trigger:top(totals.trigger)},
+   sampledContexts:sampled,sampleRoute:top(sampleRoute),sampleClear:top(sampleClear),sampleMovement:top(sampleMovement),
+   sampleClass:top(sampleClass),sampleLocal:top(sampleLocal),sampleHotspots:top(hotspots,10),
+   note:'Contexts are bounded per match and are not representative of every recovery. Breakdown covers all recorded recoveries.'};
+}
+
 const reference=process.env.BOT01_REFERENCE||'V344';
 const configuredBlob=process.env.BOT01_EXPECTED_BLOB;
 const currentGame=configuredBlob==='current'?fs.readFileSync('index.html','utf8'):null;
@@ -40,6 +73,6 @@ const expectedBlob=currentGame!==null
   :(configuredBlob||'969432fb88c61b824ee6836df40006a64cdd3065');
 for(const r of rows)if(r.status==='PASS')assert.equal(r.blob,expectedBlob,'match source identity');
 const report={reference,blob:expectedBlob,completed:rows.filter(r=>r.status==='PASS').length,expected:15,modes:{},failures:rows.filter(r=>r.status!=='PASS').map(r=>({mode:r.mode,seed:r.seed,error:r.error}))};
-for(const mode of modes){const r=rows.filter(x=>x.mode===mode&&x.status==='PASS');report.modes[mode]={...metrics(r),checkpoint60:metrics(r.map(x=>x.checkpoint)),outcomes:r.map(x=>({seed:x.seed,elapsed:x.elapsed,winner:x.winner,score:[x.scoreBlue,x.scoreRed],plantedAt:x.plantedAt,firstPickupAt:x.firstPickupAt,firstSavedAt:x.firstSavedAt,objective:x.objective})),byClass:Object.fromEntries(['assault','medic','engineer','sniper','heavy'].map(c=>[c,metrics(r.map(x=>({...x,actors:x.actors.filter(a=>a.classId===c),stats:{actors:Object.fromEntries(Object.entries(x.stats.actors).filter(([id])=>x.actors.some(a=>a.id===id&&a.classId===c)))}})))]))};}
+for(const mode of modes){const r=rows.filter(x=>x.mode===mode&&x.status==='PASS');report.modes[mode]={...metrics(r),stuckDiagnostics:stuckDiagnostics(r),checkpoint60:metrics(r.map(x=>x.checkpoint)),outcomes:r.map(x=>({seed:x.seed,elapsed:x.elapsed,winner:x.winner,score:[x.scoreBlue,x.scoreRed],plantedAt:x.plantedAt,firstPickupAt:x.firstPickupAt,firstSavedAt:x.firstSavedAt,objective:x.objective})),byClass:Object.fromEntries(['assault','medic','engineer','sniper','heavy'].map(c=>[c,metrics(r.map(x=>({...x,actors:x.actors.filter(a=>a.classId===c),stats:{actors:Object.fromEntries(Object.entries(x.stats.actors).filter(([id])=>x.actors.some(a=>a.id===id&&a.classId===c)))}})))]))};}
 fs.mkdirSync('test-artifacts/bot01',{recursive:true});fs.writeFileSync('test-artifacts/bot01/summary.json',JSON.stringify(report,null,2));
 console.log('BOT01_SUMMARY '+JSON.stringify(report));if(report.completed!==15)process.exitCode=1;

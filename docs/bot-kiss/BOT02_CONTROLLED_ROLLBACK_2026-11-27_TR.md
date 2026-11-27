@@ -74,3 +74,10 @@ Not: Bu rapor geriye dönük zafer iddiası değil; ölçümler tamamlanana kada
 - V353 tek kural: fiziksel olarak kapalı manga formasyon slotuna doğrudan yönelmeyi önleyen V352 kontrolü **yalnız Heavy ve Assault** için çalışır; Medic'in formasyon navigasyonu tam V351 yoluna döner. Sniper ve Engineer zaten manga slotuna hiç girmez. Yeni hareket/kurtarma durumu, RNG, aim, silah, medkit, görev, menü, harita eklenmedi; mevcut tek karar sahibi V54 korunur.
 - Gerçek formasyon kodu 5 sınıf × 4 mesafe × 2 slot × 2 lider × 3 takılma × 2 fiziksel geçiş = 480 varyantla doğrulandı. Medic'te fiziksel engel kontrolünün çağrılmadığı ayrı assert ile korundu; Heavy/Assault kapalı slotta mevcut taktik rotaya döner. V344 tam kaynak restorasyonu, V351 guard restorasyonu, 154+24 BOT02 kontrolü ve 30 Medic senaryosu yerel PASS. Inline JS parse PASS.
 - Bu yalnızca V353 **aday**. V344 sabit 15 maç kıyaslama eşikleri değişmedi. Kalite PASS ve oynanış onayı gelmeden BOT02 kapatılmayacak, BOT03 açılmayacak.
+
+
+## V354 — V353 sonrası salt gözlem: gerçek takılma bağlamını ayırma (27 Kasım 2026)
+- V353 doğal 15/15 maç PASS; BOT02 kalite kapısı REVIEW_REQUIRED: TDM stuck V351 0.3029, V352 0.2230, V353 0.2458; V344 sınırı 0.1186. Medic quiet idle V351/V353 0.0384; V353 karar 21.6121. Heavy stuck V353 0.3241, Assault 0.2500, Medic 0.5123. 4/5 doğal bomba kurma ve 3/5 iki esir korunuyor. V353 henüz kabul edilmedi.
+- **V354 oyuna hiç dokunmayan QA adımıdır**: 15 maç sonucunun aynı `stats.stuckBreakdown` ve sınırlı `stats.stuckContexts` kayıtlarından hangi sınıf/plan/trigger etkilendiğini, 8 metre içindeki fiziksel geçişin kapalı olup olmadığını, gerçekte mesafe alınmasına rağmen rota ilerlemesi sağlanamayıp sağlanmadığını çıkarır. `stuckContexts` her maçta boyut sınırlıdır; örnek sayım bütün olayların oranı diye sunulmayacaktır.
+- Sadece `scripts/summarize-bot01-baseline.mjs` ve bu rapor değişir. QA karşılaştırma eşikleri, oyun HTML blob'u, test tohumları, nişan, görev, silah, navigasyon, kullanıcı arayüzü ve PR draft durumu aynen kalır.
+- Buradan çıkacak nedenler görülmeden yeni AI hareket kuralı eklenmez.
